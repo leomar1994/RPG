@@ -427,6 +427,7 @@
   .cb-c.jog { position: relative; z-index: 2; }
   .cb-c.jog img.tk, .cb-c.jog .tkn { box-shadow: 0 0 0 3px var(--latao), 0 0 12px #d9b45acc; }
   .cb-c.eu-pisca { animation: euPisca .55s ease-in-out 3; } @keyframes euPisca { 50% { box-shadow: 0 0 0 4px #fff, 0 0 22px var(--latao); } }
+  .cg-extra { border: 1px solid var(--latao); border-radius: 10px; padding: 6px 12px; margin: 6px 0; } .cg-extra summary { cursor: pointer; padding: 4px 0; }
   .ch-local { border: 1px dashed var(--latao); border-radius: 12px; padding: 10px 14px; margin: 14px 0; } .ch-local legend { color: var(--latao); font-weight: 700; padding: 0 6px; } .ch-local select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--borda); background: var(--painel); color: var(--texto); font: inherit; }
 </style>
 </head>
@@ -617,10 +618,9 @@
     <label class="ch-linha"><b>Cole a chave aqui</b><input id="cg-chave" type="password" autocomplete="off" placeholder="sk-or-v1-…"></label>
     <p id="cg-status" class="dica"></p>
     <div class="linha-botoes"><button type="button" id="cg-salvar">✅ Testar e salvar</button><button type="button" id="cg-fechar" class="secundario">Agora não</button></div>
-    <details><summary>Quer mais limite? Adicione também o Groq (grátis)</summary>
-      <ol class="cg-passos"><li><button type="button" id="cg-abrir-groq" class="secundario">Abrir console.groq.com/keys</button> e entre (Google funciona).</li><li><b>Create API Key</b>, copie e cole abaixo.</li></ol>
-      <label class="ch-linha"><input id="cg-chave-groq" type="password" autocomplete="off" placeholder="gsk_…"></label>
-      <p id="cg-status-groq" class="dica"></p></details>
+    <h3 style="margin:16px 0 4px">Quer mais limite? Adicione outras chaves grátis</h3>
+    <p class="dica">Cada uma tem a própria cota: quando uma acaba, o jogo passa sozinho para a próxima. Coloque quantas quiser (pode ser depois, em 🔑 Chaves de IA).</p>
+    <div id="cg-extras"></div>
   </div>
 </div>
 <div id="chaves-ia" role="dialog" aria-modal="true" aria-label="Chaves de IA" hidden>
@@ -910,10 +910,17 @@ const MAX_TOKENS = 1800;   // o OpenRouter reserva crédito pelo máximo pedido:
 // Provedores extras (opcionais): se houver chave salva, entram NA FRENTE do OpenRouter. Mesmo formato de chamada do OpenAI.
 const PROVEDORES = [
   { id: "gemini", nome: "Gemini (Google)", url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", ls: "gemini_key", onde: "aistudio.google.com/apikey",
-    modelos: ["gemini-2.5-flash", "gemini-2.5-flash-lite"], dica: "Chave do Google AI Studio (tem faixa grátis; no plano pago cobra por uso). Entra na frente dos outros." },
-  { id: "groq", nome: "Groq", url: "https://api.groq.com/openai/v1/chat/completions", ls: "groq_key", onde: "console.groq.com/keys",
+    modelos: ["gemini-2.5-flash", "gemini-2.5-flash-lite"], prefixo: /^AIza/, abrir: "https://aistudio.google.com/apikey",
+    guia: ["Abra o Google AI Studio e entre com a sua conta Google.", "Clique em <b>Create API key</b> (Criar chave de API).", "Copie a chave (começa com <code>AIza</code>) e cole abaixo."], dica: "Chave do Google AI Studio (tem faixa grátis; no plano pago cobra por uso). Entra na frente dos outros." },
+  { id: "groq", nome: "Groq", url: "https://api.groq.com/openai/v1/chat/completions", ls: "groq_key", onde: "console.groq.com/keys", prefixo: /^gsk_/, abrir: "https://console.groq.com/keys",
+    guia: ["Abra o console do Groq e entre (Google funciona).", "Clique em <b>Create API Key</b>.", "Copie a chave (começa com <code>gsk_</code>) e cole abaixo."],
     modelos: ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "qwen/qwen3-32b", "meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.1-8b-instant"] },
-  { id: "cerebras", nome: "Cerebras", url: "https://api.cerebras.ai/v1/chat/completions", ls: "cerebras_key", onde: "cloud.cerebras.ai",
+  { id: "mistral", nome: "Mistral", url: "https://api.mistral.ai/v1/chat/completions", ls: "mistral_key", onde: "console.mistral.ai/api-keys",
+    modelos: ["mistral-medium-latest", "mistral-small-latest", "mistral-large-latest"], so: /^(mistral-(medium|small|large)-latest|open-mistral-nemo)$/,
+    dica: "Grátis no plano Experiment (pede confirmar o celular; o uso pode treinar os modelos deles). Muito limite por mês.",
+    guia: ["Abra o site, entre (Google funciona) e confirme o seu celular.", "Em Subscription, escolha <b>Experiment</b> (grátis).", "Vá em <b>API Keys → Create new key</b>, copie e cole abaixo."], abrir: "https://console.mistral.ai/api-keys" },
+  { id: "cerebras", nome: "Cerebras", url: "https://api.cerebras.ai/v1/chat/completions", ls: "cerebras_key", onde: "cloud.cerebras.ai", abrir: "https://cloud.cerebras.ai",
+    guia: ["Abra o Cerebras Cloud e entre.", "No menu, abra <b>API Keys</b> e crie uma chave.", "Copie e cole abaixo."],
     modelos: ["gpt-oss-120b", "llama-3.3-70b", "qwen-3-32b", "llama3.1-8b"] }
 ];
 const lerLS = k => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
@@ -943,7 +950,7 @@ async function descobrirModelos(pv, forcar) {
     const r = await fetch(pv.url.replace("/chat/completions", "/models"), { headers: { Authorization: "Bearer " + chave } });
     if (!r.ok) return;
     const j = await r.json();
-    const ids = (j.data || []).map(m => m.id).filter(id => typeof id === "string" && !EXCLUIDOS.test(id));
+    const ids = (j.data || []).map(m => m.id).filter(id => typeof id === "string" && !EXCLUIDOS.test(id) && (!pv.so || pv.so.test(id)));
     if (!ids.length) return;
     const nota = id => { const i = PREFERIDOS.findIndex(re => re.test(id)); return i < 0 ? 99 : i; };
     ids.sort((a, b) => nota(a) - nota(b) || (/gemini/.test(a) ? b.localeCompare(a) : a.localeCompare(b)));   // Gemini: versões mais novas primeiro
@@ -973,6 +980,19 @@ function montarFila() {                                  // lista final de tenta
   if (orc) for (const m of MODELOS) fila.push({ id: m, modelo: m, url: URL_API, chave: orc, nome: "OpenRouter", orc: true });
   const lu = LOCAL.url(); if (lu) for (const m of LOCAL.modelos()) fila.push({ id: "local|" + m, modelo: m, url: lu, chave: "local", nome: "IA do computador", prov: "local", local: true, ctx: LOCAL.ctx() });
   return fila;
+}
+let esperaChave = null, esperaChaveRes = null;
+function aguardarChave() {
+  if (!esperaChave) esperaChave = new Promise(res => { esperaChaveRes = res; });
+  try { abrirGuiaChave(); } catch (e) {}
+  return esperaChave;
+}
+function chaveResolvida(ok) {                             // chave salva (ou assistente fechado): libera quem estava esperando
+  const tinha = !!esperaChaveRes;
+  if (ok) { try { bloqueados.clear(); } catch (e) {} }
+  if (ok) setTimeout(() => { try { $("chave-guia").hidden = true; } catch (e) {} }, 900);
+  if (ok) try { addMsg(tinha ? "🔑 Chave salva. Conectando ao Mestre…" : "🔑 Chave salva. Pode jogar!", "sistema"); } catch (e) {}
+  if (tinha) { const r = esperaChaveRes; esperaChave = null; esperaChaveRes = null; r(!!ok); }
 }
 function obterChave() {                                  // sem chave: abre o assistente (nunca um prompt solto) e devolve vazio
   if (OPENROUTER_API_KEY) return OPENROUTER_API_KEY;
@@ -2183,10 +2203,23 @@ function ferramentasCurtas(tools) {
     return o; };
   return tools.map(t => ({ functionDeclarations: (t.functionDeclarations || []).map(d => ({ ...d, description: curta(d.description), parameters: limpa(d.parameters) })) }));
 }
+function ajustarProvedor(x, req) {
+  if (x.prov !== "mistral") return req;
+  const id9 = id => { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return (h.toString(36) + "abcdefghi").slice(0, 9); };
+  const msgs = [];
+  for (const m of req.messages) {
+    const prev = msgs[msgs.length - 1];
+    if (m.role === "user" && prev?.role === "tool") msgs.push({ role: "assistant", content: "Ok." });
+    if (m.tool_calls) msgs.push({ ...m, tool_calls: m.tool_calls.map(t => ({ ...t, id: id9(t.id) })) });
+    else if (m.role === "tool") msgs.push({ ...m, tool_call_id: id9(m.tool_call_id) });
+    else msgs.push(m);
+  }
+  return { ...req, messages: msgs };
+}
 function corpoPara(x, corpo, reserva) {                    // o que cada provedor recebe
   if (x.local) return x.ctx >= 24000 ? corpo : reduzirParaLimite(reserva ? enxugar(corpo) : corpo, Math.round(x.ctx * 0.7));
   if (x.orc) return reserva ? enxugar(corpo) : corpo;     // OpenRouter conta PEDIDOS, não tokens
-  if (x.prov === "gemini") return reduzirParaLimite(reserva ? enxugar(corpo) : corpo, 30000);   // Gemini aceita muito texto por minuto
+  if (x.prov === "gemini" || x.prov === "mistral") return reduzirParaLimite(reserva ? enxugar(corpo) : corpo, 30000);   // Gemini aceita muito texto por minuto
   // Groq / Cerebras: limite de tokens por minuto (6 a 12 mil). Prompt completo só se couber; senão versão enxuta e funções curtas
   let c = reduzirParaLimite(corpo, 5400);
   if (estTok(c) > 5400) { c = enxugar(corpo); if (c.tools) c = { ...c, tools: ferramentasCurtas(c.tools) }; c = reduzirParaLimite(c, 5400); }
@@ -2199,7 +2232,10 @@ async function chamarAPI(corpo, container) {
   if (corpo.leve) fila = [...fila.filter(x => !x.local && ehLeve(x.modelo)), ...fila.filter(x => x.local || !ehLeve(x.modelo))];   // tarefas pequenas (resumo, extrair dano) vão primeiro aos modelos pequenos, poupando os grandes
   const principalIA = !!corpo.principal, meuGer = principalIA ? ++IA_ATUAL.ger : 0;
   const cancelado = () => principalIA && meuGer !== IA_ATUAL.ger;   // um "Reenviar a última" começou outro pedido: este para de tentar
-  if (!fila.length) { obterChave(); fila = montarFila(); }          // sem nenhuma chave: pede a do OpenRouter
+  if (!fila.length && !corpo.leve && !corpo.semLocal && !corpo.soLocal) {   // sem nenhuma chave: abre o assistente e espera; ao salvar, o pedido continua sozinho
+    if (OPENROUTER_API_KEY) fila = montarFila();
+    else { const ok = await aguardarChave(); fila = montarFila(); if (!ok && !fila.length) throw new Error("Falta a chave de IA. Toque em 🔑 Chaves de IA, cole a sua chave e o Mestre continua de onde parou."); }
+  }
   if (!fila.length && (corpo.semLocal || corpo.soLocal)) throw Object.assign(new Error("sem IA para esta tentativa"), { semFila: true });
   if (!fila.length) throw new Error("Falta a chave de IA. Siga o assistente 🔑 (é grátis e leva ~1 minuto), cole a chave e toque em “🔄 Reenviar”.");
   const livres = () => fila.find(x => (bloqueados.get(x.id) || 0) <= Date.now());
@@ -2222,7 +2258,7 @@ async function chamarAPI(corpo, container) {
     try {
       const cab = { "Content-Type": "application/json", "Authorization": "Bearer " + x.chave };
       if (x.orc) cab["X-Title"] = "RPG Mestre IA";
-      const resp = await fetch(x.url, { method: "POST", headers: cab, signal: ac.signal, body: JSON.stringify(paraOpenAI(corpoX, modelo, !!x.orc)) });
+      const resp = await fetch(x.url, { method: "POST", headers: cab, signal: ac.signal, body: JSON.stringify(ajustarProvedor(x, paraOpenAI(corpoX, modelo, !!x.orc))) });
       const dados = await resp.json().catch(() => ({}));
       clearTimeout(limite); clearTimeout(aviso);
       if (resp.ok && !dados.error) {
@@ -2469,15 +2505,35 @@ $("ch-salvar").addEventListener("click", () => {
   try { if (salaAtiva || RODADA.ativo) sala.postMessage(perfilJogador()); } catch (e) {}
   for (const c of CHAVES) { const v = $("ch-" + c.ls).value.trim(); if (v) { try { localStorage.setItem(c.ls, v); } catch (e) { alert("Não consegui salvar a chave neste navegador."); } } }
   bloqueados.clear(); PROVEDORES.forEach(pv => { try { localStorage.removeItem("modelos_" + pv.id); } catch (e) {} descobrirModelos(pv, true); }); montarChaves(); $("chaves-ia").hidden = true;
+  if (montarFila().length && esperaChaveRes) chaveResolvida(true);
   try { addMsg("🔑 Chaves de IA atualizadas.", "sistema"); } catch (e) {}
 });
 
 // ----- Assistente de chave própria (BYOK) -----
-function abrirGuiaChave() { $("cg-status").textContent = ""; $("cg-status-groq").textContent = ""; $("cg-chave").value = ""; $("cg-auto").hidden = !/^https?:$/.test(location.protocol); $("chave-guia").hidden = false; $("chave-guia").scrollTop = 0; }
+function montarGuiasExtras() {
+  $("cg-extras").replaceChildren(...PROVEDORES.map(pv => {
+    const d = document.createElement("details"); d.className = "cg-extra";
+    const tem = !!lerLS(pv.ls);
+    d.innerHTML = `<summary><b>${esc(pv.nome)}</b> ${tem ? '<span class="ch-ok">✓ chave salva</span>' : ""}</summary>
+      <p class="dica">${esc(pv.dica || "Grátis, sem cartão.")}</p>
+      <ol class="cg-passos">${(pv.guia || ["Crie a chave em " + esc(pv.onde) + " e cole abaixo."]).map(t => `<li>${t}</li>`).join("")}</ol>
+      <div class="linha-botoes"><button type="button" class="secundario" data-abrir>🌐 Abrir ${esc(pv.onde)} (nova aba)</button></div>
+      <label class="ch-linha"><input type="password" autocomplete="off" placeholder="Cole a chave do ${esc(pv.nome)}"></label>
+      <div class="linha-botoes"><button type="button" data-salvar>✅ Testar e salvar</button></div><p class="dica" data-st></p>`;
+    const inp = d.querySelector("input"), st = d.querySelector("[data-st]");
+    d.querySelector("[data-abrir]").onclick = () => window.open(pv.abrir || "https://" + pv.onde, "_blank", "noopener");
+    const salvar = async () => { if (await salvarChaveGuia(pv.id, inp.value, st)) { inp.value = ""; d.querySelector("summary").innerHTML = `<b>${esc(pv.nome)}</b> <span class="ch-ok">✓ chave salva</span>`; chaveResolvida(true); } };
+    d.querySelector("[data-salvar]").onclick = salvar;
+    inp.addEventListener("paste", () => setTimeout(() => { if (inp.value.trim().length >= 20) salvar(); }, 50));
+    return d;
+  }));
+}
+function abrirGuiaChave() { $("cg-status").textContent = ""; montarGuiasExtras(); $("cg-chave").value = ""; $("cg-auto").hidden = !/^https?:$/.test(location.protocol); $("chave-guia").hidden = false; $("chave-guia").scrollTop = 0; }
 async function testarChave(tipo, chave) {                // confirma com o próprio provedor antes de salvar
   try {
+    const pv = PROVEDORES.find(p => p.id === tipo);
     const r = tipo === "orc" ? await fetch("https://openrouter.ai/api/v1/auth/key", { headers: { Authorization: "Bearer " + chave } })
-                             : await fetch("https://api.groq.com/openai/v1/models", { headers: { Authorization: "Bearer " + chave } });
+                             : await fetch(pv.url.replace("/chat/completions", "/models"), { headers: { Authorization: "Bearer " + chave } });
     if (r.ok) return { ok: true };
     return { ok: false, msg: r.status === 401 || r.status === 403 ? "O provedor recusou essa chave. Confira se copiou inteira." : `Erro ${r.status} ao testar a chave.` };
   } catch (e) { return { ok: null, msg: "Não consegui testar agora (sem rede ou bloqueio do navegador). A chave foi salva mesmo assim." }; }
@@ -2486,22 +2542,21 @@ async function salvarChaveGuia(tipo, valor, st) {
   const v = valor.trim().replace(/^Bearer\s+/i, "");
   if (!v) { st.textContent = "Cole a chave primeiro."; return false; }
   if (tipo === "orc" && !/^sk-or-/i.test(v)) { st.textContent = "Essa não parece uma chave do OpenRouter (começa com sk-or-v1-)."; return false; }
-  if (tipo === "groq" && !/^gsk_/i.test(v)) { st.textContent = "Essa não parece uma chave do Groq (começa com gsk_)."; return false; }
+  const pv = PROVEDORES.find(p => p.id === tipo);
+  if (pv?.prefixo && !pv.prefixo.test(v)) { st.textContent = `Essa não parece uma chave do ${pv.nome} (confira se copiou a chave inteira e do site certo).`; return false; }
   st.textContent = "Testando…";
   const t = await testarChave(tipo, v);
   if (t.ok === false) { st.textContent = "❌ " + t.msg; return false; }
-  try { localStorage.setItem(tipo === "orc" ? "openrouter_key" : "groq_key", v); } catch (e) { st.textContent = "Não consegui salvar neste navegador."; return false; }
+  try { localStorage.setItem(tipo === "orc" ? "openrouter_key" : pv.ls, v); } catch (e) { st.textContent = "Não consegui salvar neste navegador."; return false; }
   bloqueados.clear(); PROVEDORES.forEach(pv => { try { localStorage.removeItem("modelos_" + pv.id); } catch (e) {} descobrirModelos(pv, true); });
   st.textContent = t.ok ? "✅ Chave válida e salva!" : "⚠️ " + t.msg;
   return true;
 }
 $("cg-abrir").addEventListener("click", () => window.open("https://openrouter.ai/keys", "_blank", "noopener"));
-$("cg-abrir-groq").addEventListener("click", () => window.open("https://console.groq.com/keys", "_blank", "noopener"));
-$("cg-fechar").addEventListener("click", () => { $("chave-guia").hidden = true; });
+$("cg-fechar").addEventListener("click", () => { $("chave-guia").hidden = true; chaveResolvida(!!montarFila().length); });
 $("cg-salvar").addEventListener("click", async () => {
-  const okG = $("cg-chave-groq").value.trim() ? await salvarChaveGuia("groq", $("cg-chave-groq").value, $("cg-status-groq")) : true;
-  const okO = $("cg-chave").value.trim() ? await salvarChaveGuia("orc", $("cg-chave").value, $("cg-status")) : (lerLS("openrouter_key") || lerLS("groq_key") ? true : (($("cg-status").textContent = "Cole a chave primeiro."), false));
-  if (okO && okG) { try { addMsg("🔑 Chave salva. Pode jogar! Se uma resposta falhou antes, use “🔄 Reenviar a última”.", "sistema"); } catch (e) {} setTimeout(() => { $("chave-guia").hidden = true; }, 900); }
+  const okO = $("cg-chave").value.trim() ? await salvarChaveGuia("orc", $("cg-chave").value, $("cg-status")) : (montarFila().length ? true : (($("cg-status").textContent = "Cole uma chave primeiro (desta ou de outra IA abaixo)."), false));
+  if (okO) chaveResolvida(true);
 });
 $("cg-chave").addEventListener("paste", () => setTimeout(() => { if (/^sk-or-/i.test($("cg-chave").value.trim())) $("cg-salvar").click(); }, 50));   // colou? já testa e salva
 $("ch-guia").addEventListener("click", () => { $("chaves-ia").hidden = true; abrirGuiaChave(); });
