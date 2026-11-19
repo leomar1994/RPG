@@ -7490,7 +7490,11 @@ function continuarPersonagem(reg) {
   }
   travarChat(false);
   if (aumentosPendentes() > 0) abrirFicha(true);
-  if (!MESTRE_HUMANO && GRUPO.jogadores < 2 && !aventuraSolo && !campanha.length) escolherAventura([]);   // personagem sem campanha ainda: escolhe o mundo e a campanha antes de começar
+  if (!MESTRE_HUMANO && GRUPO.jogadores < 2 && !aventuraSolo && !campanha.length) escolherAventura([]);
+  // a abertura da história nunca chegou (ex.: faltava a chave ou a IA caiu): começa de novo, sem o jogador ficar esperando à toa
+  else if (!MESTRE_HUMANO && GRUPO.jogadores < 2 && aventuraSolo && !campanha.some(l => l.autor === "mestre")) {
+    addMsg("📜 A história ainda não tinha começado: o Mestre vai abrir a aventura agora.", "sistema"); abrirMundo([]);
+  }   // personagem sem campanha ainda: escolhe o mundo e a campanha antes de começar
 }
 
 function cartaoPersonagem(reg) {
