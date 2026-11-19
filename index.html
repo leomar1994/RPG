@@ -626,7 +626,9 @@
 <div id="chaves-ia" role="dialog" aria-modal="true" aria-label="Chaves de IA" hidden>
   <div class="caixa-sala"><h2>🔑 Chaves de IA</h2>
     <p class="dica">Cada chave extra dá mais limite grátis: quando uma IA chega no limite, o jogo passa sozinho para a próxima. As chaves ficam só neste navegador. Deixe em branco o que não quiser mudar.</p>
-    <div class="linha-botoes"><button type="button" id="ch-guia">🧭 Assistente: criar chave grátis</button></div>
+    <div class="linha-botoes"><button type="button" id="ch-guia">🧭 Assistente: criar chave grátis</button><button type="button" id="ch-diag" class="secundario">🩺 Diagnóstico das IAs</button></div>
+    <div id="ch-diag-caixa" hidden><pre id="ch-diag-txt" style="white-space:pre-wrap;font-size:12px;max-height:260px;overflow:auto;background:rgba(0,0,0,.25);padding:8px;border-radius:8px"></pre>
+      <div class="linha-botoes"><button type="button" id="ch-diag-copiar" class="secundario">📋 Copiar</button><button type="button" id="ch-diag-atual" class="secundario">🔄 Atualizar lista de modelos</button></div></div>
     <div id="ch-lista"></div>
     <fieldset class="ch-local"><legend>🤝 Mesa em grupo</legend>
       <label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="ch-emprestar" style="margin-top:4px"> <span><b>Emprestar minha IA para a mesa</b><br><span class="dica">Quando os créditos do anfitrião acabarem, ele pode narrar pela SUA chave, em revezamento com os outros. A chave nunca sai deste navegador: só a narração vai e volta.</span></span></label>
@@ -927,6 +929,26 @@ const lerLS = k => { try { return localStorage.getItem(k) || ""; } catch (e) { r
 // Os provedores mudam os nomes dos modelos com frequência: o app pergunta ao próprio provedor quais a sua chave pode usar.
 const PREFERIDOS = [/^(models\/)?gemini-[\d.]+-flash$/, /gemini-[\d.]+-flash(?!.*(lite|image|live|tts))/, /gemini-[\d.]+-flash-lite$/, /gemini-[\d.]+-pro$/, /llama-4/, /gpt-oss-120b/, /llama-3\.3/, /qwen/, /kimi/, /gpt-oss-20b/, /llama-3\.1-70b/, /llama/];
 const EXCLUIDOS = /imagen|veo-|embedding|aqa|nano-banana|-image|-live|native-audio|robotics|computer-use|learnlm|gemma|deep-research|whisper|guard|safeguard|tts|orpheus|embed|playai|distil|compound|vision-preview|transcri|moderation|prompt-guard/i;
+// Modelos grátis do OpenRouter mudam toda semana: busca a lista atual (pública) e guarda por 6 h; a lista fixa é só reserva
+const ORC_BOM = [/gemini|gemma/i, /llama-3\.3-70b|llama-4/i, /deepseek/i, /qwen3?(?!-coder)/i, /mistral|mixtral/i, /glm/i, /gpt-oss/i, /nemotron/i, /kimi|minimax|ernie|ling/i];
+function modelosOR() {
+  try { const c = JSON.parse(localStorage.getItem("modelos_orc") || "null"); if (c && Array.isArray(c.ids) && c.ids.length >= 3) return c.ids; } catch (e) {}
+  return MODELOS;
+}
+async function descobrirModelosOR(forcar) {
+  try {
+    const c = JSON.parse(localStorage.getItem("modelos_orc") || "null");
+    if (!forcar && c && Date.now() - c.t < 6 * 3600000) return;
+    const r = await fetch("https://openrouter.ai/api/v1/models"); if (!r.ok) return;
+    const j = await r.json();
+    const ok = (j.data || []).filter(m => /:free$/.test(m.id) && (m.supported_parameters || []).includes("tools") &&
+      /text/.test(m.architecture?.output_modalities?.join(",") || "text") && (m.context_length || 0) >= 32000 && !/coder|code|vl\b|vision|guard|embed/i.test(m.id));
+    const nota = m => { const i = ORC_BOM.findIndex(re => re.test(m.id)); return (i < 0 ? 20 : i) + (m.reasoning?.mandatory ? 6 : 0); };
+    ok.sort((a, b) => nota(a) - nota(b) || (b.created || 0) - (a.created || 0));
+    const ids = ok.slice(0, 14).map(m => m.id);
+    if (ids.length >= 3) { localStorage.setItem("modelos_orc", JSON.stringify({ t: Date.now(), ids })); bloqueados.forEach((v, k) => { if (/:free$/.test(k) && !ids.includes(k)) bloqueados.delete(k); }); }
+  } catch (e) { /* sem rede: segue com a lista guardada */ }
+}
 function modelosDescobertos(pv) {
   try { const c = JSON.parse(localStorage.getItem("modelos_" + pv.id)); return Array.isArray(c?.ids) && c.ids.length ? c.ids : null; } catch (e) { return null; }
 }
@@ -977,7 +999,7 @@ function montarFila() {                                  // lista final de tenta
   const fila = [];
   for (const pv of PROVEDORES) { const c = lerLS(pv.ls); if (c) for (const m of (modelosDescobertos(pv) || pv.modelos)) fila.push({ id: `${pv.id}|${m}`, modelo: m, url: pv.url, chave: c, nome: pv.nome, prov: pv.id }); }
   const orc = OPENROUTER_API_KEY || lerLS("openrouter_key");
-  if (orc) for (const m of MODELOS) fila.push({ id: m, modelo: m, url: URL_API, chave: orc, nome: "OpenRouter", orc: true });
+  if (orc) for (const m of modelosOR()) fila.push({ id: m, modelo: m, url: URL_API, chave: orc, nome: "OpenRouter", orc: true });
   const lu = LOCAL.url(); if (lu) for (const m of LOCAL.modelos()) fila.push({ id: "local|" + m, modelo: m, url: lu, chave: "local", nome: "IA do computador", prov: "local", local: true, ctx: LOCAL.ctx() });
   return fila;
 }
@@ -2192,7 +2214,9 @@ function deOpenAI(dados) {
 // vezes fica sobrecarregado (503). O app espera cada vez mais e, a partir da 3ª tentativa, usa o modelo reserva.
 const bloqueados = new Map();   // item da fila -> instante (ms) em que volta a ser usado
 let modeloAtual = "";
-const IA_ATUAL = { x: null, ac: null, pausar: null, ger: 0 };     // pedido principal em andamento (para o "Reenviar a última" cancelar de verdade)
+const IA_ATUAL = { x: null, ac: null, pausar: null, ger: 0 };
+const DIAG = (() => { let l = []; try { l = JSON.parse(localStorage.getItem("diag_ia") || "[]"); } catch (e) {}
+  return { add(x, ok, txt, ms) { l.push({ t: Date.now(), n: x.nome, m: x.modelo, ok, txt: String(txt || "").slice(0, 160), ms }); l = l.slice(-40); try { localStorage.setItem("diag_ia", JSON.stringify(l)); } catch (e) {} }, lista: () => l.slice() }; })();     // pedido principal em andamento (para o "Reenviar a última" cancelar de verdade)
 const ehLeve = id => /lite|8b|instant|mini|nano|scout|flash-lite|20b|32b/i.test(id);
 const estTok = c => JSON.stringify(paraOpenAI(c, "x", false)).length / 3.2;
 // Descrições das funções encurtadas (1ª frase): para provedores que limitam TOKENS por minuto (Groq, Cerebras)
@@ -2254,6 +2278,7 @@ async function chamarAPI(corpo, container) {
     if (t > 1 && container && !container._espera) mostrarEspera(container, t, TOTAL, 0);
     const espMax = x.local ? Math.max(corpo.limiteMs || 0, 240000) : corpo.limiteMs || 30000, ac = new AbortController(), limite = setTimeout(() => ac.abort(), espMax);
     if (principalIA) Object.assign(IA_ATUAL, { x, ac, pausar: ms => pausar(x, ms) });   // modelo que não responde: desiste (30 s na narração) e passa para o próximo
+    const t0 = Date.now();
     const aviso = t === 1 && container ? setTimeout(() => { if (!container._espera) mostrarEspera(container, t, TOTAL, -1); }, 7000) : 0;
     try {
       const cab = { "Content-Type": "application/json", "Authorization": "Bearer " + x.chave };
@@ -2261,6 +2286,7 @@ async function chamarAPI(corpo, container) {
       const resp = await fetch(x.url, { method: "POST", headers: cab, signal: ac.signal, body: JSON.stringify(ajustarProvedor(x, paraOpenAI(corpoX, modelo, !!x.orc))) });
       const dados = await resp.json().catch(() => ({}));
       clearTimeout(limite); clearTimeout(aviso);
+      DIAG.add(x, resp.ok && !dados.error, resp.ok && !dados.error ? "ok" : `${dados.error?.code || resp.status} ${dados.error?.message || ""}`, Date.now() - t0);
       if (resp.ok && !dados.error) {
         const r = deOpenAI(dados);
         if (!r.candidates.length) {                       // resposta vazia (comum em modelos gratuitos): pausa breve e tenta o próximo
@@ -2294,11 +2320,13 @@ async function chamarAPI(corpo, container) {
       if (e.name === "AbortError" && IA_ATUAL.cancelado === ac) { clearTimeout(limite); clearTimeout(aviso); throw Object.assign(new Error("cancelado"), { cancelado: true }); }
       clearTimeout(limite); clearTimeout(aviso);
       if (e.definitivo) throw e;
+      if (!e.vazio) DIAG.add(x, false, e.name === "AbortError" ? `sem resposta em ${Math.round(espMax / 1000)} s` : "falha de rede: " + (e.message || e), Date.now() - t0);
       if (e.vazio) { ultimoErro = e; continue; }
       if (e.name === "AbortError") { ultimoErro = new Error(`${modelo}: sem resposta em ${Math.round(espMax / 1000)} s`); pausar(x, 300000); continue; }
       ultimoErro = e;
       if (!x.orc) { pausar(x, 300000); continue; }       // provedor extra inacessível (rede/CORS): pula por 5 min
-      mostrarEspera(container, t, TOTAL, 2000); await esperar(2000);   // falha de rede: tenta de novo
+      pausar(x, 60000);                                   // falha de rede neste modelo: tenta o próximo
+      if (!livres()) { mostrarEspera(container, t, TOTAL, 2000); await esperar(2000); }
     }
   }
   if (ultimoErro) console.warn("IA:", ultimoErro.message);
@@ -2560,6 +2588,19 @@ $("cg-salvar").addEventListener("click", async () => {
 });
 $("cg-chave").addEventListener("paste", () => setTimeout(() => { if (/^sk-or-/i.test($("cg-chave").value.trim())) $("cg-salvar").click(); }, 50));   // colou? já testa e salva
 $("ch-guia").addEventListener("click", () => { $("chaves-ia").hidden = true; abrirGuiaChave(); });
+function textoDiag() {
+  const hora = t => new Date(t).toLocaleTimeString("pt-BR"), agora = Date.now(), fila = montarFila();
+  const linhas = ["FILA DE IAs (ordem de tentativa):"];
+  if (!fila.length) linhas.push("  nenhuma chave salva");
+  fila.forEach((x, i) => { const b = bloqueados.get(x.id) || 0; linhas.push(`  ${i + 1}. ${x.nome} · ${x.modelo} — ${b > agora ? "em pausa até " + hora(b) : "livre"}`); });
+  linhas.push("", "ÚLTIMAS TENTATIVAS:");
+  const l = DIAG.lista(); if (!l.length) linhas.push("  nenhuma ainda");
+  l.slice(-20).reverse().forEach(d => linhas.push(`  ${hora(d.t)} ${d.ok ? "✅" : "❌"} ${d.n} · ${d.m} (${d.ms} ms) ${d.ok ? "" : "→ " + d.txt}`));
+  return linhas.join("\n");
+}
+$("ch-diag").addEventListener("click", () => { const c = $("ch-diag-caixa"); c.hidden = !c.hidden; $("ch-diag-txt").textContent = textoDiag(); });
+$("ch-diag-copiar").addEventListener("click", async () => { try { await navigator.clipboard.writeText(textoDiag()); $("ch-diag-copiar").textContent = "✅ Copiado"; } catch (e) {} });
+$("ch-diag-atual").addEventListener("click", async () => { $("ch-diag-txt").textContent = "Buscando a lista atual de modelos grátis…"; await descobrirModelosOR(true); bloqueados.clear(); $("ch-diag-txt").textContent = textoDiag(); });
 // Login automático (OAuth PKCE do OpenRouter): só funciona com o jogo numa página http(s)/localhost, não abrindo o arquivo direto do disco.
 const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 $("cg-oauth").addEventListener("click", async () => {
@@ -2579,7 +2620,8 @@ $("cg-oauth").addEventListener("click", async () => {
   } catch (e) { alert("Não consegui concluir o login com o OpenRouter: " + e.message + "\nUse o assistente 🔑 para colar a chave."); }
 })();
 
-PROVEDORES.forEach(pv => { if (lerLS(pv.ls) && !modelosDescobertos(pv)) descobrirModelos(pv); });   // ao abrir o jogo, atualiza a lista de modelos
+PROVEDORES.forEach(pv => { if (lerLS(pv.ls) && !modelosDescobertos(pv)) descobrirModelos(pv); });
+if (lerLS("openrouter_key") || OPENROUTER_API_KEY) descobrirModelosOR();   // ao abrir o jogo, atualiza a lista de modelos
 function mostrarEspera(container, t, total, ms) {
   if (!container) return;
   if (!container._espera) { container._espera = document.createElement("div"); container._espera.className = "msg sistema"; container.appendChild(container._espera); }
