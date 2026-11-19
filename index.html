@@ -428,6 +428,10 @@
   .cb-c.jog img.tk, .cb-c.jog .tkn { box-shadow: 0 0 0 3px var(--latao), 0 0 12px #d9b45acc; }
   .cb-c.eu-pisca { animation: euPisca .55s ease-in-out 3; } @keyframes euPisca { 50% { box-shadow: 0 0 0 4px #fff, 0 0 22px var(--latao); } }
   .cg-extra { border: 1px solid var(--latao); border-radius: 10px; padding: 6px 12px; margin: 6px 0; } .cg-extra summary { cursor: pointer; padding: 4px 0; }
+  .m-frases { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .m-frases button { font-size: 13px; padding: 5px 10px; border-radius: 999px; }
+  .m-frases .x { margin-left: 6px; opacity: .7; }
+  body.sem-ia-mestre .so-ia { display: none !important; }
   .ch-local { border: 1px dashed var(--latao); border-radius: 12px; padding: 10px 14px; margin: 14px 0; } .ch-local legend { color: var(--latao); font-weight: 700; padding: 0 6px; } .ch-local select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--borda); background: var(--painel); color: var(--texto); font: inherit; }
 </style>
 </head>
@@ -712,16 +716,17 @@
     <button type="button" class="voltar-btn" id="voltar-campanha">↩ Voltar</button>
     <h2>Campanha do Mestre</h2>
     <div class="m-sala-barra" aria-live="polite"></div>
+    <label style="display:flex;align-items:flex-start;gap:8px;padding:8px;border:1px dashed var(--latao);border-radius:10px"><input type="checkbox" id="m-sem-ia2" style="margin-top:4px"> <span><b>🚫 Jogar sem IA (offline)</b><br><span class="dica">Você escreve a apresentação e responde cada ação dos jogadores. Não precisa de chave de IA.</span></span></label>
     <p class="dica">Digite a campanha que você quer mestrar ou importe um arquivo (.txt, .md ou .json). A IA vai adaptá-la aos jogadores presentes, sem revelar seus segredos.</p>
     <details id="m-mundos-box" open><summary>🌍 Escolher mundo e tipo de campanha</summary><div style="display:grid;gap:8px">
       <label>Mundo <select id="m-mundo-sel"></select></label>
       <p id="m-mundo-desc" class="dica"></p>
       <label>Tipo de campanha <select id="m-tipo-sel"></select></label>
       <p id="m-tipo-desc" class="dica"></p>
-      <div class="linha-botoes"><button id="m-tipo-usar" type="button" class="secundario">📋 Usar como base</button><button id="m-ia-criar" type="button" class="secundario">🎲 A IA escreve a campanha</button><button id="m-ia-melhorar" type="button" class="secundario">✨ A IA melhora o meu texto</button><button id="m-camp-desfazer" type="button" class="secundario" hidden>↩ Desfazer</button></div>
+      <div class="linha-botoes"><button id="m-tipo-usar" type="button" class="secundario">📋 Usar como base</button><button id="m-ia-criar" type="button" class="secundario so-ia">🎲 A IA escreve a campanha</button><button id="m-ia-melhorar" type="button" class="secundario">✨ A IA melhora o meu texto</button><button id="m-camp-desfazer" type="button" class="secundario" hidden>↩ Desfazer</button></div>
     </div></details>
     <textarea id="m-camp" rows="8" maxlength="6000" placeholder="Ex.: Uma seita rouba as crianças da vila de Pedravale. O líder é o prefeito (segredo). A cripta sob o moinho guarda…"></textarea>
-    <div class="linha-botoes"><button id="m-camp-importar" type="button" class="secundario">⬆ Importar arquivo</button><button id="m-camp-adaptar" type="button">✨ Adaptar para os jogadores</button></div>
+    <div class="linha-botoes"><button id="m-camp-importar" type="button" class="secundario">⬆ Importar arquivo</button><button id="m-camp-adaptar" type="button" class="so-ia">✨ Adaptar para os jogadores</button></div>
     <input type="file" id="m-camp-arquivo" accept=".txt,.md,.json,text/plain,application/json" hidden>
     <p id="m-camp-status" class="dica"></p>
     <label>Apresentação aos jogadores (edite à vontade)<textarea id="m-camp-adapt" rows="6" maxlength="4000"></textarea></label>
@@ -760,9 +765,6 @@
   <button id="papel-jogador">🎲 Quero jogar</button>
   <button id="papel-mestre">📖 Quero mestrar</button>
   <button id="abrir-chaves" class="secundario">🔑 Chaves de IA</button>
-  <button id="pasta-abrir2" class="secundario" type="button">📁 Escolher pasta de saves</button>
-  <button id="backup-restaurar2" class="secundario" type="button">📂 Carregar um arquivo</button>
-  <p id="aviso-storage2" class="dica" hidden></p>
   <button id="mundo-abrir" class="secundario">🌍 Mundo</button>
   <button id="off-abrir" class="secundario" type="button">📦 Campanhas offline</button>
   <div id="online">
@@ -779,9 +781,12 @@
     <button type="button" class="voltar-btn" id="voltar-mesa">↩ Voltar ao menu</button>
     <h2>Mesa do Mestre</h2>
     <div class="m-sala-barra" aria-live="polite"></div>
+    <div class="linha-botoes"><button id="pasta-abrir2" class="secundario" type="button">📁 Escolher pasta de saves</button><button id="backup-restaurar2" class="secundario" type="button">📂 Carregar um arquivo</button></div>
+    <p id="aviso-storage2" class="dica" hidden></p>
+    <label class="m-semia" style="display:flex;align-items:flex-start;gap:8px;padding:8px;border:1px dashed var(--latao);border-radius:10px"><input type="checkbox" id="m-sem-ia" style="margin-top:4px"> <span><b>🚫 Jogar sem IA (offline)</b><br><span class="dica">Tudo passa por você: cada ação dos jogadores fica aguardando até você responder. Não precisa de chave de IA nem de créditos.</span></span></label>
     <p id="m-ficha" class="dica" style="white-space:pre-line">Aguardando jogadores entrarem na mesa…</p>
     <label class="dica">Enviar itens, testes, vida e XP para <select id="m-alvo"><option value="todos">Todos os jogadores</option></select></label>
-    <label class="dica" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="m-cumplice" checked> 🤝 IA cúmplice: responde às ações dos jogadores e pede sua aprovação no que é importante</label>
+    <label class="dica so-ia" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="m-cumplice" checked> 🤝 IA cúmplice: responde às ações dos jogadores e pede sua aprovação no que é importante</label>
     <div id="m-fila" aria-live="polite"></div>
     <details><summary>🕵️ Segredos (só você e a IA sabem)</summary><div>
       <div id="m-segredos"></div>
@@ -792,12 +797,15 @@
     <label>O que acontece (você decide a história)
       <textarea id="m-evento" placeholder="Ex.: A porta range e revela um corredor com três goblins dormindo."></textarea></label>
     <div><div class="dica">Monstros nesta cena (a IA só conhece estes)</div><div id="m-cena"></div><div id="m-sinergia" class="dica"></div></div>
-    <label>Tom da narração
+    <label class="so-ia">Tom da narração
       <select id="m-tom"><option>épico</option><option>sombrio</option><option>misterioso</option><option>leve e divertido</option></select></label>
-    <button id="m-narrar">Narrar com a IA</button>
+    <button id="m-narrar" class="so-ia">Narrar com a IA</button>
+    <div id="m-frases-box"><div class="dica">💬 Frases prontas (toque para inserir na narração)</div>
+      <div id="m-frases" class="m-frases"></div>
+      <div class="linha-botoes"><input id="m-frase-nova" type="text" maxlength="200" placeholder="Nova frase (use [ ] para o que você vai trocar)"><button id="m-frase-add" type="button" class="secundario">➕ Adicionar frase</button></div></div>
     <label>Narração (edite à vontade, ou escreva a sua)
       <textarea id="m-rascunho"></textarea></label>
-    <label class="dica" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="m-via-ia" checked> 🎭 A IA narra a sua resposta ao jogador que pediu (ele fica aguardando até receber)</label>
+    <label class="dica so-ia" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="m-via-ia" checked> 🎭 A IA narra a sua resposta ao jogador que pediu (ele fica aguardando até receber)</label>
     <button id="m-enviar">Enviar ao jogador</button>
     <details><summary>🌍 História do mundo (resumo para a IA)</summary><div>
       <label>Resumo do mundo (até 1500 caracteres)
@@ -2249,7 +2257,9 @@ function corpoPara(x, corpo, reserva) {                    // o que cada provedo
   if (estTok(c) > 5400) { c = enxugar(corpo); if (c.tools) c = { ...c, tools: ferramentasCurtas(c.tools) }; c = reduzirParaLimite(c, 5400); }
   return c;
 }
+let SEM_IA_MESA = false;                                   // o Mestre humano escolheu jogar sem IA
 async function chamarAPI(corpo, container) {
+  if (SEM_IA_MESA && MESTRE_HUMANO) throw Object.assign(new Error("Mesa sem IA: o Mestre responde."), { semIA: true, cancelado: true });
   let fila = montarFila();
   if (corpo.semLocal) fila = fila.filter(x => !x.local);
   if (corpo.soLocal) fila = fila.filter(x => x.local);
@@ -3549,6 +3559,7 @@ canal.addEventListener("message", async ev => {
     if (document.querySelectorAll(".msg.mestre").length === antes) addMsg(m.texto, "mestre");   // a IA falhou: mostra a resposta do Mestre como está
     esperarMestre(false);
   }
+  else if (m.tipo === "modo") { const antes = SEM_IA_MESA; SEM_IA_MESA = !!m.semIA; if (SEM_IA_MESA && !antes) addMsg("🎲 Mesa sem IA: o Mestre responde cada ação. Escreva o que seu personagem faz e aguarde a resposta dele.", "sistema"); }
   else if (m.tipo === "narracao") { addMsg(m.texto, "mestre"); if (aguardaMestre && (!m.para || m.para === "todos" || m.para === ficha?.id)) esperarMestre(false); }
   else if (m.tipo === "item") canal.postMessage({ de: "jogador", id: ficha?.id, nome: ficha?.nome, tipo: "resultado_item", r: aplicarInventario(m.args) });
   else if (m.tipo === "vida") canal.postMessage({ de: "jogador", id: ficha?.id, nome: ficha?.nome, tipo: "resultado_vida", args: m.args, r: aplicarVida(m.args) });
@@ -6851,6 +6862,7 @@ function iniciarMestre() {
     if (m.de !== "jogador") return;
     if (m.tipo === "ficha") {
       jogadoresMesa.set(m.id || "?", { ...m.ficha, id: m.id }); renderJogadoresMesa();
+      if (SEM_IA_MESTRE) canal.postMessage({ de: "mestre", tipo: "modo", semIA: true });
     } else if (m.tipo === "acao") { ultimoPedido = { id: m.id, nome: nomeJ(m), texto: m.texto }; logMestre(`${nomeJ(m)}: ${m.texto}`, "jogador"); if ($("m-cumplice").checked) enfileirarIA({ quem: nomeJ(m), rotulo: m.texto, usuario: `${nomeJ(m)}${jogadoresMesa.get(m.id) ? " (" + jogadoresMesa.get(m.id).classe + ")" : ""} age: ${m.texto}`, alvo: m.id }); }
     else if (m.tipo === "sug") logMestre(`${nomeJ(m)} escolheu a sugestão (a IA responde): ${m.texto}`, "jogador");
     else if (m.tipo === "resultado_teste") {
@@ -6867,6 +6879,7 @@ function iniciarMestre() {
     }
   };
   canal.postMessage({ de: "mestre", tipo: "ola" });      // pede a ficha se o jogador já estiver na mesa
+  aplicarSemIA();
   abrirCampanhaMestre();
 }
 
@@ -6896,10 +6909,10 @@ $("m-narrar").addEventListener("click", async () => {
 $("m-enviar").addEventListener("click", () => {
   const texto = $("m-rascunho").value.trim();
   if (!texto) return;
-  if ($("m-via-ia")?.checked && ultimoPedido) {            // a decisão do Mestre vai para a IA do jogador, que a narra
+  if (!SEM_IA_MESTRE && $("m-via-ia")?.checked && ultimoPedido) {            // a decisão do Mestre vai para a IA do jogador, que a narra
     canal.postMessage({ de: "mestre", tipo: "decisao", para: ultimoPedido.id, acao: ultimoPedido.texto, texto });
     logMestre(`➡ Decisão enviada à IA de ${ultimoPedido.nome || "jogador"}: ${texto}`, "mestre"); ultimoPedido = null;
-  } else { canal.postMessage({ de: "mestre", tipo: "narracao", texto }); logMestre(texto, "mestre"); }
+  } else { canal.postMessage({ de: "mestre", tipo: "narracao", texto }); logMestre(texto, "mestre"); ultimoPedido = null; }
   $("m-rascunho").value = ""; $("m-evento").value = "";
 });
 $("m-item-dar").addEventListener("click", () => {
@@ -6908,6 +6921,46 @@ $("m-item-dar").addEventListener("click", () => {
   canal.postMessage({ de: "mestre", para: $("m-alvo").value, tipo: "item", args: { nome, quantidade, peso_kg: parseFloat($("m-item-peso").value.replace(",", ".")) || 0 } });
   $("m-item-nome").value = "";
 });
+// ---- Modo sem IA: tudo pelo Mestre ----
+let SEM_IA_MESTRE = lerLS("sem_ia_mestre") === "sim";
+function aplicarSemIA() {
+  document.body.classList.toggle("sem-ia-mestre", SEM_IA_MESTRE);
+  $("m-sem-ia").checked = SEM_IA_MESTRE; $("m-sem-ia2").checked = SEM_IA_MESTRE;
+  if (SEM_IA_MESTRE) { $("m-cumplice").checked = false; $("m-via-ia").checked = false; }
+  $("m-enviar").textContent = SEM_IA_MESTRE ? "📨 Enviar resposta" : "Enviar ao jogador";
+  try { canal.postMessage({ de: "mestre", tipo: "modo", semIA: SEM_IA_MESTRE }); } catch (e) {}
+}
+$("m-sem-ia2").addEventListener("change", () => { $("m-sem-ia").checked = $("m-sem-ia2").checked; $("m-sem-ia").dispatchEvent(new Event("change")); });
+$("m-sem-ia").addEventListener("change", () => {
+  SEM_IA_MESTRE = $("m-sem-ia").checked;
+  try { localStorage.setItem("sem_ia_mestre", SEM_IA_MESTRE ? "sim" : "nao"); } catch (e) {}
+  aplicarSemIA();
+  logMestre(SEM_IA_MESTRE ? "🚫 Modo sem IA: as ações dos jogadores aguardam a sua resposta." : "🤖 IA de apoio ligada.", "sistema");
+});
+const FRASES_PADRAO = ["O que vocês fazem?", "Faça um teste de [Percepção], CD [12].", "Role a iniciativa!", "Faça uma jogada de ataque.", "O ataque acerta! Role o dano.", "O ataque erra.",
+  "Sucesso! [descreva o resultado]", "Falha. [descreva a consequência]", "Faça um teste de resistência de [Destreza], CD [13].", "Vocês chegam a [lugar].", "[NPC] diz: “[fala]”",
+  "Vocês ouvem passos se aproximando…", "Vocês descansam e recuperam as forças.", "Fim do combate. Vocês venceram!"];
+const frasesMestre = () => { try { return JSON.parse(localStorage.getItem("frases_mestre") || "null") || FRASES_PADRAO.slice(); } catch (e) { return FRASES_PADRAO.slice(); } };
+const salvarFrases = l => { try { localStorage.setItem("frases_mestre", JSON.stringify(l)); } catch (e) {} };
+function inserirNaNarracao(t) {
+  const ta = $("m-rascunho"), ini = ta.selectionStart ?? ta.value.length, fim = ta.selectionEnd ?? ta.value.length;
+  const antes = ta.value.slice(0, ini), sep = antes && !/\s$/.test(antes) ? " " : "";
+  ta.value = antes + sep + t + ta.value.slice(fim);
+  const a = ta.value.indexOf("[", ini); ta.focus();
+  if (a >= 0) { const b = ta.value.indexOf("]", a); if (b > a) ta.setSelectionRange(a, b + 1); } else ta.setSelectionRange((antes + sep + t).length, (antes + sep + t).length);
+}
+function montarFrases() {
+  const l = frasesMestre(), box = $("m-frases");
+  box.replaceChildren(...l.map((t, i) => {
+    const b = Object.assign(document.createElement("button"), { type: "button", className: "secundario", title: "Inserir na narração" });
+    b.append(t); const x = Object.assign(document.createElement("span"), { className: "x", textContent: "✕", title: "Remover frase" }); b.append(x);
+    b.onclick = ev => { if (ev.target === x) { const n = frasesMestre(); n.splice(i, 1); salvarFrases(n); montarFrases(); return; } inserirNaNarracao(t); };
+    return b;
+  }), (() => { const r = Object.assign(document.createElement("button"), { type: "button", className: "secundario", textContent: "↺ Frases padrão" }); r.onclick = () => { salvarFrases(FRASES_PADRAO.slice()); montarFrases(); }; return r; })());
+}
+$("m-frase-add").addEventListener("click", () => { const t = $("m-frase-nova").value.trim(); if (!t) return; const n = frasesMestre(); n.push(t); salvarFrases(n); $("m-frase-nova").value = ""; montarFrases(); });
+$("m-frase-nova").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("m-frase-add").click(); } });
+montarFrases();
 $("m-pedir-teste").addEventListener("click", () => {
   const args = { pericia_atributo: $("m-teste-pericia").value, cd: Number($("m-teste-cd").value) || 10, motivo: $("m-teste-motivo").value.trim() || "Teste pedido pelo Mestre" };
   canal.postMessage({ de: "mestre", para: $("m-alvo").value, tipo: "teste", args });
@@ -6979,7 +7032,7 @@ renderSegredos();
 const vazamentos = texto => { const o = []; for (const { m } of monstrosDaCena().filter(({ m }) => !m.revelado)) for (const x of [m.nome, m.tipo].filter(v => v && v.length >= 3)) if (texto.toLowerCase().includes(x.toLowerCase())) o.push(x); return o; };
 const nomeAlvo = id => id === "todos" || !id ? "todos" : (jogadoresMesa.get(id)?.nome || "jogador");
 const filaIA = []; let iaOcupada = 0, testesDaIA = 0;
-function enfileirarIA(item) { filaIA.push(item); rodarFilaIA(); }
+function enfileirarIA(item) { if (SEM_IA_MESTRE) return; filaIA.push(item); rodarFilaIA(); }
 async function rodarFilaIA() {
   if (iaOcupada) return; iaOcupada = 1;
   try { while (filaIA.length) await responderComIA(filaIA.shift()); } finally { iaOcupada = 0; }
