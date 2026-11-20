@@ -632,7 +632,7 @@
     <p class="dica">Cada chave extra dá mais limite grátis: quando uma IA chega no limite, o jogo passa sozinho para a próxima. As chaves ficam só neste navegador. Deixe em branco o que não quiser mudar.</p>
     <div class="linha-botoes"><button type="button" id="ch-guia">🧭 Assistente: criar chave grátis</button><button type="button" id="ch-diag" class="secundario">🩺 Diagnóstico das IAs</button></div>
     <div id="ch-diag-caixa" hidden><pre id="ch-diag-txt" style="white-space:pre-wrap;font-size:12px;max-height:260px;overflow:auto;background:rgba(0,0,0,.25);padding:8px;border-radius:8px"></pre>
-      <div class="linha-botoes"><button type="button" id="ch-diag-copiar" class="secundario">📋 Copiar</button><button type="button" id="ch-diag-atual" class="secundario">🔄 Atualizar lista de modelos</button></div></div>
+      <div class="linha-botoes"><button type="button" id="ch-diag-testar">🧪 Testar todas as chaves</button><button type="button" id="ch-diag-copiar" class="secundario">📋 Copiar</button><button type="button" id="ch-diag-atual" class="secundario">🔄 Atualizar lista de modelos</button></div></div>
     <div id="ch-lista"></div>
     <fieldset class="ch-local"><legend>🤝 Mesa em grupo</legend>
       <label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="ch-emprestar" style="margin-top:4px"> <span><b>Emprestar minha IA para a mesa</b><br><span class="dica">Quando os créditos do anfitrião acabarem, ele pode narrar pela SUA chave, em revezamento com os outros. A chave nunca sai deste navegador: só a narração vai e volta.</span></span></label>
@@ -2685,7 +2685,31 @@ function textoDiag() {
   return linhas.join("\n");
 }
 $("ch-diag").addEventListener("click", () => { const c = $("ch-diag-caixa"); c.hidden = !c.hidden; $("ch-diag-txt").textContent = textoDiag(); });
-$("ch-diag-copiar").addEventListener("click", async () => { try { await navigator.clipboard.writeText(textoDiag()); $("ch-diag-copiar").textContent = "✅ Copiado"; } catch (e) {} });
+// Testa cada chave salva com o próprio provedor (sem gastar cota de conversa: só pergunta "esta chave vale?")
+async function testarTodasChaves() {
+  const caixa = $("ch-diag-txt"), linhas = ["TESTE DAS CHAVES (" + new Date().toLocaleTimeString("pt-BR") + "):"];
+  const lista = CHAVES.filter(c => lerLS(c.ls));
+  if (!lista.length) { caixa.textContent = "Nenhuma chave salva ainda."; return; }
+  caixa.textContent = "Testando " + lista.length + " chave(s)…";
+  await Promise.all(lista.map(async c => {
+    const v = lerLS(c.ls), tipo = c.ls === "openrouter_key" ? "orc" : (PROVEDORES.find(p => p.ls === c.ls)?.id || "");
+    const ruim = problemaChave(c.ls, v);
+    let r = ruim ? { ok: false, msg: ruim } : await testarChave(tipo, v);
+    if (r.ok === null) r = { ok: null, msg: "não deu para testar daqui (o site bloqueia chamadas do navegador ou está sem rede)" };
+    let extra = "";
+    if (r.ok && tipo === "orc") try {                       // OpenRouter: mostra quantos pedidos grátis ainda restam hoje
+      const j = (await (await fetch("https://openrouter.ai/api/v1/key", { headers: { Authorization: "Bearer " + v } })).json())?.data || {};
+      const f = j.free_model_daily_requests || j.free_tier_daily_requests;
+      if (f && f.limit != null) extra = ` · grátis hoje: ${f.remaining ?? (f.limit - (f.used || 0))} de ${f.limit}`;
+    } catch (e) {}
+    c._r = `  ${r.ok ? "✅" : r.ok === false ? "❌" : "⚠"} ${c.nome}: ${r.ok ? "chave válida" + extra : r.msg || "não respondeu"}`;
+  }));
+  lista.forEach(c => linhas.push(c._r));
+  linhas.push("", "✅ = a chave vale (o limite do dia ainda pode estar no fim) · ❌ = recusada: crie outra · ⚠ = não deu para testar daqui (bloqueio do navegador ou sem rede).", "", textoDiag());
+  caixa.textContent = linhas.join("\n");
+}
+$("ch-diag-testar").addEventListener("click", testarTodasChaves);
+$("ch-diag-copiar").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("ch-diag-txt").textContent || textoDiag()); $("ch-diag-copiar").textContent = "✅ Copiado"; } catch (e) {} });
 $("ch-diag-atual").addEventListener("click", async () => { $("ch-diag-txt").textContent = "Buscando a lista atual de modelos grátis…"; await descobrirModelosOR(true); bloqueados.clear(); $("ch-diag-txt").textContent = textoDiag(); });
 // Login automático (OAuth PKCE do OpenRouter): só funciona com o jogo numa página http(s)/localhost, não abrindo o arquivo direto do disco.
 const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
