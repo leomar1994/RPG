@@ -929,6 +929,10 @@ const PROVEDORES = [
     modelos: ["mistral-medium-latest", "mistral-small-latest", "mistral-large-latest"], so: /^(mistral-(medium|small|large)-latest|open-mistral-nemo)$/,
     dica: "Grátis no plano Experiment (pede confirmar o celular; o uso pode treinar os modelos deles). Muito limite por mês.",
     guia: ["Abra o site, entre (Google funciona) e confirme o seu celular.", "Em Subscription, escolha <b>Experiment</b> (grátis).", "Vá em <b>API Keys → Create new key</b>, copie e cole abaixo."], abrir: "https://console.mistral.ai/api-keys" },
+  { id: "sambanova", nome: "SambaNova", url: "https://api.sambanova.ai/v1/chat/completions", ls: "sambanova_key", onde: "cloud.sambanova.ai/apis", abrir: "https://cloud.sambanova.ai/apis",
+    modelos: ["Meta-Llama-3.3-70B-Instruct", "gpt-oss-120b", "DeepSeek-V3.1"], so: /llama-3\.3-70b|gpt-oss-120b|deepseek-v3|llama-4-maverick|qwen3-235b|minimax|gemma-?4/i,
+    dica: "Grátis, sem cartão. Modelos grandes e muito rápidos (Llama 3.3 70B, gpt-oss-120b, DeepSeek). O plano grátis tem poucos pedidos por dia em cada modelo: o jogo troca sozinho quando acabar.",
+    guia: ["Abra o SambaNova Cloud e entre (Google funciona).", "Na página <b>APIs</b> / <b>API Keys</b>, clique em <b>Generate New API Key</b> (Gerar chave).", "Copie a chave e cole abaixo."] },
   { id: "cerebras", nome: "Cerebras", url: "https://api.cerebras.ai/v1/chat/completions", ls: "cerebras_key", onde: "cloud.cerebras.ai", abrir: "https://cloud.cerebras.ai",
     guia: ["Abra o Cerebras Cloud e entre.", "No menu, abra <b>API Keys</b> e crie uma chave.", "Copie e cole abaixo."],
     modelos: ["gpt-oss-120b", "llama-3.3-70b", "qwen-3-32b", "llama3.1-8b"] }
@@ -2251,7 +2255,7 @@ function ajustarProvedor(x, req) {
 function corpoPara(x, corpo, reserva) {                    // o que cada provedor recebe
   if (x.local) return x.ctx >= 24000 ? corpo : reduzirParaLimite(reserva ? enxugar(corpo) : corpo, Math.round(x.ctx * 0.7));
   if (x.orc) return reserva ? enxugar(corpo) : corpo;     // OpenRouter conta PEDIDOS, não tokens
-  if (x.prov === "gemini" || x.prov === "mistral") return reduzirParaLimite(reserva ? enxugar(corpo) : corpo, 30000);   // Gemini aceita muito texto por minuto
+  if (x.prov === "gemini" || x.prov === "mistral" || x.prov === "sambanova") return reduzirParaLimite(reserva ? enxugar(corpo) : corpo, 30000);   // Gemini aceita muito texto por minuto
   // Groq / Cerebras: limite de tokens por minuto (6 a 12 mil). Prompt completo só se couber; senão versão enxuta e funções curtas
   let c = reduzirParaLimite(corpo, 5400);
   if (estTok(c) > 5400) { c = enxugar(corpo); if (c.tools) c = { ...c, tools: ferramentasCurtas(c.tools) }; c = reduzirParaLimite(c, 5400); }
