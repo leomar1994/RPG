@@ -911,9 +911,8 @@ const MODELOS = [
   "openai/gpt-oss-20b:free",
   "qwen/qwen-2.5-coder-32b-instruct:free",
   "liquid/lfm-3-1.7b:free",                // modelo bem pequeno: fica por último entre os gratuitos
-  "openrouter/free",                       // roteador do OpenRouter: escolhe sozinho um modelo gratuito disponível
-  "google/gemini-2.5-flash-lite"           // pago: só entra se os gratuitos estiverem no limite e houver crédito
-];
+  "openrouter/free"                        // roteador do OpenRouter: escolhe sozinho um modelo gratuito disponível
+];   // só modelos GRÁTIS: nenhum modelo pago do OpenRouter é usado (para pagar, use a reserva Claude Haiku)
 const URL_API = "https://openrouter.ai/api/v1/chat/completions";
 const MAX_TOKENS = 1800;   // o OpenRouter reserva crédito pelo máximo pedido: abaixo de 1900 evita o erro 402 de créditos
 
@@ -1016,7 +1015,7 @@ function montarFila() {                                  // lista final de tenta
   const dePv = pv => { const c = lerLS(pv.ls); if (c) for (const m of (modelosDescobertos(pv) || pv.modelos).filter(m => !EXCLUIDOS.test(m))) fila.push({ id: `${pv.id}|${m}`, modelo: m, url: pv.url, chave: c, nome: pv.nome, prov: pv.id }); };
   for (const pv of PROVEDORES) if (!pv.reservaFinal) dePv(pv);
   const orc = OPENROUTER_API_KEY || lerLS("openrouter_key");
-  if (orc) for (const m of modelosOR()) fila.push({ id: m, modelo: m, url: URL_API, chave: orc, nome: "OpenRouter", orc: true });
+  if (orc) for (const m of modelosOR().filter(m => /:free$|^openrouter\/free$/.test(m))) fila.push({ id: m, modelo: m, url: URL_API, chave: orc, nome: "OpenRouter", orc: true });
   const lu = LOCAL.url(); if (lu) for (const m of LOCAL.modelos()) fila.push({ id: "local|" + m, modelo: m, url: lu, chave: "local", nome: "IA do computador", prov: "local", local: true, ctx: LOCAL.ctx() });
   for (const pv of PROVEDORES) if (pv.reservaFinal) dePv(pv);   // pagas (Claude Haiku): só depois de TODAS as outras
   return fila;
