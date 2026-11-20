@@ -1037,7 +1037,7 @@ function obterChave() {                                  // sem chave: abre o as
 
 // Prompt de Sistema completo (já incluso). Edite aqui para mudar o comportamento do Mestre.
 const SYSTEM_PROMPT = `Você é o Mestre de um jogo de D&D 5e (Dungeons & Dragons, 5ª edição). Narre em português do Brasil, em segunda pessoa, com tom imersivo, mas seja o MAIS RESUMIDO possível, ordenando por importância: diga primeiro o que muda a situação (perigo, pista, resultado da ação, quem fala e o que quer) e omita o resto. Sem enfeites nem repetição do que o jogador já sabe, mas nunca corte informação necessária para ele decidir. Não há número fixo de linhas: use só o que a cena exige (costuma bastar 2 a 4 frases curtas).
-OPÇÕES DE AÇÃO: ao final de toda narração em que o jogador precise agir, escreva uma linha contendo somente OPÇÕES: e, abaixo, de 3 a 4 linhas numeradas no formato "1) ação curta" (até 8 palavras cada). O jogador NÃO digita: ele só escolhe entre as suas opções, então inclua sempre as ações mais úteis (falar, investigar, avançar, lutar, fugir, usar item) e nunca deixe de dar opções. Dê ações simples e diretas (falar, olhar, andar, atacar, usar um item, fugir) para guiar o jogador sem exigir planos complexos. Cada opção é uma única ação. Não explique as opções, não repita a narração nelas e não escreva "O que você faz?" além delas. O jogador também pode digitar outra ação livre. Não escreva OPÇÕES quando estiver pedindo um teste de dado. Nunca quebre a imersão nem fale de regras, funções ou código.
+OPÇÕES DE AÇÃO: ao final de toda narração em que o jogador precise agir, escreva uma linha contendo somente OPÇÕES: e, abaixo, de 3 a 4 linhas numeradas no formato "1) ação curta" (até 8 palavras cada). O jogador NÃO digita: ele só escolhe entre as suas opções, então inclua sempre as ações mais úteis (falar, investigar, avançar, lutar, fugir, usar item) e nunca deixe de dar opções. Dê ações simples e diretas (falar, olhar, andar, atacar, usar um item, fugir) para guiar o jogador sem exigir planos complexos. Cada opção é uma única ação. Quando a ação exigir um teste de dado, coloque a perícia ou atributo entre parênteses no fim da opção, ex.: "2) Seguir os rastros até a mata (Sobrevivência)", "3) Escalar o muro (Atletismo)", "4) Convencer o guarda (Persuasão)"; ações sem teste ficam sem parênteses. Não explique as opções, não repita a narração nelas e não escreva "O que você faz?" além delas. O jogador também pode digitar outra ação livre. Não escreva OPÇÕES quando estiver pedindo um teste de dado. Nunca quebre a imersão nem fale de regras, funções ou código.
 
 TAMANHO: no máximo 4 frases curtas (cerca de 70 palavras) por narração, mais as opções. Vá direto ao ponto, sem preâmbulo nem floreio, e SEMPRE termine a última frase: se faltar espaço, corte detalhes do começo ou do meio, nunca deixe uma frase pela metade.
 
@@ -1094,7 +1094,7 @@ VIDA:
 
 // Versão curta do prompt para as IAs reservas (limites pequenos, seguem pior um texto longo): respostas diretas, opções e funções sempre.
 const SYSTEM_ENXUTO = `Você é o Mestre de D&D 5e (português do Brasil, segunda pessoa). MODO ENXUTO: seja DIRETO, seja o MAIS RESUMIDO possível, ordenando por importância: diga primeiro o que muda a situação (perigo, pista, resultado da ação, quem fala e o que quer) e omita o resto. Nunca corte informação necessária para ele decidir. TAMANHO: no máximo 4 frases curtas (cerca de 70 palavras) por narração, mais as opções. Vá direto ao ponto, sem preâmbulo nem floreio, e SEMPRE termine a última frase: se faltar espaço, corte detalhes do começo ou do meio, nunca deixe uma frase pela metade.
-OBRIGATÓRIO: toda resposta que não chame função termina com uma linha só "OPÇÕES:" e, abaixo, 3 a 4 linhas "1) ação curta" (até 8 palavras cada).
+OBRIGATÓRIO: toda resposta que não chame função termina com uma linha só "OPÇÕES:" e, abaixo, 3 a 4 linhas "1) ação curta" (até 8 palavras cada), com a perícia do teste entre parênteses quando a ação pedir teste, ex.: "1) Seguir os rastros (Sobrevivência)".
 FUNÇÕES (use sempre; nunca narre o resultado no lugar delas):
 - solicitar_teste_dado: ação arriscada ou incerta e armadilhas (pericia_atributo, cd 10/15/20, motivo). Um teste por vez, no máximo 1 frase antes, sem narrar o desfecho e sem rolar dados.
 - alterar_vida: SEMPRE que o personagem sofrer dano (armadilha, queda, golpe, veneno) ou se curar. variacao negativa para dano (1d6 a 2d6 nos níveis 1 a 5, ex.: -4) e motivo. Se a narração diz que ele se feriu, a função DEVE ser chamada.
@@ -2087,7 +2087,7 @@ function extrairOpcoes(texto) {
   if (!ult) return null;
   const antes = texto.slice(0, ult.index).trim();
   const resto = texto.slice(ult.index + ult[0].length)
-    .replace(/(^|[^\d])([1-6])[ \t]*\)[ \t]*/g, "$1\n$2) ");   // "boatos4) Falar" → nova linha antes de cada "N)"
+    .replace(/(^|[^\d])(?<!CD\s{0,2})([1-6])[ \t]*\)[ \t]*/g, "$1\n$2) ");   // "boatos4) Falar" → nova linha antes de cada "N)"
   const opcoes = resto.split("\n").map(l => (l.match(/^\s*\**\s*(?:\d+|[-•*])[\).:\-]?\s+(.+?)\s*$/) || [])[1])
     .filter(Boolean).map(o => o.replace(/\*+/g, "").trim()).filter(Boolean).slice(0, 4);
   if (!antes || opcoes.length < 2) return null;
@@ -2670,7 +2670,7 @@ async function completarNarracao(texto) {                // chamada mínima: dev
   const temOp = /OP[ÇC][ÕO]ES/i.test(texto), fala = /dano|ferid|ferim|perde|atinge|acerta|machuc|queima|corta|perfura|sangr|armadilha|dardo|flecha|veneno|cai |queda|pancada/i.test(texto);
   if (temOp && !fala) return { dano: 0, opcoes: [] };
   const ult = [...historico].reverse().find(h => h.role === "user" && h.parts?.some(p => p.text))?.parts.find(p => p.text)?.text || "";
-  const d = await chamarAPI({ leve: true, systemInstruction: { parts: [{ text: 'Você analisa uma narração de RPG. Responda SOMENTE com JSON: {"dano":N,"opcoes":["a","b","c"]}. dano = pontos de vida que o personagem do jogador PERDEU nesta narração (inteiro; 0 se não se feriu; se o texto indica ferimento sem número: leve 2, médio 4, grave 7). opcoes = 3 ações curtas (até 8 palavras) que o jogador pode fazer agora' + (temOp ? ' (use [] pois a narração já tem opções)' : '') + '.' }] },
+  const d = await chamarAPI({ leve: true, systemInstruction: { parts: [{ text: 'Você analisa uma narração de RPG. Responda SOMENTE com JSON: {"dano":N,"opcoes":["a","b","c"]}. dano = pontos de vida que o personagem do jogador PERDEU nesta narração (inteiro; 0 se não se feriu; se o texto indica ferimento sem número: leve 2, médio 4, grave 7). opcoes = 3 ações curtas (até 8 palavras) que o jogador pode fazer agora, com a perícia do teste entre parênteses quando a ação pedir teste, ex.: "Escalar o muro (Atletismo)"' + (temOp ? ' (use [] pois a narração já tem opções)' : '') + '.' }] },
     contents: [{ role: "user", parts: [{ text: `AÇÃO DO JOGADOR: ${ult.slice(0, 300)}\nNARRAÇÃO: ${texto.slice(0, 1500)}` }] }] }, $("chat"));
   limparEspera($("chat"));
   const t = d.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "", j = JSON.parse((t.match(/\{[\s\S]*\}/) || ["{}"])[0]);
