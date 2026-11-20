@@ -935,7 +935,11 @@ const PROVEDORES = [
     guia: ["Abra o SambaNova Cloud e entre (Google funciona).", "Na página <b>APIs</b> / <b>API Keys</b>, clique em <b>Generate New API Key</b> (Gerar chave).", "Copie a chave e cole abaixo."] },
   { id: "cerebras", nome: "Cerebras", url: "https://api.cerebras.ai/v1/chat/completions", ls: "cerebras_key", onde: "cloud.cerebras.ai", abrir: "https://cloud.cerebras.ai",
     guia: ["Abra o Cerebras Cloud e entre.", "No menu, abra <b>API Keys</b> e crie uma chave.", "Copie e cole abaixo."],
-    modelos: ["gpt-oss-120b", "llama-3.3-70b", "qwen-3-32b", "llama3.1-8b"] }
+    modelos: ["gpt-oss-120b", "llama-3.3-70b", "qwen-3-32b", "llama3.1-8b"] },
+  { id: "anthropic", nome: "Claude Haiku", url: "https://api.anthropic.com/v1/messages", ls: "anthropic_key", onde: "platform.claude.com", abrir: "https://platform.claude.com/settings/keys",
+    modelos: ["claude-haiku-5-5"], prefixo: /^sk-ant-/, reservaFinal: true, semDescoberta: true,
+    dica: "PAGO (reserva): só entra quando TODAS as outras IAs estiverem no limite. Custa cerca de US$ 0,001 por jogada; a conta nova costuma ganhar um pequeno crédito de teste.",
+    guia: ["Abra o Claude Platform e entre (ou crie a conta).", "Em <b>Billing</b>, coloque créditos quando quiser usar.", "Em <b>API Keys → Create Key</b>, copie a chave (começa com <code>sk-ant-</code>) e cole abaixo."] }
 ];
 const lerLS = k => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
 // Os provedores mudam os nomes dos modelos com frequência: o app pergunta ao próprio provedor quais a sua chave pode usar.
@@ -977,7 +981,7 @@ function reduzirParaLimite(corpo, alvoTokens) {
 }
 const ultimaBusca = {};
 async function descobrirModelos(pv, forcar) {
-  const chave = lerLS(pv.ls); if (!chave) return;
+  const chave = lerLS(pv.ls); if (!chave || pv.semDescoberta) return;
   if (!forcar && Date.now() - (ultimaBusca[pv.id] || 0) < 600000) return;      // no máximo uma busca a cada 10 min
   ultimaBusca[pv.id] = Date.now();
   try {
@@ -1009,10 +1013,12 @@ async function descobrirLocal() {
 }
 function montarFila() {                                  // lista final de tentativas: provedores extras primeiro, depois o OpenRouter, por último a IA do computador
   const fila = [];
-  for (const pv of PROVEDORES) { const c = lerLS(pv.ls); if (c) for (const m of (modelosDescobertos(pv) || pv.modelos)) fila.push({ id: `${pv.id}|${m}`, modelo: m, url: pv.url, chave: c, nome: pv.nome, prov: pv.id }); }
+  const dePv = pv => { const c = lerLS(pv.ls); if (c) for (const m of (modelosDescobertos(pv) || pv.modelos)) fila.push({ id: `${pv.id}|${m}`, modelo: m, url: pv.url, chave: c, nome: pv.nome, prov: pv.id }); };
+  for (const pv of PROVEDORES) if (!pv.reservaFinal) dePv(pv);
   const orc = OPENROUTER_API_KEY || lerLS("openrouter_key");
   if (orc) for (const m of modelosOR()) fila.push({ id: m, modelo: m, url: URL_API, chave: orc, nome: "OpenRouter", orc: true });
   const lu = LOCAL.url(); if (lu) for (const m of LOCAL.modelos()) fila.push({ id: "local|" + m, modelo: m, url: lu, chave: "local", nome: "IA do computador", prov: "local", local: true, ctx: LOCAL.ctx() });
+  for (const pv of PROVEDORES) if (pv.reservaFinal) dePv(pv);   // pagas (Claude Haiku): só depois de TODAS as outras
   return fila;
 }
 let esperaChave = null, esperaChaveRes = null;
@@ -2265,10 +2271,39 @@ function ajustarProvedor(x, req) {
   }
   return { ...req, messages: msgs };
 }
+// Claude (Anthropic) direto do navegador: converte o pedido no formato OpenAI para a API Messages e a resposta de volta.
+// As instruções e as funções (iguais em toda jogada) vão com cache: nas jogadas seguintes custam ~10% do preço.
+const CLAUDE = {
+  cab: chave => ({ "Content-Type": "application/json", "x-api-key": chave, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }),
+  pedido(req) {
+    const idOk = id => String(id || "call").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60);
+    const sistema = req.messages.filter(m => m.role === "system").map(m => m.content).join("\n\n");
+    const msgs = [];
+    const add = (role, blocos) => { if (!blocos.length) return; const u = msgs[msgs.length - 1]; if (u && u.role === role) u.content.push(...blocos); else msgs.push({ role, content: blocos }); };
+    for (const m of req.messages) {
+      if (m.role === "system") continue;
+      if (m.role === "assistant") add("assistant", [...(m.content ? [{ type: "text", text: m.content }] : []), ...(m.tool_calls || []).map(t => { let input = {}; try { input = JSON.parse(t.function.arguments || "{}"); } catch (e) {} return { type: "tool_use", id: idOk(t.id), name: t.function.name, input }; })]);
+      else if (m.role === "tool") add("user", [{ type: "tool_result", tool_use_id: idOk(m.tool_call_id), content: String(m.content || "{}") }]);
+      else add("user", [{ type: "text", text: String(m.content || "") }]);
+    }
+    while (msgs.length && msgs[0].role !== "user") msgs.shift();
+    const p = { model: req.model, max_tokens: req.max_tokens || 1300, messages: msgs };
+    if (sistema) p.system = [{ type: "text", text: sistema, cache_control: { type: "ephemeral" } }];
+    if (req.tools?.length) { p.tools = req.tools.map(t => ({ name: t.function.name, description: t.function.description || "", input_schema: t.function.parameters || { type: "object", properties: {} } })); p.tools[p.tools.length - 1].cache_control = { type: "ephemeral" }; }
+    return p;
+  },
+  resposta(d) {
+    if (d?.type === "error" || d?.error) return { error: { code: d.error?.type === "overloaded_error" ? 529 : d.error?.type === "rate_limit_error" ? 429 : undefined, message: d.error?.message || "erro do Claude" } };
+    const blocos = d?.content || [];
+    const texto = blocos.filter(b => b.type === "text").map(b => b.text).join("\n");
+    const calls = blocos.filter(b => b.type === "tool_use").map(b => ({ id: b.id, type: "function", function: { name: b.name, arguments: JSON.stringify(b.input || {}) } }));
+    return { choices: [{ message: { content: texto, ...(calls.length ? { tool_calls: calls } : {}) }, finish_reason: d?.stop_reason }] };
+  }
+};
 function corpoPara(x, corpo, reserva) {                    // o que cada provedor recebe
   if (x.local) return x.ctx >= 24000 ? corpo : reduzirParaLimite(reserva ? enxugar(corpo) : corpo, Math.round(x.ctx * 0.7));
   if (x.orc) return reserva ? enxugar(corpo) : corpo;     // OpenRouter conta PEDIDOS, não tokens
-  if (x.prov === "gemini" || x.prov === "mistral" || x.prov === "sambanova") return reduzirParaLimite(reserva ? enxugar(corpo) : corpo, 30000);   // Gemini aceita muito texto por minuto
+  if (x.prov === "gemini" || x.prov === "mistral" || x.prov === "sambanova" || x.prov === "anthropic") return reduzirParaLimite(reserva ? enxugar(corpo) : corpo, 30000);   // Gemini aceita muito texto por minuto
   // Groq / Cerebras: limite de tokens por minuto (6 a 12 mil). Prompt completo só se couber; senão versão enxuta e funções curtas
   let c = reduzirParaLimite(corpo, 5400);
   if (estTok(c) > 5400) { c = enxugar(corpo); if (c.tools) c = { ...c, tools: ferramentasCurtas(c.tools) }; c = reduzirParaLimite(c, 5400); }
@@ -2310,8 +2345,10 @@ async function chamarAPI(corpo, container) {
     try {
       const cab = { "Content-Type": "application/json", "Authorization": "Bearer " + x.chave };
       if (x.orc) cab["X-Title"] = "RPG Mestre IA";
-      const resp = await fetch(x.url, { method: "POST", headers: cab, signal: ac.signal, body: JSON.stringify(ajustarProvedor(x, paraOpenAI(corpoX, modelo, !!x.orc))) });
-      const dados = await resp.json().catch(() => ({}));
+      const req = ajustarProvedor(x, paraOpenAI(corpoX, modelo, !!x.orc)), claude = x.prov === "anthropic";
+      const resp = await fetch(x.url, { method: "POST", headers: claude ? CLAUDE.cab(x.chave) : cab, signal: ac.signal, body: JSON.stringify(claude ? CLAUDE.pedido(req) : req) });
+      let dados = await resp.json().catch(() => ({}));
+      if (claude) dados = CLAUDE.resposta(dados);
       clearTimeout(limite); clearTimeout(aviso);
       DIAG.add(x, resp.ok && !dados.error, resp.ok && !dados.error ? "ok" : `${dados.error?.code || resp.status} ${dados.error?.message || ""}`, Date.now() - t0);
       if (resp.ok && !dados.error) {
@@ -2329,7 +2366,7 @@ async function chamarAPI(corpo, container) {
       if (x.local && /tool/i.test(dados.error?.message || "")) { ultimoErro = new Error(`IA do computador (${modelo}) não aceita funções: use um modelo com suporte a ferramentas (ex.: Qwen 3, Llama 3.1+).`); pausar(x, 600000); continue; }
       if (!x.orc && (status === 401 || status === 403)) { ultimoErro = new Error(`${x.nome}: chave recusada (${status}). Confira em 🔑 Chaves de IA.`); pausar(x, 3600000); continue; }
       if (/only available|agentic harness|not available (?:in|for|on)|not supported|unsupported|no longer available|has been (?:removed|deprecated)/i.test(dados.error?.message || "")) { ultimoErro = erro; pausar(x, 86400000); continue; }   // modelo que não serve para chamadas comuns: pula por 24 h e tenta o próximo
-      if (![400, 402, 404, 408, 413, 422, 429, 500, 502, 503, 504].includes(status)) throw Object.assign(erro, { definitivo: true });   // chave do OpenRouter inválida etc.
+      if (![400, 402, 404, 408, 413, 422, 429, 500, 502, 503, 504, 529].includes(status)) throw Object.assign(erro, { definitivo: true });   // chave do OpenRouter inválida etc.
       ultimoErro = erro;
       if (!x.orc && (status === 404 || status === 400) && /does not exist|not found|no access|model/i.test(dados.error?.message || "")) { const pv = PROVEDORES.find(q => q.id === x.prov); if (pv) { try { localStorage.removeItem("modelos_" + pv.id); } catch (e) {} descobrirModelos(pv, true).then(() => { fila = montarFila(); }); } }
       // limite diário/por minuto, sem crédito ou modelo fora do ar: pausa só este modelo e tenta o próximo na hora
@@ -2588,6 +2625,7 @@ async function testarChave(tipo, chave) {                // confirma com o próp
   try {
     const pv = PROVEDORES.find(p => p.id === tipo);
     const r = tipo === "orc" ? await fetch("https://openrouter.ai/api/v1/auth/key", { headers: { Authorization: "Bearer " + chave } })
+            : tipo === "anthropic" ? await fetch("https://api.anthropic.com/v1/models", { headers: CLAUDE.cab(chave) })
                              : await fetch(pv.url.replace("/chat/completions", "/models"), { headers: { Authorization: "Bearer " + chave } });
     if (r.ok) return { ok: true };
     return { ok: false, msg: r.status === 401 || r.status === 403 ? "O provedor recusou essa chave. Confira se copiou inteira." : `Erro ${r.status} ao testar a chave.` };
