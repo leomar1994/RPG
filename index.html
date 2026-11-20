@@ -944,7 +944,7 @@ const PROVEDORES = [
 const lerLS = k => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
 // Os provedores mudam os nomes dos modelos com frequência: o app pergunta ao próprio provedor quais a sua chave pode usar.
 const PREFERIDOS = [/^(models\/)?gemini-[\d.]+-flash$/, /gemini-[\d.]+-flash(?!.*(lite|image|live|tts))/, /gemini-[\d.]+-flash-lite$/, /gemini-[\d.]+-pro$/, /llama-4/, /gpt-oss-120b/, /llama-3\.3/, /qwen/, /kimi/, /gpt-oss-20b/, /llama-3\.1-70b/, /llama/];
-const EXCLUIDOS = /imagen|veo-|embedding|aqa|nano-banana|-image|-live|native-audio|robotics|computer-use|learnlm|gemma|deep-research|whisper|guard|safeguard|tts|orpheus|embed|playai|distil|compound|vision-preview|transcri|moderation|prompt-guard/i;
+const EXCLUIDOS = /allam|imagen|veo-|embedding|aqa|nano-banana|-image|-live|native-audio|robotics|computer-use|learnlm|gemma|deep-research|whisper|guard|safeguard|tts|orpheus|embed|playai|distil|compound|vision-preview|transcri|moderation|prompt-guard/i;
 // Modelos grátis do OpenRouter mudam toda semana: busca a lista atual (pública) e guarda por 6 h; a lista fixa é só reserva
 const ORC_BOM = [/gemini|gemma/i, /llama-3\.3-70b|llama-4/i, /deepseek/i, /qwen3?(?!-coder)/i, /mistral|mixtral/i, /glm/i, /gpt-oss/i, /nemotron/i, /kimi|minimax|ernie|ling/i];
 function modelosOR() {
@@ -1013,7 +1013,7 @@ async function descobrirLocal() {
 }
 function montarFila() {                                  // lista final de tentativas: provedores extras primeiro, depois o OpenRouter, por último a IA do computador
   const fila = [];
-  const dePv = pv => { const c = lerLS(pv.ls); if (c) for (const m of (modelosDescobertos(pv) || pv.modelos)) fila.push({ id: `${pv.id}|${m}`, modelo: m, url: pv.url, chave: c, nome: pv.nome, prov: pv.id }); };
+  const dePv = pv => { const c = lerLS(pv.ls); if (c) for (const m of (modelosDescobertos(pv) || pv.modelos).filter(m => !EXCLUIDOS.test(m))) fila.push({ id: `${pv.id}|${m}`, modelo: m, url: pv.url, chave: c, nome: pv.nome, prov: pv.id }); };
   for (const pv of PROVEDORES) if (!pv.reservaFinal) dePv(pv);
   const orc = OPENROUTER_API_KEY || lerLS("openrouter_key");
   if (orc) for (const m of modelosOR()) fila.push({ id: m, modelo: m, url: URL_API, chave: orc, nome: "OpenRouter", orc: true });
@@ -2171,7 +2171,9 @@ function paraOpenAI(corpo, modelo, orc = true) {
       const texto = partes.filter(p => p.text).map(p => p.text).join("\n");
       const calls = partes.filter(p => p.functionCall).map((p, i) => {
         const id = p.functionCall.id || `call_${msgs.length}_${i}`;
-        return { id, type: "function", function: { name: p.functionCall.name, arguments: JSON.stringify(p.functionCall.args || {}) } };
+        const tc = { id, type: "function", function: { name: p.functionCall.name, arguments: JSON.stringify(p.functionCall.args || {}) } };
+        if (/^(models\/)?gemini-/i.test(modelo)) tc.extra_content = { google: { thought_signature: p.thoughtSignature || "skip_thought_signature_validator" } };   // Gemini 3 exige a assinatura do raciocínio
+        return tc;
       });
       pendentes = calls.map(c => ({ id: c.id, name: c.function.name }));
       const msg = { role: "assistant", content: texto };
@@ -2191,6 +2193,7 @@ function paraOpenAI(corpo, modelo, orc = true) {
   }
   const req = { model: modelo, messages: msgs, max_tokens: orc ? MAX_TOKENS : 1300 };   // Groq/Cerebras contam o máximo pedido no limite por minuto
   if (!orc && /gpt-oss/i.test(modelo)) req.reasoning_effort = "low";
+  if (!orc && /^(models\/)?gemini-(3|[4-9])/i.test(modelo)) req.reasoning_effort = "low";   // Gemini 3+: pensa pouco = responde rápido (aceita none/low/medium/high)
   if (orc) req.reasoning = { effort: "low" };   // raciocínio curto: respostas mais rápidas e sem esgotar o limite
   const decls = corpo.tools?.flatMap(t => t.functionDeclarations || []) || [];
   if (decls.length) req.tools = decls.map(d => ({ type: "function", function: { name: d.name, description: d.description, parameters: esquemaMinusculo(d.parameters) } }));
@@ -2236,7 +2239,8 @@ function deOpenAI(dados) {
   for (const tc of msg?.tool_calls || []) {
     let args = {};
     try { args = JSON.parse(tc.function.arguments || "{}"); } catch (e) {}
-    parts.push({ functionCall: { id: tc.id, name: tc.function.name, args } });
+    const sig = tc.extra_content?.google?.thought_signature;   // Gemini 3: guarda para devolver na próxima chamada
+    parts.push({ functionCall: { id: tc.id, name: tc.function.name, args }, ...(sig ? { thoughtSignature: sig } : {}) });
   }
   return { candidates: parts.length ? [{ content: { role: "model", parts } }] : [] };
 }
@@ -2305,11 +2309,12 @@ function corpoPara(x, corpo, reserva) {                    // o que cada provedo
   if (x.orc) return reserva ? enxugar(corpo) : corpo;     // OpenRouter conta PEDIDOS, não tokens
   if (x.prov === "gemini" || x.prov === "mistral" || x.prov === "sambanova" || x.prov === "anthropic") return reduzirParaLimite(reserva ? enxugar(corpo) : corpo, 30000);   // Gemini aceita muito texto por minuto
   // Groq / Cerebras: limite de tokens por minuto (6 a 12 mil). Prompt completo só se couber; senão versão enxuta e funções curtas
-  let c = reduzirParaLimite(corpo, 5400);
-  if (estTok(c) > 5400) { c = enxugar(corpo); if (c.tools) c = { ...c, tools: ferramentasCurtas(c.tools) }; c = reduzirParaLimite(c, 5400); }
+  let c = reduzirParaLimite(corpo, 3600);              // o limite por minuto do Groq conta também a resposta: 3600 + 1300 cabe nos 6–8 mil
+  if (estTok(c) > 3600) { c = enxugar(corpo); if (c.tools) c = { ...c, tools: ferramentasCurtas(c.tools) }; c = reduzirParaLimite(c, 3600); }
   return c;
 }
-let SEM_IA_MESA = false;                                   // o Mestre humano escolheu jogar sem IA
+let SEM_IA_MESA = false;
+const avisouChave = {};                                   // o Mestre humano escolheu jogar sem IA
 async function chamarAPI(corpo, container) {
   if (SEM_IA_MESA && MESTRE_HUMANO) throw Object.assign(new Error("Mesa sem IA: o Mestre responde."), { semIA: true, cancelado: true });
   let fila = montarFila();
@@ -2364,8 +2369,14 @@ async function chamarAPI(corpo, container) {
       const codigoErro = Number(dados.error?.code), status = Number.isFinite(codigoErro) && codigoErro > 0 ? codigoErro : resp.status;   // Groq manda o código como texto
       const erro = new Error(`${x.nome} · ${modelo}: ${dados.error?.message || "erro " + status}${dados.error?.metadata?.raw ? " · " + String(dados.error.metadata.raw).slice(0, 200) : ""}`);
       if (x.local && /tool/i.test(dados.error?.message || "")) { ultimoErro = new Error(`IA do computador (${modelo}) não aceita funções: use um modelo com suporte a ferramentas (ex.: Qwen 3, Llama 3.1+).`); pausar(x, 600000); continue; }
-      if (!x.orc && (status === 401 || status === 403)) { ultimoErro = new Error(`${x.nome}: chave recusada (${status}). Confira em 🔑 Chaves de IA.`); pausar(x, 3600000); continue; }
+      if (status === 401 || status === 403) {               // chave recusada: pula esta IA por 1 h e segue para as outras (antes o OpenRouter travava tudo)
+        ultimoErro = new Error(`${x.nome}: chave recusada (${status}). Crie uma chave nova e cole em 🔑 Chaves de IA.`);
+        if (x.orc) { for (const y of fila) if (y.orc) bloqueados.set(y.id, Date.now() + 3600000); if (!avisouChave.orc) { avisouChave.orc = true; try { addMsg("⚠ O OpenRouter recusou a sua chave (pode ter sido apagada ou expirada). O jogo segue com as outras IAs; para voltar a usar o OpenRouter, crie uma chave nova em openrouter.ai/keys e cole em 🔑 Chaves de IA.", "sistema"); } catch (e) {} } }
+        else pausar(x, 3600000);
+        continue;
+      }
       if (/only available|agentic harness|not available (?:in|for|on)|not supported|unsupported|no longer available|has been (?:removed|deprecated)/i.test(dados.error?.message || "")) { ultimoErro = erro; pausar(x, 86400000); continue; }   // modelo que não serve para chamadas comuns: pula por 24 h e tenta o próximo
+      if (/request too large|too large for model|tool calling. is not supported|does not support (tools|function)/i.test(dados.error?.message || "")) { ultimoErro = erro; pausar(x, 6 * 3600000); continue; }   // este modelo nunca vai servir para este pedido: pula por 6 h
       if (![400, 402, 404, 408, 413, 422, 429, 500, 502, 503, 504, 529].includes(status)) throw Object.assign(erro, { definitivo: true });   // chave do OpenRouter inválida etc.
       ultimoErro = erro;
       if (!x.orc && (status === 404 || status === 400) && /does not exist|not found|no access|model/i.test(dados.error?.message || "")) { const pv = PROVEDORES.find(q => q.id === x.prov); if (pv) { try { localStorage.removeItem("modelos_" + pv.id); } catch (e) {} descobrirModelos(pv, true).then(() => { fila = montarFila(); }); } }
