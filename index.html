@@ -1095,7 +1095,8 @@ VIDA:
 - Nunca invente valores de vida: use os valores devolvidos (vida_atual e vida_maxima) e a "Vida atual" do contexto. O dano dos inimigos deve ser proporcional ao nível (referência: 1d6 a 2d10 por ataque nos níveis 1 a 5); no modo grupo, aplique o multiplicador de dificuldade ao dano.
 - POÇÕES: só existe poção que está na BOLSA DO JOGADOR. Nunca dê, invente ou faça aparecer poção para salvar alguém: ao curar com poção, chame alterar_vida com motivo contendo "poção" e o aplicativo gasta uma da bolsa (se não houver, ele recusa). Personagem CAÍDO (0 PV) não pode ser curado por você de outro jeito: o aplicativo faz a salvaguarda contra a morte e decide se um aliado ajuda.
 - Se a vida chegar a 0 (estado "caido"), você PODE dar uma última chance chamando salvaguarda_morte (cd 10 padrão, 15 ferimento grave, 20 quase mortal), no máximo uma vez, só se a história justificar; não chame se o ferimento for claramente letal. Depois narre em UMA frase o personagem caindo e NÃO ofereça opções: o aplicativo decide se ele bebe uma poção de cura ou morre (morte definitiva). Quando o aplicativo avisar que o personagem MORREU, narre a morte em 2 ou 3 frases, com respeito, sem opções.
-- Descanso curto recupera cerca de metade da vida máxima; descanso longo recupera tudo.`;
+- Descanso curto recupera cerca de metade da vida máxima; descanso longo recupera tudo.
+- DINHEIRO NA VILA: o app já põe no mapa da vila a Estalagem (refeição 0,3 po, quarto 0,5 po), a Ferraria, o Boticário e o Mercado, e atende sozinho quando o jogador toca neles. Se ele pedir para comer, beber, dormir ou pagar algo fora das lojas, chame cobrar com o preço (nunca desconte moedas só na narração). Em vila ou cidade, descanso LONGO só com quarto pago; sem dinheiro, ofereça como opções trabalhar em troca ("Lavar a louça da estalagem", "Limpar o estábulo") e, se ele aceitar, chame cobrar com servico "quarto" e valor_po 0. Fora das vilas (acampando), o descanso longo é permitido, mas pode ser interrompido.`;
 
 // Versão curta do prompt para as IAs reservas (limites pequenos, seguem pior um texto longo): respostas diretas, opções e funções sempre.
 const SYSTEM_ENXUTO = `Você é o Mestre de D&D 5e (português do Brasil, segunda pessoa). MODO ENXUTO: seja DIRETO, seja o MAIS RESUMIDO possível, ordenando por importância: diga primeiro o que muda a situação (perigo, pista, resultado da ação, quem fala e o que quer) e omita o resto. Nunca corte informação necessária para ele decidir. TAMANHO: no máximo 4 frases curtas (cerca de 70 palavras) por narração, mais as opções. Vá direto ao ponto, sem preâmbulo nem floreio, e SEMPRE termine a última frase: se faltar espaço, corte detalhes do começo ou do meio, nunca deixe uma frase pela metade.
@@ -1407,6 +1408,13 @@ const FERRAMENTAS = [{
     name: "abrir_loja",
     description: "Abre a LOJA do vendedor quando o jogador começa a comprar de um NPC que vende mercadoria. O aplicativo mostra o catálogo real com preços; você não inventa itens nem preços. tipo: ferreiro (armas e armaduras), comerciante (itens gerais: mochila, corda, tochas, rações...), alquimista (poções e frascos). Boticário/herbalista = alquimista; armeiro = ferreiro; mercador = comerciante.",
     parameters: { type: "OBJECT", properties: { tipo: { type: "STRING", description: "ferreiro, comerciante ou alquimista." }, npc: { type: "STRING", description: "Nome do vendedor." } }, required: ["tipo"] }
+  }, {
+    name: "cobrar",
+    description: "Cobra do jogador um serviço FORA das lojas (refeição, quarto, bebida, passagem, suborno, entrada). O app mostra Pagar / Não pagar e desconta da bolsa. Preços do Livro do Jogador (refeição 0,3 po; quarto 0,5 po). Quarto pago (ou trabalho em troca, com valor_po 0) já aplica o descanso longo.",
+    parameters: { type: "OBJECT", properties: {
+      descricao: { type: "STRING", description: "O que está sendo cobrado, ex.: 'Quarto na Estalagem do Javali'." },
+      valor_po: { type: "NUMBER", description: "Preço em peças de ouro (pode ser fração: 0,3 = 3 pp)." },
+      servico: { type: "STRING", description: "refeicao, quarto ou outro." } }, required: ["descricao", "valor_po"] }
   }, {
     name: "fechar_loja",
     description: "Fecha a loja quando o jogador termina de comprar ou se despede do vendedor.",
@@ -1927,7 +1935,7 @@ var ECO = (() => {
   }
   function tirar(nome, q) {
     let falta = q;
-    for (const it of inv().filter(i => norm(i.nome) === norm(nome) && i.dur == null)) { const t = Math.min(it.qtd, falta); it.qtd -= t; falta -= t; if (!falta) break; }
+    for (const it of inv().filter(i => norm(i.nome) === norm(nome) && i.dur == null)) { const t = Math.min(it.qtd, falta); it.qtd = Math.round((it.qtd - t) * 100) / 100; falta = Math.round((falta - t) * 100) / 100; if (!falta) break; }   // moedas fracionadas (pp, pc) sem erro de arredondamento
     ficha.inventario = inv().filter(i => i.qtd > 0);
     return falta === 0;
   }
@@ -2832,6 +2840,7 @@ async function chamarIAInterna() {
         }
         else if (c.name === "mudar_local") { fecharLoja(); resposta = Mundo.ativoNoModo() ? Mundo.mudarLocal(c.args) : { ok: true }; }
         else if (c.name === "abrir_loja") resposta = abrirLoja(c.args);
+        else if (c.name === "cobrar") resposta = await executarCobranca(c.args);
         else if (c.name === "fechar_loja") resposta = fecharLoja(true);
         else if (c.name === "atualizar_campanha") resposta = MESTRE_HUMANO ? { ok: true } : atualizarCampanha(c.args);
         else if (c.name === "registrar_npc") resposta = Mundo.ativoNoModo() ? Mundo.registrarNpc(falasAuto(c.args, texto)) : { ok: true };
@@ -2943,7 +2952,7 @@ function descansoLongoLocal() {                         // descanso longo tranqu
     if ((ficha.desdeDescanso ?? 99) < 6 || Math.random() < 0.15) return false;   // descansou agora há pouco, ou algo pode interromper: a IA narra
     const cura = ficha.vidaMaxima - ficha.vidaAtual;
     if (cura > 0) aplicarVida({ variacao: cura, motivo: "descanso longo" });
-    ficha.desdeDescanso = 0;
+    ficha.desdeDescanso = 0; ficha.curtosHoje = 0;
     const frases = ["Você monta acampamento, reveza a vigília com o próprio cansaço e dorme oito horas sem ser incomodado.", "A noite passa em silêncio. Você acorda dolorido, mas inteiro e descansado.", "Você encontra um canto abrigado e dorme profundamente. Nada perturba o seu sono."];
     addMsg(`😴 ${frases[Math.floor(Math.random() * frases.length)]} Vida, magias e habilidades recuperadas.`, "sistema");
     notasParaIA.push(`[APLICATIVO: o personagem fez um descanso longo de 8 horas sem interrupção; vida cheia (${ficha.vidaAtual}/${ficha.vidaMaxima}), magias e habilidades recuperadas.]`);
@@ -4429,6 +4438,7 @@ function aplicarMapaLocal({ local, lugares }) {                  // chamada pela
   let m = ficha.mapasLocais.find(x => norm(x.nome) === norm(nome)), novos = 0;
   if (!m) { m = { nome, lugares: [] }; ficha.mapasLocais.push(m); }
   for (const l of lista) if (m.lugares.length < 16 && !m.lugares.some(x => norm(x.nome) === norm(l.nome))) { m.lugares.push(l); novos++; }
+  novos += garantirServicos(m);
   mostrarFicha();
   addMsg(`🗺 Mapa de ${nome} guardado na bolsa (${m.lugares.length} lugares).`, "sistema");
   return { ok: true, local: nome, lugares_no_mapa: m.lugares.length, novos, instrucao: "Descreva só a chegada ao local em poucas frases e avise que o mapa está na bolsa; não narre cada lugar." };
@@ -4446,8 +4456,130 @@ function desenharMapaLocal(m) {
   });
   return g + `</svg>`;
 }
+/* ---------- VILA: estalagem, lojas e dinheiro resolvidos pelo app (sem IA) ----------
+   Preços do Livro do Jogador: refeição modesta 3 pp (0,3 po), quarto modesto 5 pp (0,5 po).
+   Na vila, descanso LONGO só com quarto pago (ou ganho trabalhando na estalagem); sem isso, só descanso curto. */
+const PRECO = { refeicao: 0.3, quarto: 0.5 };
+const RE_POVOADO = /vila|cidade|aldeia|povoado|vilarejo|porto|capital|burgo|arraial|estalagem|taverna/;
+function garantirServicos(m) {                           // toda vila/cidade tem onde comer, dormir e comprar
+  const tipos = m.lugares.map(l => norm(l.tipo + " " + l.nome));
+  const ehVila = RE_POVOADO.test(norm(m.nome)) || tipos.some(t => /taverna|estalagem|comerci|mercado|ferre|praca|casa|igreja|estabul/.test(t));
+  if (!ehVila || /ruina|masmorra|cripta|caverna|tumba/.test(norm(m.nome))) return 0;
+  const falta = [[/taverna|estalagem|pousada/, { nome: "Estalagem", tipo: "taverna", nota: "comida e quarto para a noite" }],
+    [/ferre|forja|armeiro/, { nome: "Ferraria", tipo: "ferreiro", nota: "armas e armaduras" }],
+    [/boticar|alquimi|curand|herbo/, { nome: "Boticário", tipo: "boticario", nota: "poções e remédios" }],
+    [/comerci|mercado|loja|armazem|feira/, { nome: "Mercado", tipo: "comercio", nota: "equipamento de aventura" }]];
+  let n = 0;
+  for (const [re, l] of falta) if (!tipos.some(t => re.test(t)) && m.lugares.length < 16) { m.lugares.push({ ...l }); n++; }
+  return n;
+}
+function emPovoado() {                                   // o personagem está numa vila/cidade? (pelo lugar atual do mundo)
+  try { const l = Mundo.achaLocalPorId(ficha.localAtual); return !!l && RE_POVOADO.test(norm((l.categoria || "") + " " + l.nome)); } catch (e) { return false; }
+}
+function entrarServico(l, m) {
+  const t = norm((l.tipo || "") + " " + l.nome);
+  const loja = /ferre|forja|armeiro/.test(t) ? "ferreiro" : /boticar|alquimi|curand|herbo/.test(t) ? "alquimista" : /comerci|mercado|loja|armazem|feira/.test(t) ? "comerciante" : "";
+  if (loja) {
+    abrirLoja({ tipo: loja, npc: l.nome });
+    notasParaIA.push(`[APLICATIVO: o personagem foi até ${l.nome} (${m.nome}) e está olhando a loja.]`);
+    abrirRegras(lojaHtml()); return true;
+  }
+  if (/taverna|estalagem|pousada/.test(t)) { abrirEstalagem(l.nome); return true; }
+  return false;
+}
+const po = n => (Math.round(n * 100) / 100).toLocaleString("pt-BR") + " po";
+function estalagemHtml(nome, aviso = "") {
+  const ouro = ECO.ouro(), semQuarto = ouro < PRECO.quarto;
+  return `<div class="caixa-rg"><h2>🍺 ${esc(nome)}</h2><div class="fx-tracos">Cheiro de ensopado e lenha. Você tem <b>${po(ouro)}</b>.</div>
+    ${aviso ? `<div class="fx-tracos"><b>${aviso}</b></div>` : ""}
+    <div class="fx-itens">
+      <div class="fx-item"><div><b>🍲 Refeição quente</b> <small>recupera 1d4 de vida</small></div><div class="fx-itbtn"><button data-tav="refeicao" ${ouro < PRECO.refeicao ? "disabled" : ""}>${po(PRECO.refeicao)}</button></div></div>
+      <div class="fx-item"><div><b>🛏 Quarto para a noite</b> <small>descanso longo: vida cheia, magias e habilidades</small></div><div class="fx-itbtn"><button data-tav="quarto" ${semQuarto ? "disabled" : ""}>${po(PRECO.quarto)}</button></div></div>
+      <div class="fx-item"><div><b>🪑 Cochilar numa cadeira</b> <small>descanso curto (grátis)</small></div><div class="fx-itbtn"><button data-tav="curto">Grátis</button></div></div>
+    </div>
+    ${semQuarto ? `<h3>Sem dinheiro para o quarto? Trabalhe em troca</h3><div class="fx-tracos">O estalajadeiro aceita serviço pela cama de palha no sótão.</div>
+    <div class="fx-itens"><div class="fx-item"><div><b>🧽 Lavar a louça da noite</b></div><div class="fx-itbtn"><button data-tav="louca">Trabalhar</button></div></div>
+    <div class="fx-item"><div><b>🐴 Limpar o esterco do estábulo</b></div><div class="fx-itbtn"><button data-tav="estabulo">Trabalhar</button></div></div></div>` : ""}
+    <button class="acao" data-tav="sair">Sair da estalagem</button></div>`;
+}
+let estalagemAtual = "";
+function abrirEstalagem(nome) { estalagemAtual = nome || "Estalagem"; abrirRegras(estalagemHtml(estalagemAtual)); }
+function descansoLongoPago(motivo) {                     // aplica as regras do descanso longo (vida, magias) sem chamar a IA
+  try { MAGIA.descansoLongo(); } catch (e) {}
+  const cura = ficha.vidaMaxima - ficha.vidaAtual; if (cura > 0) aplicarVida({ variacao: cura, motivo });
+  ficha.desdeDescanso = 0; ficha.curtosHoje = 0; try { mostrarFicha(); } catch (e) {}
+}
+function descansoCurtoApp(onde) {                        // até 2 por dia: recupera 1/4 da vida máxima
+  if ((ficha.curtosHoje || 0) >= 2) return "Você já descansou o quanto dava hoje: só um descanso longo vai ajudar agora.";
+  ficha.curtosHoje = (ficha.curtosHoje || 0) + 1;
+  try { MAGIA.descansoCurto(); } catch (e) {}
+  const cura = Math.min(ficha.vidaMaxima - ficha.vidaAtual, Math.max(1, Math.floor(ficha.vidaMaxima / 4)));
+  if (cura > 0) aplicarVida({ variacao: cura, motivo: "descanso curto" });
+  addMsg(`🪑 Você descansa por uma hora ${onde}.${cura > 0 ? "" : " Já estava inteiro."}`, "sistema");
+  notasParaIA.push(`[APLICATIVO: o personagem fez um descanso curto ${onde} (vida ${ficha.vidaAtual}/${ficha.vidaMaxima}).]`);
+  try { mostrarFicha(); } catch (e) {}
+  return "";
+}
+function acaoEstalagem(a) {
+  const nome = estalagemAtual || "Estalagem";
+  if (a === "sair") { fecharRegras(); notasParaIA.push(`[APLICATIVO: o personagem saiu da ${nome}.]`); return; }
+  if (a === "refeicao") {
+    if (ECO.ouro() < PRECO.refeicao) return abrirRegras(estalagemHtml(nome, "Você não tem moedas para a refeição."));
+    ECO.tirarOuro(PRECO.refeicao);
+    const cura = Math.min(ficha.vidaMaxima - ficha.vidaAtual, 1 + Math.floor(Math.random() * 4));
+    if (cura > 0) aplicarVida({ variacao: cura, motivo: "refeição quente" });
+    addMsg(`🍲 Ensopado quente, pão e uma caneca de cerveja (−${po(PRECO.refeicao)}).`, "sistema");
+    notasParaIA.push(`[APLICATIVO: o personagem pagou ${po(PRECO.refeicao)} e comeu uma refeição quente na ${nome}.]`);
+    return abrirRegras(estalagemHtml(nome, "Você come bem e se sente mais disposto."));
+  }
+  if (a === "quarto") {
+    if (ECO.ouro() < PRECO.quarto) return abrirRegras(estalagemHtml(nome, "Faltam moedas para o quarto."));
+    ECO.tirarOuro(PRECO.quarto); fecharRegras();
+    descansoLongoPago("noite na estalagem");
+    addMsg(`🛏 Você paga ${po(PRECO.quarto)}, dorme numa cama de verdade e acorda descansado. Vida, magias e habilidades recuperadas.`, "sistema");
+    notasParaIA.push(`[APLICATIVO: o personagem pagou ${po(PRECO.quarto)} por um quarto na ${nome}, dormiu a noite toda e fez um descanso longo (vida ${ficha.vidaAtual}/${ficha.vidaMaxima}). Agora é de manhã.]`);
+    return;
+  }
+  if (a === "louca" || a === "estabulo") {
+    if (ECO.ouro() >= PRECO.quarto) return abrirRegras(estalagemHtml(nome, "Você tem moedas: pague o quarto."));
+    fecharRegras(); descansoLongoPago("noite no sótão");
+    const t = a === "louca" ? "Você esfrega panelas engorduradas até tarde da noite" : "Você passa horas tirando esterco do estábulo, com o cheiro grudado na roupa";
+    addMsg(`${a === "louca" ? "🧽" : "🐴"} ${t}. Em troca, o estalajadeiro deixa você dormir na palha do sótão. Descanso longo: vida, magias e habilidades recuperadas.`, "sistema");
+    notasParaIA.push(`[APLICATIVO: sem dinheiro, o personagem trabalhou na ${nome} (${a === "louca" ? "lavou a louça" : "limpou o estábulo"}) em troca de dormir no sótão e fez um descanso longo. Agora é de manhã.]`);
+    return;
+  }
+  if (a === "curto") { const r = descansoCurtoApp(`numa cadeira da ${nome}`); return abrirRegras(estalagemHtml(nome, r || "Você cochila uma hora perto da lareira.")); }
+}
+// A IA cobra algo fora das lojas (refeição, quarto, passagem, suborno…): o jogador decide Pagar ou Não pagar.
+function executarCobranca(a) {
+  const valor = Math.max(0, Math.round((Number(a?.valor_po) || 0) * 100) / 100), desc = String(a?.descricao || "serviço").slice(0, 80), serv = norm(a?.servico || "");
+  const quarto = /quarto|hospedagem|dormir|descanso/.test(serv);
+  if (valor === 0 && quarto) { descansoLongoPago("hospedagem"); addMsg(`🛏 ${desc}: hospedagem em troca de trabalho. Descanso longo feito.`, "sistema"); return Promise.resolve({ pago: true, valor_po: 0, descanso_longo_aplicado: true, vida: `${ficha.vidaAtual}/${ficha.vidaMaxima}`, instrucao: "O app já aplicou o descanso longo: narre a noite e a manhã seguinte; não chame alterar_vida." }); }
+  const ouro = ECO.ouro();
+  return new Promise(res => {
+    const pode = ouro >= valor;
+    abrirRegras(`<div class="caixa-rg"><h2>💰 ${esc(desc)}</h2><div class="fx-tracos">Preço: <b>${po(valor)}</b> · você tem <b>${po(ouro)}</b>.</div>
+      ${pode ? "" : `<div class="fx-tracos"><b>Você não tem moedas suficientes.</b>${quarto ? " Sem o quarto, só dá para fazer um descanso curto — ou peça para trabalhar em troca (lavar a louça, limpar o estábulo)." : ""}</div>`}
+      <button class="acao" data-cobra="sim" ${pode ? "" : "disabled"}>Pagar ${po(valor)}</button> <button class="acao" data-cobra="nao">Não pagar</button></div>`);
+    const d = regrasDlg();
+    const fim = e => { const b = e.target.closest("[data-cobra]"); if (!b) return; d.removeEventListener("click", fim); fecharRegras();
+      if (b.dataset.cobra === "sim" && ECO.ouro() >= valor) {
+        ECO.tirarOuro(valor); addMsg(`💰 Você pagou ${po(valor)}: ${desc}.`, "sistema");
+        let extra = {};
+        if (quarto) { descansoLongoPago("noite paga"); extra = { descanso_longo_aplicado: true, vida: `${ficha.vidaAtual}/${ficha.vidaMaxima}`, instrucao: "O app já aplicou o descanso longo: narre a noite e a manhã; não chame alterar_vida." }; }
+        else if (/refei|comida|comer|ensopado|bebida/.test(serv)) { const c = Math.min(ficha.vidaMaxima - ficha.vidaAtual, 1 + Math.floor(Math.random() * 4)); if (c > 0) aplicarVida({ variacao: c, motivo: "refeição" }); }
+        try { mostrarFicha(); } catch (e) {}
+        res({ pago: true, valor_po: valor, ouro_restante: ECO.ouro(), ...extra });
+      } else {
+        addMsg(`🙅 Você não pagou: ${desc}.`, "sistema");
+        res({ pago: false, motivo: ECO.ouro() < valor ? "sem dinheiro" : "recusou", ouro: ECO.ouro(), instrucao: quarto ? "Sem quarto pago não há descanso longo na vila: no máximo um descanso curto. Ofereça trabalho em troca (lavar a louça, limpar o estábulo) como opção." : "Narre a consequência de não pagar." });
+      } };
+    d.addEventListener("click", fim);
+  });
+}
 function abrirMapaLocal(k) {
   const m = ficha.mapasLocais?.[k]; if (!m) return;
+  if (garantirServicos(m)) try { mostrarFicha(); } catch (e) {}   // mapas antigos também ganham estalagem e lojas
   $("ml-titulo").textContent = "🗺 " + m.nome;
   $("ml-svg").innerHTML = desenharMapaLocal(m);
   $("ml-lista").textContent = m.lugares.map(l => l.nota ? `${l.nome}: ${l.nota}` : "").filter(Boolean).join(" · ");
@@ -4455,6 +4587,7 @@ function abrirMapaLocal(k) {
     const l = m.lugares[i]; if (!l) return;
     if ($("entrada").disabled) { alert("Aguarde: o Mestre ainda está narrando."); return; }
     $("mapa-local").hidden = true; $("ficha-tela").hidden = true; fecharFicha?.();
+    if (!MESTRE_HUMANO && entrarServico(l, m)) return;   // estalagem e lojas: o app atende sozinho (sem gastar IA)
     acaoDoJogador(`Vou até ${l.nome} (${m.nome}).`);
   };
   $("ml-svg").onclick = e => { const g = e.target.closest(".lugar"); if (g) ir(Number(g.dataset.lugar)); };
@@ -6061,10 +6194,14 @@ regrasDlg().addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.fecharRg != null) return fecharRegras();
   if (b.dataset.eq) { const it = ficha.inventario[Number(b.dataset.i)]; if (!it) return; if (b.dataset.eq === "tira") REGRAS.desequipar(it); else { const av = REGRAS.equipar(it); if (av && /não pode/.test(av)) { alert(av); } } return abrirRegras(equipHtml()); }
+  if (b.dataset.tav) return acaoEstalagem(b.dataset.tav);
   if (b.dataset.lojaSair != null) { fecharLoja(); addMsg("Você se despede do vendedor.", "sistema"); return; }
   if (b.dataset.compraIt) { if (!lojaAtiva) return; const r = comprarGeral(b.dataset.compraIt); if (r) alert(r); return abrirRegras(lojaHtml()); }
   if (b.dataset.compra) { if (!lojaAtiva) return; const [t, n] = b.dataset.compra.split(":"), item = t === "arma" ? REGRAS.achaArma(n) : REGRAS.achaArm(n); const r = REGRAS.comprar(item, t); if (r) alert(r); return abrirRegras(lojaHtml()); }
-  if (b.dataset.desc) { b.dataset.desc === "longo" ? MAGIA.descansoLongo() : MAGIA.descansoCurto(); if (b.dataset.desc === "longo" && !$("entrada").disabled && !descansoLongoLocal()) acaoDoJogador("Faço um descanso longo."); return abrirRegras(grimorioHtml()); }
+  if (b.dataset.desc) {
+    if (b.dataset.desc === "curto") { const r = descansoCurtoApp("onde está"); if (r) alert(r); return abrirRegras(grimorioHtml()); }
+    if (!MESTRE_HUMANO && emPovoado()) { alert(`Na vila, o descanso longo é num quarto da estalagem (${po(PRECO.quarto)}), ou trabalhando lá em troca. Abra o mapa da vila e toque na Estalagem. Sem isso, só descanso curto.`); return; }
+    MAGIA.descansoLongo(); if (!$("entrada").disabled && !descansoLongoLocal()) acaoDoJogador("Faço um descanso longo."); return abrirRegras(grimorioHtml()); }
   if (b.dataset.conj) { const [n, c] = b.dataset.conj.split(/:(?=\d+$)/), s = MAGIA.porNome(n), circ = Number(c); if (!s) return;
     if (REGRAS.semProfArmadura()) return alert("Você não pode conjurar usando armadura sem proficiência.");
     if (cb?.ativo) return alert("Em combate, use o botão ✨ Magias do tabuleiro.");
