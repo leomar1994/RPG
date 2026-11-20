@@ -7728,6 +7728,14 @@ function continuarPersonagem(reg) {
   }
   travarChat(false);
   if (aumentosPendentes() > 0) abrirFicha(true);
+  // a última ação do jogador ficou sem resposta (a IA caiu antes de narrar): sem botões, o jogador ficava preso. O Mestre responde agora.
+  const ultimaLinha = campanha[campanha.length - 1];
+  if (!MESTRE_HUMANO && GRUPO.jogadores < 2 && ultimaLinha?.autor === "jogador" && campanha.some(l => l.autor === "mestre")) {
+    addMsg("🎲 Sua última ação ficou sem resposta: o Mestre responde agora.", "sistema");
+    historico.push({ role: "user", parts: [{ text: String(ultimaLinha.texto || "") }] });
+    travarChat(true); chamarIA().catch(e => { console.warn(e); travarChat(false); oferecerReenvio(); });
+    return;
+  }
   if (!MESTRE_HUMANO && GRUPO.jogadores < 2 && !aventuraSolo && !campanha.length) escolherAventura([]);
   // a abertura da história nunca chegou (ex.: faltava a chave ou a IA caiu): começa de novo, sem o jogador ficar esperando à toa
   else if (!MESTRE_HUMANO && GRUPO.jogadores < 2 && aventuraSolo && !campanha.some(l => l.autor === "mestre")) {
