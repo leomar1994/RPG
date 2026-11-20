@@ -2605,7 +2605,9 @@ $("ch-salvar").addEventListener("click", () => {
   salvarLocal();
   try { localStorage.setItem("emprestar_ia", $("ch-emprestar").checked ? "sim" : "nao"); } catch (e) {}
   try { if (salaAtiva || RODADA.ativo) sala.postMessage(perfilJogador()); } catch (e) {}
-  for (const c of CHAVES) { const v = $("ch-" + c.ls).value.trim(); if (v) { try { localStorage.setItem(c.ls, v); } catch (e) { alert("Não consegui salvar a chave neste navegador."); } } }
+  for (const c of CHAVES) { const v = $("ch-" + c.ls).value.trim().replace(/^Bearer\s+/i, ""); if (v) {
+    const ruim = problemaChave(c.ls, v); if (ruim) { alert(`${c.nome}: ${ruim}`); continue; }
+    try { localStorage.setItem(c.ls, v); } catch (e) { alert("Não consegui salvar a chave neste navegador."); } } }
   bloqueados.clear(); PROVEDORES.forEach(pv => { try { localStorage.removeItem("modelos_" + pv.id); } catch (e) {} descobrirModelos(pv, true); }); montarChaves(); $("chaves-ia").hidden = true;
   if (montarFila().length && esperaChaveRes) chaveResolvida(true);
   try { addMsg("🔑 Chaves de IA atualizadas.", "sistema"); } catch (e) {}
@@ -2641,10 +2643,17 @@ async function testarChave(tipo, chave) {                // confirma com o próp
     return { ok: false, msg: r.status === 401 || r.status === 403 ? "O provedor recusou essa chave. Confira se copiou inteira." : `Erro ${r.status} ao testar a chave.` };
   } catch (e) { return { ok: null, msg: "Não consegui testar agora (sem rede ou bloqueio do navegador). A chave foi salva mesmo assim." }; }
 }
+// Chave copiada da LISTA de chaves do site vem escondida ("sk-or-v1-abc...f12"): não funciona. A completa só aparece uma vez, ao criar.
+function problemaChave(ls, v) {
+  if (/\.\.\.|…|\*{3}|•|\s/.test(v)) return "essa chave está incompleta (tem \"...\" ou espaços). O site só mostra a chave inteira UMA vez, logo depois de criar: crie uma nova, copie no botão de copiar e cole aqui.";
+  if (ls === "openrouter_key" && v.length < 60) return `essa chave está curta demais (${v.length} caracteres; a do OpenRouter tem uns 73). Provavelmente foi copiada pela metade ou da lista de chaves. Crie uma nova e copie inteira.`;
+  return "";
+}
 async function salvarChaveGuia(tipo, valor, st) {
   const v = valor.trim().replace(/^Bearer\s+/i, "");
   if (!v) { st.textContent = "Cole a chave primeiro."; return false; }
   if (tipo === "orc" && !/^sk-or-/i.test(v)) { st.textContent = "Essa não parece uma chave do OpenRouter (começa com sk-or-v1-)."; return false; }
+  const ruim = problemaChave(tipo === "orc" ? "openrouter_key" : (PROVEDORES.find(p => p.id === tipo)?.ls || ""), v); if (ruim) { st.textContent = "❌ " + ruim; return false; }
   const pv = PROVEDORES.find(p => p.id === tipo);
   if (pv?.prefixo && !pv.prefixo.test(v)) { st.textContent = `Essa não parece uma chave do ${pv.nome} (confira se copiou a chave inteira e do site certo).`; return false; }
   st.textContent = "Testando…";
@@ -2665,7 +2674,9 @@ $("cg-chave").addEventListener("paste", () => setTimeout(() => { if (/^sk-or-/i.
 $("ch-guia").addEventListener("click", () => { $("chaves-ia").hidden = true; abrirGuiaChave(); });
 function textoDiag() {
   const hora = t => new Date(t).toLocaleTimeString("pt-BR"), agora = Date.now(), fila = montarFila();
-  const linhas = ["FILA DE IAs (ordem de tentativa):"];
+  const linhas = ["CHAVES SALVAS (só o começo e o tamanho):"];
+  for (const c of CHAVES) { const v = lerLS(c.ls); if (v) linhas.push(`  ${c.nome}: ${v.slice(0, 9)}… (${v.length} caracteres)${problemaChave(c.ls, v) ? " ⚠ parece incompleta" : ""}`); }
+  linhas.push("", "FILA DE IAs (ordem de tentativa):");
   if (!fila.length) linhas.push("  nenhuma chave salva");
   fila.forEach((x, i) => { const b = bloqueados.get(x.id) || 0; linhas.push(`  ${i + 1}. ${x.nome} · ${x.modelo} — ${b > agora ? "em pausa até " + hora(b) : "livre"}`); });
   linhas.push("", "ÚLTIMAS TENTATIVAS:");
