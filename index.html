@@ -1037,7 +1037,7 @@ function obterChave() {                                  // sem chave: abre o as
 
 // Prompt de Sistema completo (já incluso). Edite aqui para mudar o comportamento do Mestre.
 const SYSTEM_PROMPT = `Você é o Mestre de um jogo de D&D 5e (Dungeons & Dragons, 5ª edição). Narre em português do Brasil, em segunda pessoa, com tom imersivo, mas seja o MAIS RESUMIDO possível, ordenando por importância: diga primeiro o que muda a situação (perigo, pista, resultado da ação, quem fala e o que quer) e omita o resto. Sem enfeites nem repetição do que o jogador já sabe, mas nunca corte informação necessária para ele decidir. Não há número fixo de linhas: use só o que a cena exige (costuma bastar 2 a 4 frases curtas).
-OPÇÕES DE AÇÃO: ao final de toda narração em que o jogador precise agir, escreva uma linha contendo somente OPÇÕES: e, abaixo, de 3 a 4 linhas numeradas no formato "1) ação curta" (até 8 palavras cada). O jogador NÃO digita: ele só escolhe entre as suas opções, então inclua sempre as ações mais úteis (falar, investigar, avançar, lutar, fugir, usar item) e nunca deixe de dar opções. Dê ações simples e diretas (falar, olhar, andar, atacar, usar um item, fugir) para guiar o jogador sem exigir planos complexos. Cada opção é uma única ação. Quando a ação exigir um teste de dado, coloque a perícia ou atributo entre parênteses no fim da opção, ex.: "2) Seguir os rastros até a mata (Sobrevivência)", "3) Escalar o muro (Atletismo)", "4) Convencer o guarda (Persuasão)"; ações sem teste ficam sem parênteses. Não explique as opções, não repita a narração nelas e não escreva "O que você faz?" além delas. O jogador também pode digitar outra ação livre. Não escreva OPÇÕES quando estiver pedindo um teste de dado. Nunca quebre a imersão nem fale de regras, funções ou código.
+OPÇÕES DE AÇÃO: ao final de toda narração em que o jogador precise agir, escreva uma linha contendo somente OPÇÕES: e, abaixo, de 3 a 4 linhas numeradas no formato "1) ação curta" (até 8 palavras cada). O jogador NÃO digita: ele só escolhe entre as suas opções, então inclua sempre as ações mais úteis (falar, investigar, avançar, lutar, fugir, usar item) e nunca deixe de dar opções. Dê ações simples e diretas (falar, olhar, andar, atacar, usar um item, fugir) para guiar o jogador sem exigir planos complexos. Cada opção é uma única ação. Quando a ação exigir um teste de dado, coloque a perícia ou atributo e a CD entre parênteses no fim da opção, ex.: "2) Seguir os rastros até a mata (Sobrevivência CD 12)", "3) Escalar o muro (Atletismo CD 15)", "4) Convencer o guarda (Persuasão CD 13)"; ações sem teste ficam sem parênteses. O aplicativo rola esse dado sozinho quando o jogador escolhe a opção e manda a ação com "[TESTE JÁ ROLADO PELO APLICATIVO: …]": nesse caso NÃO chame solicitar_teste_dado, apenas narre a consequência do resultado (sucesso, falha ou crítico). Mensagens com "[APLICATIVO: …]" informam o que o app já resolveu (poção, descanso): considere como fato, sem chamar funções para repetir. Não explique as opções, não repita a narração nelas e não escreva "O que você faz?" além delas. O jogador também pode digitar outra ação livre. Não escreva OPÇÕES quando estiver pedindo um teste de dado. Nunca quebre a imersão nem fale de regras, funções ou código.
 
 TAMANHO: no máximo 4 frases curtas (cerca de 70 palavras) por narração, mais as opções. Vá direto ao ponto, sem preâmbulo nem floreio, e SEMPRE termine a última frase: se faltar espaço, corte detalhes do começo ou do meio, nunca deixe uma frase pela metade.
 
@@ -1094,7 +1094,7 @@ VIDA:
 
 // Versão curta do prompt para as IAs reservas (limites pequenos, seguem pior um texto longo): respostas diretas, opções e funções sempre.
 const SYSTEM_ENXUTO = `Você é o Mestre de D&D 5e (português do Brasil, segunda pessoa). MODO ENXUTO: seja DIRETO, seja o MAIS RESUMIDO possível, ordenando por importância: diga primeiro o que muda a situação (perigo, pista, resultado da ação, quem fala e o que quer) e omita o resto. Nunca corte informação necessária para ele decidir. TAMANHO: no máximo 4 frases curtas (cerca de 70 palavras) por narração, mais as opções. Vá direto ao ponto, sem preâmbulo nem floreio, e SEMPRE termine a última frase: se faltar espaço, corte detalhes do começo ou do meio, nunca deixe uma frase pela metade.
-OBRIGATÓRIO: toda resposta que não chame função termina com uma linha só "OPÇÕES:" e, abaixo, 3 a 4 linhas "1) ação curta" (até 8 palavras cada), com a perícia do teste entre parênteses quando a ação pedir teste, ex.: "1) Seguir os rastros (Sobrevivência)".
+OBRIGATÓRIO: toda resposta que não chame função termina com uma linha só "OPÇÕES:" e, abaixo, 3 a 4 linhas "1) ação curta" (até 8 palavras cada), com a perícia e a CD entre parênteses quando a ação pedir teste, ex.: "1) Seguir os rastros (Sobrevivência CD 12)". Se a mensagem do jogador trouxer "[TESTE JÁ ROLADO PELO APLICATIVO", NÃO peça teste: narre o resultado.
 FUNÇÕES (use sempre; nunca narre o resultado no lugar delas):
 - solicitar_teste_dado: ação arriscada ou incerta e armadilhas (pericia_atributo, cd 10/15/20, motivo). Um teste por vez, no máximo 1 frase antes, sem narrar o desfecho e sem rolar dados.
 - alterar_vida: SEMPRE que o personagem sofrer dano (armadilha, queda, golpe, veneno) ou se curar. variacao negativa para dano (1d6 a 2d6 nos níveis 1 a 5, ex.: -4) e motivo. Se a narração diz que ele se feriu, a função DEVE ser chamada.
@@ -2099,6 +2099,7 @@ function addMsg(texto, tipo) {
   if (tipo === "mestre") {
     const ex = extrairOpcoes(texto);
     if (ex) { opcoes = ex.opcoes; texto = ex.texto; }
+    if (!restaurando) { contMestre++; try { if (ficha) ficha.desdeDescanso = (ficha.desdeDescanso || 0) + 1; } catch (e) {} if (observando) { observando = false; obsCache = { local: ficha?.localAtual || "", texto, n: contMestre }; } }
   }
   if (!restaurando && (tipo === "mestre" || tipo === "jogador")) registrarLinha(tipo, texto);
   if (!restaurando && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE) && (tipo === "mestre" || tipo === "jogador")) try { CODEX.log(tipo === "mestre" ? "narracao" : "acao", texto); if (opcoes.length) CODEX.log("opcoes", opcoes.join(" | "), { opcoes }); } catch (e) {}   // guarda as últimas linhas da campanha
@@ -2115,7 +2116,7 @@ function addMsg(texto, tipo) {
     for (const o of opcoes) {
       const b = document.createElement("button");
       b.type = "button"; b.textContent = o;
-      b.addEventListener("click", () => { if ($("entrada").disabled) return; caixa.remove(); if (MESTRE_HUMANO) canal.postMessage({ de: "jogador", id: ficha?.id, nome: ficha?.nome, tipo: "sug", texto: o }); enviarJogador(o); });   // sugestão: a IA responde sozinha; o Mestre só é avisado
+      b.addEventListener("click", () => { if ($("entrada").disabled) return; caixa.remove(); escolherOpcao(o); });   // sugestão: a IA responde sozinha; o Mestre só é avisado
       caixa.appendChild(b);
     }
     $("chat").appendChild(caixa);
@@ -2666,15 +2667,31 @@ function recorteDeHistorico(lista, max = 20) {
 }
 
 const jaAlterouVida = () => { for (let i = historico.length - 1; i >= 0; i--) { const h = historico[i]; if (h.role === "user" && h.parts?.some(p => p.text)) return false; if (h.parts?.some(p => p.functionCall?.name === "alterar_vida")) return true; } return false; };
-async function completarNarracao(texto) {                // chamada mínima: devolve { dano, opcoes } a partir da narração
-  const temOp = /OP[ÇC][ÕO]ES/i.test(texto), fala = /dano|ferid|ferim|perde|atinge|acerta|machuc|queima|corta|perfura|sangr|armadilha|dardo|flecha|veneno|cai |queda|pancada/i.test(texto);
-  if (temOp && !fala) return { dano: 0, opcoes: [] };
-  const ult = [...historico].reverse().find(h => h.role === "user" && h.parts?.some(p => p.text))?.parts.find(p => p.text)?.text || "";
-  const d = await chamarAPI({ leve: true, systemInstruction: { parts: [{ text: 'Você analisa uma narração de RPG. Responda SOMENTE com JSON: {"dano":N,"opcoes":["a","b","c"]}. dano = pontos de vida que o personagem do jogador PERDEU nesta narração (inteiro; 0 se não se feriu; se o texto indica ferimento sem número: leve 2, médio 4, grave 7). opcoes = 3 ações curtas (até 8 palavras) que o jogador pode fazer agora, com a perícia do teste entre parênteses quando a ação pedir teste, ex.: "Escalar o muro (Atletismo)"' + (temOp ? ' (use [] pois a narração já tem opções)' : '') + '.' }] },
-    contents: [{ role: "user", parts: [{ text: `AÇÃO DO JOGADOR: ${ult.slice(0, 300)}\nNARRAÇÃO: ${texto.slice(0, 1500)}` }] }] }, $("chat"));
-  limparEspera($("chat"));
-  const t = d.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "", j = JSON.parse((t.match(/\{[\s\S]*\}/) || ["{}"])[0]);
-  return { dano: Math.min(30, Math.max(0, Math.round(Number(j.dano)) || 0)), opcoes: Array.isArray(j.opcoes) ? j.opcoes.map(o => String(o).replace(/^\s*\d+[).]\s*/, "").slice(0, 70)).filter(Boolean).slice(0, 4) : [] };
+async function completarNarracao(texto) {                // sem IA: lê o dano direto do texto (antes era uma chamada extra à IA)
+  return { dano: danoDoTexto(texto), opcoes: [] };        // opções: o leitor de OPÇÕES já cobre; se faltar, entram os botões padrão
+}
+function danoDoTexto(texto) {                             // pontos de vida que o JOGADOR perdeu na narração (0 se nada indica)
+  const R = (src, f = "iu") => new RegExp(src.replace(/\\b/g, "(?:(?<![\\p{L}\\d])(?=[\\p{L}\\d])|(?<=[\\p{L}\\d])(?![\\p{L}\\d]))"), f);   // \b que entende acentos
+  const frases = String(texto).replace(/\n[ \t]*\**OP[ÇC][ÕO]ES[\s\S]*$/, "").split(/(?<=[.!?…])\s+|\n+/);
+  const voce = R("\\b(você|voce|te|seu|sua|teus?|tuas?|lhe)\\b");
+  const ofensivo = R("\\b(você|voce)\\s+(causa|acerta|atinge|golpeia|fere|corta|perfura|derruba|mata|ataca|dispara|lança|lanca)\\b");
+  const rolar = (n, l, b) => { let t = Number(b) || 0; for (let k = 0; k < Math.min(10, n); k++) t += 1 + Math.floor(Math.random() * l); return t; };
+  const dados = R("\\b(\\d{1,2})\\s*d\\s*(\\d{1,2})(?:\\s*\\+\\s*(\\d{1,2}))?\\b"), temDano = R("dano|perde|sofre|ferid|atinge|acerta|fere");
+  const num1 = R("\\b(?:perde|perdeu|sofre|sofreu|recebe|recebeu|leva|levou|toma|tomou)\\s+(\\d{1,2})\\s*(?:pontos?\\s+de\\s+)?(?:dano|vida|pv|hp)?\\b"), num2 = R("\\b(\\d{1,2})\\s*(?:pontos?\\s+)?de\\s+dano\\b");
+  const ferido = R("\\b(atinge|acerta|fere|corta|morde|golpeia|queima|perfura|arranha|rasga|esmaga|chicoteia|espeta)\\s+(?:em\\s+)?(?:você|voce|te|seu|sua|o seu|a sua|teu|tua)\\b|\\b(?:você|voce)\\s+(?:é|foi|fica|está|esta|sai)\\s+(?:\\p{L}+\\s+)?(ferid|atingid|cortad|perfurad|queimad|mordid|golpead|arranhad|envenenad|esmagad)|\\b(te|lhe)\\s+(atinge|acerta|fere|corta|morde|golpeia|queima|perfura|arranha|rasga)\\b");
+  const grave = R("grave|profund|brutal|esmag|violent|em cheio|terrível|terrivel"), leve = R("leve|arranh|raspão|raspao|superficial|pequeno corte");
+  let total = 0, achou = false;
+  for (const f of frases) {
+    if (!voce.test(f) || ofensivo.test(f)) continue;       // só frases sobre o personagem do jogador, nunca sobre o dano que ele causa
+    let m = f.match(dados);
+    if (m && temDano.test(f)) { total += rolar(+m[1], +m[2], m[3]); achou = true; continue; }
+    m = f.match(num1) || f.match(num2);
+    if (m) { total += +m[1]; achou = true; continue; }
+    if (!ferido.test(f)) continue;
+    total += grave.test(f) ? 7 : leve.test(f) ? 2 : 4;
+    achou = true;
+  }
+  return achou ? Math.min(30, Math.max(0, Math.round(total))) : 0;
 }
 let gerIA = 0;
 /* Modo econômico: o app guarda o diálogo do NPC sozinho (sem gastar tokens) e não chama a IA de novo só por causa de registros. */
@@ -2795,15 +2812,77 @@ async function refazerUltima() {                         // a IA travou (> 2 min
   $("refazer").hidden = true; travarChat(true); await chamarIA();
 }
 $("refazer").addEventListener("click", refazerUltima);
-async function enviarJogador(texto) {
-  if (typeof RODADA !== "undefined" && RODADA.ativo) return RODADA.enviar(texto);
+async function enviarJogador(texto, nota = null) {      // nota: { ia: texto só para a IA, curta: resumo legível (mesa em rodada) }
+  if (typeof RODADA !== "undefined" && RODADA.ativo) return RODADA.enviar(texto + (nota?.curta ? " " + nota.curta : ""));
   document.querySelectorAll(".reenviar").forEach(b => b.remove());
   travarChat(true);
   addMsg(texto, "jogador");
   const ataca = /\b(ataco|atacar|atiro|atirar|disparo|disparar|arremes{1,2}o|arremessar|lan[cç]o (?:o|a|um|uma|meu|minha)|golpeio|acerto|investo|parto pra cima|parto para cima|saco (?:a|o|minha|meu)? ?(?:espada|arma|machado|arco|adaga))\b/i.test(texto) && !cb?.ativo;
+  const notas = notasParaIA.splice(0);                     // o que o app resolveu sozinho (poção, descanso…) desde a última jogada
+  if (nota?.ia) notas.push(nota.ia);
+  if (notas.length) texto += "\n" + notas.join("\n");
   historico.push({ role: "user", parts: [{ text: ataca ? texto + "\n[SISTEMA: o jogador declarou uma ação de ataque. Se houver qualquer inimigo na cena, chame iniciar_combate AGORA (com ambiente, mapa e inimigos) para abrir o tabuleiro, sem narrar a luta e sem pedir dado. Se não houver inimigo, narre normalmente.]" : texto }] });
   travarChat(true);
   await chamarIA();
+}
+
+/* ---------- Economia de IA: o que o próprio app resolve sem chamar a IA ----------
+   1) Opção com teste "(Perícia CD N)": o app rola o D20 no clique e manda a ação JÁ com o resultado (1 chamada em vez de 2).
+   2) "Observar o ambiente" de novo, sem nada novo na cena: repete a última descrição.
+   3) Poção de cura e descanso longo: o app aplica as regras e só avisa a IA na próxima jogada (notasParaIA). */
+var notasParaIA = [], contMestre = 0, observando = false, obsCache = null;   // var: podem ser usadas antes desta linha (restauração)
+function testeDaOpcao(o) {
+  const m = String(o).match(/\(\s*([^()]+?)(?:[\s,;:–-]*CD\s*(\d{1,2}))?\s*\)\s*$/i);
+  if (!m) return null;
+  const pericia = m[1].replace(/^teste de\s+/i, "").trim();
+  try { if (!calcularBonus(pericia).conhecido) return null; } catch (e) { return null; }
+  return { pericia_atributo: pericia, cd: Math.min(30, Math.max(5, Number(m[2]) || 12)), motivo: String(o).slice(0, m.index).trim() || pericia };
+}
+function usarPocaoLocal(it) {                           // poção de cura: regra do livro (2d4+2, maior 4d4+4…) aplicada pelo app, sem IA
+  try {
+    if (MESTRE_HUMANO || cb?.ativo || ficha?.morto) return false;
+    const n = norm(it?.nome || "");
+    if (!/poc(a|o)o|elixir|tonico/.test(n) || !/cura|vida|saude|regenera/.test(n)) return false;
+    if (ficha.vidaAtual >= ficha.vidaMaxima) { addMsg(`🧪 Sua vida já está cheia (${ficha.vidaAtual}/${ficha.vidaMaxima}). Guarde a ${it.nome} para depois.`, "sistema"); return true; }
+    const [q, b] = /suprem/.test(n) ? [10, 20] : /superior/.test(n) ? [8, 8] : /maior/.test(n) ? [4, 4] : [2, 2];
+    let cura = b; for (let k = 0; k < q; k++) cura += 1 + Math.floor(Math.random() * 4);
+    if (--it.qtd <= 0) ficha.inventario.splice(ficha.inventario.indexOf(it), 1);
+    const r = aplicarVida({ variacao: cura, motivo: it.nome });
+    addMsg(`🧪 Você bebe a ${it.nome} e sente o calor da cura se espalhar pelo corpo.`, "sistema");
+    notasParaIA.push(`[APLICATIVO: o personagem bebeu ${it.nome} e recuperou ${r.variacao_aplicada} de vida (agora ${r.vida_atual}/${r.vida_maxima}); o item já saiu da bolsa.]`);
+    try { mostrarFicha(); } catch (e) {}
+    return true;
+  } catch (e) { console.warn("poção", e); return false; }
+}
+function descansoLongoLocal() {                         // descanso longo tranquilo: o app aplica; às vezes (ou se descansou há pouco) a IA decide
+  try {
+    if (MESTRE_HUMANO || cb?.ativo || ficha?.morto) return false;
+    if ((ficha.desdeDescanso ?? 99) < 6 || Math.random() < 0.15) return false;   // descansou agora há pouco, ou algo pode interromper: a IA narra
+    const cura = ficha.vidaMaxima - ficha.vidaAtual;
+    if (cura > 0) aplicarVida({ variacao: cura, motivo: "descanso longo" });
+    ficha.desdeDescanso = 0;
+    const frases = ["Você monta acampamento, reveza a vigília com o próprio cansaço e dorme oito horas sem ser incomodado.", "A noite passa em silêncio. Você acorda dolorido, mas inteiro e descansado.", "Você encontra um canto abrigado e dorme profundamente. Nada perturba o seu sono."];
+    addMsg(`😴 ${frases[Math.floor(Math.random() * frases.length)]} Vida, magias e habilidades recuperadas.`, "sistema");
+    notasParaIA.push(`[APLICATIVO: o personagem fez um descanso longo de 8 horas sem interrupção; vida cheia (${ficha.vidaAtual}/${ficha.vidaMaxima}), magias e habilidades recuperadas.]`);
+    try { mostrarFicha(); } catch (e) {}
+    return true;
+  } catch (e) { console.warn("descanso", e); return false; }
+}
+async function escolherOpcao(o) {
+  if (MESTRE_HUMANO) canal.postMessage({ de: "jogador", id: ficha?.id, nome: ficha?.nome, tipo: "sug", texto: o });
+  const observar = /^🔍\s*Observar o ambiente/i.test(o);
+  if (observar && !MESTRE_HUMANO && obsCache && obsCache.local === (ficha?.localAtual || "") && obsCache.n === contMestre) {
+    addMsg(o, "jogador");
+    addMsg("Nada mudou desde que você olhou em volta. " + obsCache.texto, "mestre");
+    obsCache.n = contMestre;
+    return;
+  }
+  observando = observar;
+  const t = testeDaOpcao(o);
+  if (!t || cb?.ativo || ficha?.morto) return enviarJogador(o);
+  const r = await executarTeste(t);
+  const res = `${t.pericia_atributo} ${r.total} contra CD ${r.cd}: ${r.resultado}${r.critico !== "nenhum" ? " (" + r.critico.replace("_", " ") + ")" : ""}`;
+  return enviarJogador(o, { curta: `(🎲 ${res})`, ia: `[TESTE JÁ ROLADO PELO APLICATIVO: ${res}. Dado ${r.dado_bruto}, bônus ${r.bonus_aplicado}.${r.instrucao ? " " + r.instrucao : ""} Narre a consequência desse resultado e NÃO chame solicitar_teste_dado para esta mesma ação.]` });
 }
 
 /* =====================================================================
@@ -3385,7 +3464,7 @@ $("ficha-conteudo").addEventListener("click", async e => {
     const inv = ficha.inventario, it = inv[Number(b.dataset.i)], a = b.dataset.inv;
     if (a === "usar" && it) {
       if ($("entrada").disabled) return;
-      $("ficha-tela").hidden = true; fecharFicha?.(); acaoDoJogador(`Uso o item: ${it.nome}`); return;
+      $("ficha-tela").hidden = true; fecharFicha?.(); if (!usarPocaoLocal(it)) acaoDoJogador(`Uso o item: ${it.nome}`); return;
     }
     if (a === "menos" && it) { if (--it.qtd <= 0) inv.splice(inv.indexOf(it), 1); }
     else if (a === "del" && it) inv.splice(inv.indexOf(it), 1);
@@ -5902,7 +5981,7 @@ regrasDlg().addEventListener("click", e => {
   if (b.dataset.lojaSair != null) { fecharLoja(); addMsg("Você se despede do vendedor.", "sistema"); return; }
   if (b.dataset.compraIt) { if (!lojaAtiva) return; const r = comprarGeral(b.dataset.compraIt); if (r) alert(r); return abrirRegras(lojaHtml()); }
   if (b.dataset.compra) { if (!lojaAtiva) return; const [t, n] = b.dataset.compra.split(":"), item = t === "arma" ? REGRAS.achaArma(n) : REGRAS.achaArm(n); const r = REGRAS.comprar(item, t); if (r) alert(r); return abrirRegras(lojaHtml()); }
-  if (b.dataset.desc) { b.dataset.desc === "longo" ? MAGIA.descansoLongo() : MAGIA.descansoCurto(); if (b.dataset.desc === "longo" && !$("entrada").disabled) acaoDoJogador("Faço um descanso longo."); return abrirRegras(grimorioHtml()); }
+  if (b.dataset.desc) { b.dataset.desc === "longo" ? MAGIA.descansoLongo() : MAGIA.descansoCurto(); if (b.dataset.desc === "longo" && !$("entrada").disabled && !descansoLongoLocal()) acaoDoJogador("Faço um descanso longo."); return abrirRegras(grimorioHtml()); }
   if (b.dataset.conj) { const [n, c] = b.dataset.conj.split(/:(?=\d+$)/), s = MAGIA.porNome(n), circ = Number(c); if (!s) return;
     if (REGRAS.semProfArmadura()) return alert("Você não pode conjurar usando armadura sem proficiência.");
     if (cb?.ativo) return alert("Em combate, use o botão ✨ Magias do tabuleiro.");
