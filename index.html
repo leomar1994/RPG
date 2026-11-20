@@ -2078,15 +2078,27 @@ function mostrarFicha() {
   $("xp-preenchimento").style.width = (proximo ? Math.min(100, (ficha.xpAtual - base) / (proximo - base) * 100) : 100) + "%";
 }
 function salaAguardando() { try { return !!cb?.ativo || !!salaAtiva; } catch (e) { return false; } }   // combate ou sala de espera: sem botões padrão
+// Separa as OPÇÕES da narração. Aceita o formato certo ("OPÇÕES:" numa linha e uma opção por linha) e também
+// o que alguns modelos mandam: tudo grudado ("...ver". OPÇÕES:1) Perguntar…2) Seguir…boatos4) Falar…").
+function extrairOpcoes(texto) {
+  const re = /\**[ \t]*(?:OP[ÇC][ÕO]ES(?:\s+DE\s+A[ÇC][ÃA]O)?[ \t]*\**[ \t]*:?|[Oo]p[çc][õo]es(?:\s+de\s+a[çc][ãa]o)?[ \t]*\**[ \t]*:(?=\s*\**\s*(?:\d|[-•*])))[ \t]*\**/g;
+  let m, ult = null;
+  while ((m = re.exec(texto))) ult = m;                  // usa a ÚLTIMA ocorrência (a do fim da narração)
+  if (!ult) return null;
+  const antes = texto.slice(0, ult.index).trim();
+  const resto = texto.slice(ult.index + ult[0].length)
+    .replace(/(^|[^\d])([1-6])[ \t]*\)[ \t]*/g, "$1\n$2) ");   // "boatos4) Falar" → nova linha antes de cada "N)"
+  const opcoes = resto.split("\n").map(l => (l.match(/^\s*\**\s*(?:\d+|[-•*])[\).:\-]?\s+(.+?)\s*$/) || [])[1])
+    .filter(Boolean).map(o => o.replace(/\*+/g, "").trim()).filter(Boolean).slice(0, 4);
+  if (!antes || opcoes.length < 2) return null;
+  return { texto: antes, opcoes };
+}
 function addMsg(texto, tipo) {
   let opcoes = [];                                       // opções de ação sugeridas pela IA (até 6), viram botões
   let padrao = false;
   if (tipo === "mestre") {
-    const partes = texto.split(/\n[ \t]*\**OP[ÇC][ÕO]ES\**:?\**[ \t]*\n/i);
-    if (partes.length > 1) {
-      opcoes = partes[1].split("\n").map(l => (l.match(/^\s*(?:\d+|[-•*])[\).:\-]?\s+(.+?)\s*$/) || [])[1]).filter(Boolean).map(o => o.replace(/\*+/g, "")).slice(0, 4);
-      if (opcoes.length) texto = partes[0].trim();
-    }
+    const ex = extrairOpcoes(texto);
+    if (ex) { opcoes = ex.opcoes; texto = ex.texto; }
   }
   if (!restaurando && (tipo === "mestre" || tipo === "jogador")) registrarLinha(tipo, texto);
   if (!restaurando && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE) && (tipo === "mestre" || tipo === "jogador")) try { CODEX.log(tipo === "mestre" ? "narracao" : "acao", texto); if (opcoes.length) CODEX.log("opcoes", opcoes.join(" | "), { opcoes }); } catch (e) {}   // guarda as últimas linhas da campanha
