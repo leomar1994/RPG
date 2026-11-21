@@ -157,6 +157,17 @@
   @keyframes treme { 0%, 100% { transform: translateX(0); filter: none; } 15% { transform: translateX(-9%); filter: brightness(2) sepia(1) hue-rotate(-40deg) saturate(5); } 35% { transform: translateX(8%); filter: brightness(1.8) sepia(1) hue-rotate(-40deg) saturate(5); } 55% { transform: translateX(-5%); } 75% { transform: translateX(3%); } }
   @keyframes cai { to { transform: rotate(85deg) scale(.55); opacity: 0; filter: grayscale(1) brightness(.6); } }
   @keyframes sobe { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-150%); } }
+  .cb-c img.tk.chibi { border: 0; border-radius: 0; box-shadow: none !important; background: none; object-fit: contain; scale: 1.3; transform-origin: 50% 88%; z-index: 2; }
+  .cb-c.ini:has(img.chibi), .cb-c.jog:has(img.chibi) { background: var(--latao); } .cb-mapa .cb-c.ini:has(img.chibi), .cb-mapa .cb-c.jog:has(img.chibi) { background: rgba(0,0,0,.08); }
+  .cb-c.jog img.tk.chibi { filter: drop-shadow(0 0 3px #ffd36bcc); } .cb-c.vez img.tk.chibi { filter: drop-shadow(0 0 4px #fff); }
+  .cb-c img.tk.chibi.ferido { filter: saturate(.6) brightness(.9); }
+  .cb-card img[src^="data:image/png"] { object-fit: contain; }
+  .saque-chao { position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer; animation: sqflut 1.6s ease-in-out infinite; filter: drop-shadow(0 2px 1px #0007) drop-shadow(0 0 5px #ffe9a0aa); z-index: 1; }
+  .saque-chao .sq-i { grid-area: 1 / 1; width: 70%; display: grid; place-items: center; } .saque-chao .sq-i svg { width: 100%; height: auto; }
+  .saque-chao .sq-1 { translate: 22% 18%; } .saque-chao .sq-n { position: absolute; right: 0; bottom: 0; font-size: .6rem; color: #fff; text-shadow: 0 1px 2px #000; }
+  @keyframes sqflut { 50% { transform: translateY(-8%); } }
+  #cb-saque { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--latao); border-radius: 8px; background: rgba(217,180,90,.12); }
+  @media (prefers-reduced-motion: reduce) { .saque-chao { animation: none; } }
   @media (prefers-reduced-motion: reduce) { .cb-c img.tk, .cb-c .tkn, .cb-c .pop { animation: none !important; } }
   #ae-ajustes { display: grid; gap: 8px; } #ae-ajustes label { display: grid; grid-template-columns: 92px 1fr; gap: 8px; align-items: center; font-size: .88rem; } #ae-ajustes label.dica { display: flex; gap: 6px; }
   #online { display: grid; gap: 6px; justify-items: center; margin: 10px 0 4px; padding: 10px 14px; border: 1px solid var(--borda); border-radius: 10px; background: var(--painel); max-width: 420px; }
@@ -541,6 +552,7 @@
       <select id="cb-mapa" aria-label="Mapa do cenário"></select>
       <select id="cb-tam" aria-label="Tamanho do tabuleiro"><option value="14">Pequeno</option><option value="20" selected>Médio</option><option value="28">Grande</option></select>
       <label class="dica" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="cb-quad" checked> Quadrados</label>
+      <button type="button" id="cb-estilo" class="secundario" title="Personagens em desenho de corpo inteiro ou em retrato redondo">🎨 Estilo</button>
       <button type="button" id="cb-3d" class="secundario" hidden>🧊 Ver em 3D</button>
       <button type="button" id="cb-mapa-novo" class="secundario">🗺 Adicionar mapa</button>
       <button type="button" id="cb-excluir-mapa" class="secundario" hidden>🗑 Excluir este mapa</button>
@@ -4227,16 +4239,247 @@ const ARTE_MON = (() => {
     if (!pend.has(k)) gerar(nome, tipo).then(d => { if (d) try { if (typeof cb !== "undefined" && cb && !cb.mesa) renderCb(); else if (typeof mc !== "undefined" && mc) renderMc(); } catch {} });
     return "";
   }
-  return { gerar, agora, svg, guardar, propria, plano };
+  return { gerar, agora, svg, guardar, propria, plano, rosto: (k, c) => (D[k] || D.humano)(c), tom, hash: hs };
 })();
 // imagem do token: retrato próprio > imagem enviada pelo jogador > retrato desenhado (PNG)
 function imgToken(e) {
   if (!e) return "";
+  const ehEu = typeof cb !== "undefined" && cb && e === cb.ents?.[0];
+  if (CHIBI.ligado()) {                                   // estilo desenho: corpo inteiro (a imagem enviada pelo jogador para o monstro continua valendo)
+    const nm = e.arte || e.real || e.nome || e.rotulo || "";
+    if (ehEu) { const d = CHIBI.jogador(ficha); if (d) return d; }
+    else if (e.pj) { const d = CHIBI.jogador({ nome: e.nome, classe: e.classe, raca: e.raca }); if (d) return d; }
+    else if (!ARTE_MON.propria(nm)) { const d = CHIBI.monstro(nm, e.tipo || (typeof inferirTipo === "function" ? inferirTipo(nm) : "")); if (d) return d; }
+  }
   if (e.img) return e.img;
   if (e.pj || (typeof cb !== "undefined" && cb && e === cb.ents?.[0])) return "";
   const nome = e.arte || e.real || e.nome || e.rotulo || "";
   return ARTE_MON.agora(nome, e.tipo || (typeof inferirTipo === "function" ? inferirTipo(nome) : ""));
 }
+/* =====================================================================
+   PERSONAGENS EM "DESENHO" NO TABULEIRO: corpo inteiro, contorno grosso e cores chapadas (estilo cartum).
+   Reaproveita os rostos do ARTE_MON e monta o corpo de cada família. O botão 🎨 do combate volta aos retratos redondos.
+   ===================================================================== */
+const CHIBI = (() => {
+  const cache = new Map(), pend = new Map(), urls = new Set(), LS = "rpg-estilo-luta";
+  const ligado = () => { try { return localStorage.getItem(LS) !== "retrato"; } catch { return true; } };
+  const alternar = () => { try { localStorage.setItem(LS, ligado() ? "retrato" : "desenho"); } catch {} };
+  const tom = ARTE_MON.tom, CT = "#23160e";
+  const S = (w = 3) => `stroke="${CT}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"`;
+  const cab = (k, c, cx, cy, s) => `<g transform="translate(${cx - 64 * s} ${cy - 64 * s}) scale(${s})">${ARTE_MON.rosto(k, c)}</g>`;
+  const sombra = (rx = 28, cy = 117) => `<ellipse cx="64" cy="${cy}" rx="${rx}" ry="6.5" fill="#000" opacity=".3"/>`;
+  const pes = (cor, xs = [55, 73], y = 114) => xs.map(x => `<ellipse cx="${x}" cy="${y}" rx="7.5" ry="4.5" fill="${cor}" ${S(2.5)}/>`).join("");
+  const perna = (x, y1, y2, cor, w = 9) => `<path d="M${x} ${y1} V${y2}" stroke="${CT}" stroke-width="${w + 5}" stroke-linecap="round"/><path d="M${x} ${y1} V${y2}" stroke="${cor}" stroke-width="${w}" stroke-linecap="round"/>`;
+  const braco = (d, cor, w = 9) => `<path d="${d}" fill="none" stroke="${CT}" stroke-width="${w + 5}" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="${cor}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const mao = (x, y, cor, r = 5) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${cor}" ${S(2.5)}/>`;
+
+  // ---------- corpos (viewBox 0 0 128 128; os pés ficam em y≈114) ----------
+  function bipede(k, c, o = {}) {
+    const p = c.pele || "#c99a74", roupa = c.roupa || o.roupa || tom(p, -0.45), calca = o.calca || tom(roupa, -0.35), bota = o.bota || "#3a2616";
+    const ossos = k === "caveira", osso = "#e9e3d0", pl = ossos ? osso : p;
+    let g = "";
+    if (o.cauda) g += braco("M76 96 Q104 104 114 84", tom(p, -0.1), 8);
+    if (o.capa) g += `<path d="M40 64 Q64 54 88 64 L98 114 Q64 122 30 114Z" fill="${o.capa}" ${S()}/>`;
+    if (!o.manto) g += perna(56, 92, 110, ossos ? osso : calca, ossos ? 5 : 10) + perna(72, 92, 110, ossos ? osso : calca, ossos ? 5 : 10) + pes(ossos ? osso : bota);
+    const bx = o.bracosFrente ? ["M47 70 Q34 72 24 66", "M81 70 Q94 72 104 66"] : ["M47 70 Q38 82 39 96", "M81 70 Q90 82 89 96"];
+    const mx = o.bracosFrente ? [[22, 65], [106, 65]] : [[39, 98], [89, 98]];
+    g += braco(bx[0], ossos ? osso : o.manga || roupa, ossos ? 5 : 10) + braco(bx[1], ossos ? osso : o.manga || roupa, ossos ? 5 : 10);
+    g += mao(...mx[0], pl) + mao(...mx[1], pl);
+    if (o.manto) g += `<path d="M46 66 Q64 58 82 66 L90 112 Q64 118 38 112Z" fill="${roupa}" ${S()}/><path d="M64 70 V114" stroke="${tom(roupa, -0.3)}" stroke-width="2.5"/>` + pes(bota, [54, 74], 114);
+    else if (ossos) g += `<path d="M50 66 Q64 60 78 66 L76 92 Q64 96 52 92Z" fill="#2a2420" ${S()}/>` + [72, 78, 84].map(y => `<path d="M53 ${y} Q64 ${y + 4} 75 ${y}" stroke="${osso}" stroke-width="3" fill="none" stroke-linecap="round"/>`).join("") + `<path d="M64 66 V94" stroke="${osso}" stroke-width="3"/>`;
+    else g += `<path d="M46 66 Q64 58 82 66 L84 96 Q64 102 44 96Z" fill="${roupa}" ${S()}/>` + (o.cinto !== false ? `<path d="M45 88 Q64 93 83 88" stroke="${o.cinto || "#5a3a1e"}" stroke-width="5" fill="none"/><rect x="60" y="86" width="8" height="7" rx="1.5" fill="#d8b04a" ${S(1.5)}/>` : "")
+      + (o.rasgos ? `<path d="M48 96 l4 -6 l4 6 l4 -5 l4 5 l4 -6 l4 6 l4 -5 l4 5" fill="${tom(roupa, -0.25)}"/>` : "");
+    if (o.asas) g = `<path d="M46 72 L8 46 L18 74 L6 80 L36 90Z M82 72 L120 46 L110 74 L122 80 L92 90Z" fill="${tom(p, -0.2)}" ${S()}/>` + g;
+    return g + cab(k, c, 64, o.cy || 44, o.s || 0.58);
+  }
+  function bruto(k, c) {                                     // ombros enormes, braços até o chão, cabeça afundada, pernas curtas
+    const p = c.pele || "#a89060", e = tom(p, -0.25), calca = "#2e2622";
+    return perna(54, 94, 108, calca, 13) + perna(74, 94, 108, calca, 13) + pes("#3a2616", [52, 76], 113) +
+      `<path d="M30 62 Q64 40 98 62 L92 100 Q64 108 36 100Z" fill="${p}" ${S()}/>` +
+      `<path d="M38 88 Q64 96 90 88 L88 104 Q64 110 40 104Z" fill="${calca}" ${S()}/><path d="M40 72 Q64 96 88 72" stroke="#6a4a2a" stroke-width="4" fill="none"/>` +
+      [[46, 79], [56, 84], [72, 84], [82, 79]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.2" fill="#efe6c8" ${S(1.5)}/>`).join("") +
+      `<path d="M34 56 Q10 56 10 82 Q10 102 24 104 Q36 102 36 88 Q40 70 34 56Z" fill="${p}" ${S()}/><path d="M94 56 Q118 56 118 82 Q118 102 104 104 Q92 102 92 88 Q88 70 94 56Z" fill="${p}" ${S()}/>` +
+      `<path d="M16 70 Q20 62 30 62 M112 70 Q108 62 98 62" stroke="${e}" stroke-width="3" fill="none"/>` + mao(23, 104, tom(p, -0.08), 8) + mao(105, 104, tom(p, -0.08), 8) +
+      cab(k, c, 64, 48, 0.5);
+  }
+  function quadrupede(k, c, o = {}) {
+    const p = c.pele || "#7a6a5a", e = tom(p, -0.25), cl = tom(p, 0.35), rx = o.rx || 34, ry = o.ry || 19, cx = 74, cy = o.cy || 86;
+    let g = "";
+    if (o.asas) g += `<path d="M70 72 L94 22 L100 52 L118 36 L112 74Z" fill="${tom(p, -0.2)}" ${S()}/><path d="M96 26 L104 70 M112 42 L106 72" stroke="${tom(p, -0.45)}" stroke-width="2"/>`;
+    g += braco(o.caudaD || `M${cx + rx - 4} ${cy - 4} Q${cx + rx + 16} ${cy - 10} ${cx + rx + 12} ${cy - 26}`, o.caudaCor || p, o.caudaW || 8);
+    for (const x of [cx - rx + 12, cx - rx + 26, cx + rx - 24, cx + rx - 10]) g += perna(x, cy + 6, 110, e, o.perna || 9);
+    g += pes(tom(p, -0.4), [cx - rx + 12, cx - rx + 26, cx + rx - 24, cx + rx - 10], 112).replace(/rx="7.5"/g, 'rx="6"');
+    g += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${p}" ${S()}/><path d="M${cx - rx + 14} ${cy + 8} Q${cx} ${cy + ry + 2} ${cx + rx - 14} ${cy + 8}" stroke="${cl}" stroke-width="5" fill="none" opacity=".8"/>`;
+    if (o.listras) g += [-14, 0, 14].map(d => `<path d="M${cx + d} ${cy - ry + 2} l-4 10" stroke="${CT}" stroke-width="3"/>`).join("");
+    return g + cab(k, c, o.hx || 44, o.hy || 60, o.s || 0.56);
+  }
+  function multipernas(k, c) {
+    const p = c.pele || "#2a2226";
+    let g = "";
+    for (const [a, b] of [[-1, 0], [1, 0]]) for (const [y1, y2, dx] of [[70, 96, 40], [78, 108, 46], [86, 112, 34], [92, 110, 20]]) g += braco(`M64 ${y1} Q${64 + a * dx} ${y1 - 18} ${64 + a * (dx + 8)} ${y2}`, tom(p, 0.1), 5);
+    return g + `<ellipse cx="64" cy="92" rx="26" ry="16" fill="${tom(p, -0.1)}" ${S()}/>` + cab(k, c, 64, 66, 0.62);
+  }
+  const inteiro = (k, c, voa) => (voa ? sombra(20) : "") + cab(k, c, 64, voa ? 58 : 64, voa ? 0.78 : 0.86);
+
+  const FAM = {
+    goblin: (k, c) => bipede(k, c, { roupa: "#6a4a2a", s: 0.64, cy: 46, cinto: "#3a2a1a", rasgos: 1 }),
+    humano: (k, c) => bipede(k, c, { manto: c.chapeu === "mago" || c.manto, capa: c.chapeu === "capuz" ? tom(c.roupa || "#3a2a1a", -0.15) : "" }),
+    vampiro: (k, c) => bipede(k, c, { roupa: "#2a1a24", capa: "#6a0e1a", manga: "#2a1a24" }),
+    orc: (k, c) => bipede(k, c, { roupa: "#4a3a2a", manga: c.pele, s: 0.56, calca: "#2e2622", rasgos: 1 }),
+    caveira: (k, c) => bipede(k, c, { s: 0.56 }),
+    zumbi: (k, c) => bipede(k, c, { roupa: c.faixas ? c.pele : "#5a5a4a", manga: c.pele, bracosFrente: 1, rasgos: 1, cinto: false }),
+    demonio: (k, c) => bipede(k, c, { roupa: "#2a1414", manga: c.pele || "#a82a22", cauda: 1, asas: c.asas, cinto: "#1a0a0a" }),
+    reptil: (k, c) => c.dentes ? quadrupede(k, c, { rx: 38, ry: 14, cy: 94, hy: 72, s: 0.5, caudaD: "M108 92 Q122 96 124 84", perna: 8 }) : bipede(k, c, { roupa: "#6a4a2a", manga: c.pele, cauda: 1 }),
+    ave: (k, c) => bipede(k, c, { roupa: c.pele || "#7a5a3a", calca: "#d8a02a", bota: "#d8a02a", asas: 1, cinto: false }),
+    bruto: bruto, touro: (k, c) => c.presas ? quadrupede(k, c, { rx: 34, ry: 21, hy: 62, s: 0.54, caudaW: 4 }) : bruto(k, c), golem: bruto,
+    lobo: (k, c) => quadrupede(k, c, {}), felino: (k, c) => quadrupede(k, c, { listras: c.listras, caudaD: "M104 82 Q122 80 118 56" }),
+    urso: (k, c) => quadrupede(k, c, { rx: 38, ry: 23, cy: 84, s: 0.6, hy: 56, caudaW: 6, caudaD: "M110 80 Q114 78 112 74", perna: 12 }),
+    rato: (k, c) => quadrupede(k, c, { rx: 26, ry: 14, cy: 96, hy: 76, hx: 50, s: 0.48, caudaD: "M98 96 Q124 104 118 80", caudaCor: "#d89a9a", caudaW: 3 }),
+    dragao: (k, c) => quadrupede(k, c, { asas: 1, rx: 36, ry: 20, hy: 52, s: 0.6, caudaD: "M108 88 Q126 96 122 112" }),
+    aranha: multipernas, inseto: multipernas,
+    espectro: (k, c) => inteiro(k, c, 1), morcego: (k, c) => inteiro(k, c, 1), olho: (k, c) => inteiro(k, c, 1), fogo: (k, c) => inteiro(k, c, 1),
+    limo: (k, c) => inteiro(k, c), arvore: (k, c) => inteiro(k, c), bau: (k, c) => inteiro(k, c),
+  };
+  const PODE_VOAR = new Set(["espectro", "morcego", "olho", "fogo"]);
+  function svg(k, c) {
+    const corpo = (FAM[k] || FAM.humano)(k, c);
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -10 140 140" width="192" height="192"><defs><filter id="o" x="-20%" y="-20%" width="140%" height="140%">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="2.4" result="d"/><feFlood flood-color="${CT}"/><feComposite in2="d" operator="in" result="c"/>
+      <feMerge><feMergeNode in="c"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>${PODE_VOAR.has(k) ? "" : sombra(k === "bruto" || k === "golem" ? 36 : 28)}<g filter="url(#o)">${corpo}</g></svg>`;
+  }
+  // ---------- personagem do jogador: corpo pela classe, rosto pela raça ----------
+  function planoJogador(f) {
+    const cl = norm(f?.classe || ""), r = norm([f?.raca, f?.subraca].join(" ")), h = ARTE_MON.hash(f?.nome || "x");
+    const pele = /tiefling/.test(r) ? "#b04a3a" : /drow/.test(r) ? "#4a4a6a" : /orc/.test(r) ? "#7a9a5a" : ["#e8c4a0", "#c99a74", "#a8754e", "#7a5236"][h % 4];
+    if (/draconato|dragon/.test(r)) return ["reptil", { pele: ["#a8542a", "#3a7a5a", "#2a5aa8", "#c8a03a"][h % 4] }];
+    const c = { pele, sorriso: 1, cabelo: ["#3a2618", "#8a3a1a", "#d8b45a", "#1a1a1a"][h % 4] };
+    if (/anao/.test(r)) c.barba = c.cabelo;
+    if (/guerreir|paladin/.test(cl)) Object.assign(c, { chapeu: "elmo", roupa: /paladin/.test(cl) ? "#c8c0a8" : "#6a7a90" });
+    else if (/mago|feiticeir|bruxo/.test(cl)) Object.assign(c, { chapeu: "mago", roupa: /feiticeir/.test(cl) ? "#8a2a2a" : /bruxo/.test(cl) ? "#4a2a6a" : "#2a4a8a" });
+    else if (/ladin/.test(cl)) Object.assign(c, { chapeu: "capuz", roupa: "#34303a", lenco: "#1e1a20" });
+    else if (/patrulh|ranger|guardiao|cacador/.test(cl)) Object.assign(c, { chapeu: "capuz", roupa: "#3e6a34" });
+    else if (/druid/.test(cl)) Object.assign(c, { chapeu: "capuz", roupa: "#6a5a2a" });
+    else if (/clerig/.test(cl)) Object.assign(c, { roupa: "#e2dac2", manto: 1 });
+    else if (/barbar/.test(cl)) Object.assign(c, { roupa: "#7a5a3a", barba: c.barba || c.cabelo });
+    else if (/bardo/.test(cl)) Object.assign(c, { roupa: "#a8342a" });
+    else if (/monge/.test(cl)) Object.assign(c, { roupa: "#d8902a" });
+    else c.roupa = "#5a4a3a";
+    return [/orc/.test(r) ? "orc" : "humano", c];
+  }
+  function gerar(chave, k, c) {
+    if (cache.has(chave)) return Promise.resolve(cache.get(chave));
+    if (pend.has(chave)) return pend.get(chave);
+    const pr = new Promise(ok => {
+      const im = new Image();
+      im.onload = () => { try { const cv = document.createElement("canvas"); cv.width = cv.height = 192; cv.getContext("2d").drawImage(im, 0, 0, 192, 192); const d = cv.toDataURL("image/png"); cache.set(chave, d); urls.add(d); ok(d); } catch (e) { cache.set(chave, ""); ok(""); } };
+      im.onerror = () => { cache.set(chave, ""); ok(""); };
+      im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg(k, c));
+    }).finally(() => pend.delete(chave));
+    pend.set(chave, pr); return pr;
+  }
+  const redesenhar = d => { if (d) try { if (typeof cb !== "undefined" && cb && !cb.mesa) renderCb(); else if (typeof mc !== "undefined" && mc) renderMc(); } catch {} };
+  function agora(chave, k, c) { if (cache.has(chave)) return cache.get(chave); if (!pend.has(chave)) gerar(chave, k, c).then(redesenhar); return ""; }
+  const monstro = (nome, tipo) => { const [k, c] = ARTE_MON.plano(nome, tipo); return agora("m|" + norm(nome) + "|" + norm(tipo), k, c); };
+  const jogador = f => { const [k, c] = planoJogador(f); return agora("j|" + norm([f?.nome, f?.classe, f?.raca, f?.subraca].join("|")), k, c); };
+  return { ligado, alternar, monstro, jogador, svg, planoJogador, eh: src => urls.has(src), cls: src => urls.has(src) ? " chibi" : "", limpar: () => cache.clear() };
+})();
+
+/* =====================================================================
+   SAQUE NO CHÃO: depois da vitória os itens dos inimigos caem onde eles morreram; toque para pegar.
+   ===================================================================== */
+const SAQUE_CB = (() => {
+  const CT = "#23160e", S = `stroke="${CT}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"`;
+  const ICONE = {
+    moedas: `<path d="M8 13 Q8 7 16 7 Q24 7 24 13 L26 24 Q16 30 6 24Z" fill="#8a5a2a" ${S}/><path d="M10 11 Q16 14 22 11" stroke="#d8b04a" stroke-width="2.5" fill="none"/><circle cx="24" cy="25" r="4.5" fill="#f2c94a" ${S}/><circle cx="9" cy="27" r="3.5" fill="#f2c94a" ${S}/>`,
+    pocao: `<rect x="13" y="4" width="6" height="6" rx="1" fill="#b08a5a" ${S}/><path d="M13 10 L13 13 Q6 16 6 22 Q6 29 16 29 Q26 29 26 22 Q26 16 19 13 L19 10Z" fill="#e8f0f4" ${S}/><path d="M8 21 Q16 18 24 21 Q24 27 16 27 Q8 27 8 21Z" fill="#d8344a"/><circle cx="12" cy="18" r="1.6" fill="#fff"/>`,
+    osso: `<path d="M9 21 L22 9" stroke="${CT}" stroke-width="7" stroke-linecap="round"/><path d="M9 21 L22 9" stroke="#efe8d4" stroke-width="4" stroke-linecap="round"/><g fill="#efe8d4" ${S}><circle cx="6" cy="21" r="3.5"/><circle cx="9" cy="25" r="3.5"/><circle cx="22" cy="5.5" r="3.5"/><circle cx="25.5" cy="9" r="3.5"/></g>`,
+    pele: `<path d="M8 6 Q16 10 24 6 L26 14 Q30 18 26 22 L24 28 Q16 25 8 28 L6 22 Q2 18 6 14Z" fill="#9a6a3a" ${S}/><path d="M12 12 Q16 15 20 12 M11 20 Q16 23 21 20" stroke="#6a4420" stroke-width="2" fill="none"/>`,
+    presa: `<path d="M10 4 Q22 10 20 28 Q14 18 8 8Z" fill="#f0e8d0" ${S}/><path d="M12 9 Q17 13 18 20" stroke="#c8bc98" stroke-width="1.5" fill="none"/>`,
+    carta: `<rect x="4" y="8" width="24" height="17" rx="2" fill="#f4efe2" ${S}/><path d="M4 9 L16 18 L28 9" fill="none" ${S}/><circle cx="16" cy="18" r="4" fill="#c8342a" ${S}/>`,
+    gosma: `<path d="M6 26 Q4 16 12 13 Q14 6 18 10 Q26 10 26 20 Q28 27 18 28 Q8 29 6 26Z" fill="#6ad45a" ${S}/><circle cx="13" cy="18" r="2" fill="#fff" opacity=".7"/>`,
+    seda: `<circle cx="16" cy="17" r="10" fill="#f2f2ee" ${S}/><path d="M8 13 Q16 20 24 12 M7 19 Q16 25 25 18 M12 8 Q14 18 11 26 M20 8 Q18 18 21 26" stroke="#c8c8c0" stroke-width="1.5" fill="none"/>`,
+    escama: `<path d="M16 4 Q27 8 26 18 Q24 27 16 29 Q8 27 6 18 Q5 8 16 4Z" fill="#4aa07a" ${S}/><path d="M16 8 V25 M10 14 Q16 18 22 14" stroke="#2a6a4a" stroke-width="2" fill="none"/>`,
+    adaga: `<path d="M16 3 L20 8 L18 20 L14 20 L12 8Z" fill="#c8d0d8" ${S}/><rect x="9" y="20" width="14" height="3.5" rx="1" fill="#8a6a2a" ${S}/><rect x="14" y="23.5" width="4" height="6" rx="1" fill="#5a3a1e" ${S}/>`,
+    racao: `<path d="M5 18 Q5 9 16 9 Q27 9 27 18 Q27 24 16 24 Q5 24 5 18Z" fill="#d8a05a" ${S}/><path d="M11 13 l2 4 M16 12 l2 4 M21 13 l2 4" stroke="#8a5a2a" stroke-width="2"/>`,
+    gema: `<path d="M8 12 L12 6 H20 L24 12 L16 27Z" fill="#7ac8ff" ${S}/><path d="M8 12 H24 M12 6 L16 12 L20 6 M16 12 V27" stroke="#3a7ab0" stroke-width="1.3" fill="none"/>`,
+    pena: `<path d="M24 4 Q6 8 8 26 Q22 22 24 4Z" fill="#c8a86a" ${S}/><path d="M8 26 L22 7" stroke="#6a4a2a" stroke-width="1.8"/>`,
+    erva: `<path d="M16 28 V14" stroke="#3a6a2a" stroke-width="3"/><path d="M16 16 Q6 14 6 6 Q14 6 16 14 Q18 6 26 6 Q26 14 16 16Z" fill="#5aa03a" ${S}/>`,
+  };
+  const icone = (k, px = 26) => `<svg viewBox="0 0 32 32" width="${px}" height="${px}" aria-hidden="true">${ICONE[k] || ICONE.carta}</svg>`;
+  // [nome, ícone, chance, quantidade, peso (kg), descrição]; {N} = nome do inimigo
+  const H = [["Moeda de ouro", "moedas", 0.8, "moedas", 0.01, ""], ["Poção de cura", "pocao", 0.14, 1, 0.25, "Recupera 2d4+2 PV."], ["Ração de viagem (1 dia)", "racao", 0.25, 1, 0.9, ""], ["Adaga enferrujada", "adaga", 0.12, 1, 0.5, "Adaga gasta (1d4)."], ["Bilhete amassado", "carta", 0.1, 1, 0, "Um recado dobrado que estava com {N}."]];
+  const ANIMAL = [["Pele de {N}", "pele", 0.6, 1, 2, "Pode ser vendida no mercado."], ["Presa de {N}", "presa", 0.45, "1d2", 0.05, ""]];
+  const TAB = {
+    goblin: H, orc: H, humano: H, vampiro: [["Moeda de ouro", "moedas", 0.9, "moedas", 0.01, ""], ["Gema escura", "gema", 0.3, 1, 0.01, "Vale bom dinheiro."], ...H.slice(1)], reptil: [["Escamas de {N}", "escama", 0.5, "1d3", 0.1, ""], ...H.slice(0, 3)],
+    bruto: [["Moeda de ouro", "moedas", 0.85, "moedas", 0.01, ""], ["Presa de {N}", "presa", 0.4, 1, 0.1, ""], ["Poção de cura", "pocao", 0.18, 1, 0.25, "Recupera 2d4+2 PV."]],
+    demonio: [["Moeda de ouro", "moedas", 0.5, "moedas", 0.01, ""], ["Chifre de {N}", "presa", 0.5, 1, 0.2, ""], ["Gema escura", "gema", 0.2, 1, 0.01, ""]],
+    caveira: [["Osso", "osso", 0.7, "1d3", 0.2, ""], ["Moeda de ouro", "moedas", 0.35, "moedas", 0.01, ""]], zumbi: [["Osso", "osso", 0.5, 1, 0.2, ""], ["Moeda de ouro", "moedas", 0.3, "moedas", 0.01, ""], ["Bilhete amassado", "carta", 0.08, 1, 0, "Restos de um bilhete antigo que estava com {N}."]],
+    espectro: [["Essência espectral", "gosma", 0.5, 1, 0.1, "Brilha fraco no escuro."]],
+    lobo: ANIMAL, urso: ANIMAL, felino: ANIMAL, rato: [["Rabo de {N}", "presa", 0.5, 1, 0.05, ""]], touro: [["Couro de {N}", "pele", 0.6, 1, 3, ""], ["Chifre de {N}", "presa", 0.4, 1, 0.4, ""]],
+    aranha: [["Seda de aranha", "seda", 0.65, "1d2", 0.1, ""], ["Glândula de veneno", "gosma", 0.35, 1, 0.1, "Usada por boticários."]], inseto: [["Carapaça de {N}", "escama", 0.5, 1, 0.5, ""], ["Glândula de veneno", "gosma", 0.25, 1, 0.1, ""]],
+    dragao: [["Escama de dragão", "escama", 1, "1d3", 0.3, "Material raro."], ["Moeda de ouro", "moedas", 1, "moedas", 0.01, ""], ["Gema", "gema", 0.6, "1d2", 0.01, ""]],
+    golem: [["Fragmento de {N}", "gema", 0.6, 1, 1, ""]], limo: [["Gosma de {N}", "gosma", 0.7, 1, 0.3, ""]], olho: [["Olho de {N}", "gosma", 0.5, 1, 0.2, ""]], ave: [["Penas de {N}", "pena", 0.7, "1d3", 0.02, ""]],
+    morcego: [["Asa de morcego", "pele", 0.5, 1, 0.05, ""]], fogo: [["Brasa viva", "gema", 0.4, 1, 0.1, "Ainda quente."]], arvore: [["Casca encantada", "erva", 0.6, 1, 0.5, ""], ["Erva rara", "erva", 0.4, 1, 0.05, ""]],
+    bau: [["Moeda de ouro", "moedas", 1, "moedas", 0.01, ""], ["Gema", "gema", 0.6, 1, 0.01, ""]],
+  };
+  const d = (n, l) => { let t = 0; for (let i = 0; i < n; i++) t += 1 + Math.floor(Math.random() * l); return t; };
+  function quantos(q, e) { if (q === "moedas") return d(2, 6) * Math.max(1, Math.ceil((e.max || 7) / 20)); const m = String(q).match(/(\d+)d(\d+)/); return m ? d(+m[1], +m[2]) : Number(q) || 1; }
+  function sortear(e) {
+    const [k] = ARTE_MON.plano(e.arte || e.real || e.nome, e.tipo || inferirTipo(e.nome)), tab = TAB[k] || H, base = String(e.cat?.nome || e.nome || "criatura").replace(/\s*\(.*$/, "").slice(0, 28);
+    const sai = tab.filter(t => Math.random() < t[2]).map(t => ({ nome: t[0].replace("{N}", base.toLowerCase()), icone: t[1], qtd: quantos(t[3], e), peso: t[4], nota: t[5].replace("{N}", base.toLowerCase()) }));
+    return { sai, primeiro: tab[0] && { nome: tab[0][0].replace("{N}", base.toLowerCase()), icone: tab[0][1], qtd: quantos(tab[0][3], e), peso: tab[0][4], nota: tab[0][5].replace("{N}", base.toLowerCase()) } };
+  }
+  function iniciar() {                                     // devolve false se nada caiu (o combate fecha como antes)
+    if (!cb || cb.mesa || cb.mina) return false;
+    const mortos = cb.ents.slice(1).filter(e => e.hp <= 0), saque = new Map();
+    let primeiro = null;
+    for (const e of mortos) {
+      const r = sortear(e); primeiro ||= r.primeiro;
+      if (r.sai.length) saque.set(`${e.x},${e.y}`, [...(saque.get(`${e.x},${e.y}`) || []), ...r.sai]);
+    }
+    if (!saque.size && primeiro && mortos[0]) saque.set(`${mortos[0].x},${mortos[0].y}`, [primeiro]);   // toda vitória rende ao menos uma coisa
+    if (!saque.size) return false;
+    cb.saque = saque; cb.pegos = []; cb.ativo = false; SKILL.cancelar?.();
+    $("cb-acoes").hidden = true; fecharPainel?.();
+    let bx = $("cb-saque");
+    if (!bx) { bx = document.createElement("div"); bx.id = "cb-saque"; $("cb-esq").prepend(bx); }
+    bx.hidden = false;
+    bx.innerHTML = `<b>🏆 Vitória!</b><p class="dica">Os inimigos deixaram coisas no chão. Toque nos itens no tabuleiro para pegar.</p>
+      <button type="button" id="cb-pegar-tudo">🎒 Pegar tudo</button><button type="button" id="cb-sair-saque" class="secundario">✔ Sair do combate</button>`;
+    $("cb-pegar-tudo").onclick = () => { for (const k of [...cb.saque.keys()]) pegar(k, true); renderCb(); };
+    $("cb-sair-saque").onclick = sair;
+    logCb("🏆 Vitória! Itens caíram no chão: toque neles para pegar.");
+    renderCb();
+    return true;
+  }
+  function pegar(k, junto) {
+    const l = cb?.saque?.get(k); if (!l) return;
+    const P = cb.ents[0], [x, y] = k.split(",").map(Number);
+    if (!junto) { P.x = x; P.y = y; }                       // o personagem anda até o item
+    cb.saque.delete(k);
+    for (const it of l) {
+      const r = aplicarInventario({ nome: it.nome, quantidade: it.qtd, peso_kg: it.peso, descricao: it.nota });
+      if (r?.erro) { addMsg(`🎒 ${it.nome}: ${r.erro}`, "sistema"); continue; }
+      cb.pegos.push(`${it.nome} x${it.qtd}`);
+    }
+    addMsg(`🎒 Pegou: ${l.map(i => `${i.nome} ×${i.qtd}`).join(", ")}`, "sistema");
+    try { mostrarFicha(); salvarPersonagem?.(); } catch (e) {}
+    if (!junto) renderCb();
+    if (!cb.saque.size) setTimeout(() => { if (cb?.saque && !cb.saque.size) logCb("Tudo recolhido. Toque em ✔ Sair do combate."); }, 50);
+  }
+  function sair() {
+    if (!cb?.saque) return;
+    const deixados = [...cb.saque.values()].flat().map(i => `${i.nome} x${i.qtd}`);
+    $("cb-saque").hidden = true; $("cb-acoes").hidden = false;
+    cb.saqueFim = { recolhidos: cb.pegos, deixados };
+    cb.ativo = true; encerrarCb("vitoria");
+  }
+  function celula(x, y) {
+    const l = cb?.saque?.get(`${x},${y}`); if (!l) return "";
+    return `<span class="saque-chao" title="${esc(l.map(i => i.nome).join(", "))}">${l.slice(0, 2).map((i, n) => `<span class="sq-i sq-${n}">${icone(i.icone)}</span>`).join("")}${l.length > 2 ? `<b class="sq-n">+${l.length - 2}</b>` : ""}</span>`;
+  }
+  return { iniciar, pegar, sair, celula, icone };
+})();
 
 /* =====================================================================
    COMBATE 3D — WebGL puro. O tabuleiro vira uma mesa com miniaturas: o retrato do personagem é uma moeda de pé numa base;
@@ -4812,23 +5055,24 @@ function renderCb() {
   const efeito = e => {                                   // classes e variáveis CSS da animação de cada token
     const pv = prev.get(e), f = fx.get(e) || {}, pvE = e === P ? ficha.vidaAtual : e.hp, mx = e === P ? ficha.vidaMaxima : e.max;
     let cls = pvE > 0 && mx && pvE <= mx * 0.4 ? " ferido" : "", st = "";
-    if (pv && (pv.x !== e.x || pv.y !== e.y)) { cls += " anda"; st += `--dx:${(pv.x - e.x) * 108}%;--dy:${(pv.y - e.y) * 108}%;`; }
+    const kf = CHIBI.eh(imgToken(e)) ? 83 : 108;              // o desenho é 30% maior que a casa: o deslize anda a mesma distância
+    if (pv && (pv.x !== e.x || pv.y !== e.y)) { cls += " anda"; st += `--dx:${(pv.x - e.x) * kf}%;--dy:${(pv.y - e.y) * kf}%;`; }
     if (f.atq) { cls += " ataca"; st += `--ax:${Math.sign(f.atq.x - e.x) * 45}%;--ay:${Math.sign(f.atq.y - e.y) * 45}%;`; }
     if (f.dano != null) cls += " leva";
     if (f.morte) cls += " morre";
     return `class="%C${cls}" style="${st}"`;
   };
-  const token = e => (imgToken(e) ? `<img ${efeito(e).replace("%C", "tk " + (e === P ? "tkj" : "tki"))} src="${imgToken(e)}" alt="">` + (e === P ? "" : `<span class="tkl">${esc(e.letra)}</span>`) : `<span ${efeito(e).replace("%C", "tkn")}>${esc(e.letra)}</span>`)
+  const token = e => (imgToken(e) ? `<img ${efeito(e).replace("%C", "tk " + (e === P ? "tkj" : "tki") + CHIBI.cls(imgToken(e)))} src="${imgToken(e)}" alt="">` + (e === P ? "" : `<span class="tkl">${esc(e.letra)}</span>`) : `<span ${efeito(e).replace("%C", "tkn")}>${esc(e.letra)}</span>`)
     + (e === P ? ARTE.camadas(REGRAS.eqArma(), REGRAS.eqEscudo()) : "")
     + (fx.get(e)?.dano != null ? `<span class="pop${fx.get(e).dano ? "" : " erra"}">${fx.get(e).dano ? "−" + fx.get(e).dano : "errou"}</span>` : "");
   let h = "";
   for (let y = 0; y < LINS; y++) for (let x = 0; x < COLS; x++) {
     const eA = vivosCb().find(q => q.x === x && q.y === y), e = (eA && !escondidoDe(eA, P) ? eA : null) || [...fx].find(([q, f]) => f.morte && q.x === x && q.y === y)?.[0];
     const cls = ["cb-c", e ? (e === P ? "jog" : "ini") : alc.has(`${x},${y}`) ? "alc" : "", e && e === vez ? "vez" : "", e && e !== P && minhaVez && cb.acao && !SKILL.mira() && REGRAS.ataque(distCb(P, e)).ok ? "alvo" : "", e && SKILL.podeMirar(e) ? "mira" : "", e === P && escondido(P) ? "oculto-eu" : "", cb.cob?.has(`${x},${y}`) ? "cob" : "", cb.veios?.has(`${x},${y}`) ? "veio-c" : "", !e && cb.bloq?.has(`${x},${y}`) ? "bloq" : !e && cb.dific?.has(`${x},${y}`) ? "dif" : ""].join(" ");
-    h += `<button class="${cls}" data-x="${x}" data-y="${y}" ${e ? `title="${esc(nomeCb(e))}"` : ""}>${e ? token(e) : (cb.veios?.has(`${x},${y}`) ? `<span class="veio${cb.minerando && cb.minerando.x === x && cb.minerando.y === y ? " min" : ""}">💎</span>` : "")}</button>`;
+    h += `<button class="${cls}" data-x="${x}" data-y="${y}" ${e ? `title="${esc(nomeCb(e))}"` : ""}>${e ? token(e) : SAQUE_CB.celula(x, y) || (cb.veios?.has(`${x},${y}`) ? `<span class="veio${cb.minerando && cb.minerando.x === x && cb.minerando.y === y ? " min" : ""}">💎</span>` : "")}</button>`;
   }
   g.innerHTML = h; tokensSeguros(g);
-  $("cb-status").textContent = cb.mina && !cb.comecou ? minaStatus() : !cb.comecou ? "Confira o mapa (você pode trocá-lo ou mudar o tamanho) e comece quando estiver pronto."
+  $("cb-status").textContent = cb.saque ? "🏆 Vitória! Toque nos itens no chão para pegar (ou em 🎒 Pegar tudo)." : cb.mina && !cb.comecou ? minaStatus() : !cb.comecou ? "Confira o mapa (você pode trocá-lo ou mudar o tamanho) e comece quando estiver pronto."
     : `Rodada ${cb.rodada} · Vez: ${vez === P ? "você" : vez?.rotulo}` + (minhaVez ? ` · Movimento ${cb.mov} quadrado(s) (${kgTxt(cb.mov * 1.5)} m) · Ação ${cb.acao ? "disponível" : "usada"} · Arma: ${REGRAS.alcanceTxt()}. Toque num quadrado verde para andar ou num inimigo com contorno vermelho para atacar.` : "") + (cb.comecou && escondido(P) ? ` · ${P.furtivo ? "🥷 Você está furtivo" : "🌿 Você está escondido"}: só você se vê; os outros precisam de Procurar (CD ${cdFurtivo(P)}).` : "") + (cb.comecou && alvosVivos().some(q => escondidoDe(q, P)) ? " · 🌿 Há inimigos escondidos nas áreas escuras: use 👁 Procurar." : "");
   $("cb-lista").innerHTML = cb.ents.map(e => {
     const pv = e === P ? ficha.vidaAtual : Math.max(0, e.hp), max = e === P ? ficha.vidaMaxima : e.max;
@@ -4888,11 +5132,13 @@ function fimCb() {
 function encerrarCb(resultado) {
   if (!cb.ativo) return;
   if (cb.mina && resultado === "vitoria") return voltarMina();
+  if (resultado === "vitoria" && !cb.saque && SAQUE_CB.iniciar()) return;   // fica no tabuleiro para pegar os itens do chão
   cb.ativo = false; $("combate").hidden = true; fecharPainel(); SKILL.cancelar(); SKILL.render(); const perdaXp = resultado === "fuga" ? penalidadeFuga() : 0;
   const inimigos = cb.ents.slice(1).map(e => ({ nome: e.nome, estado: e.hp > 0 ? `vivo (${e.hp}/${e.max} PV)` : "derrotado" }));
   addMsg(`⚔ Combate encerrado: ${{ vitoria: "vitória", derrota: "derrota", fuga: "fuga" }[resultado]} em ${cb.rodada} rodada(s).`, "sistema");
   cb.resolve({ resultado, rodadas: cb.rodada, ...(perdaXp ? { penalidade_xp: `O jogador fugiu e perdeu ${perdaXp} XP (50% do XP acumulado no nível).` } : {}), inimigos, vida_do_jogador: `${ficha.vidaAtual}/${ficha.vidaMaxima}`,
-    ultimos_eventos: cb.log.slice(-8), instrucao: "Narre o desfecho em poucas frases, sem rolar dados. Se foi vitória, conceda XP com conceder_xp (respeitando o teto); se o jogador caiu a 0 de vida, narre que está caído e inconsciente." });
+    ultimos_eventos: cb.log.slice(-8), ...(cb.saqueFim ? { saque_do_chao: cb.saqueFim } : {}),
+    instrucao: "Narre o desfecho em poucas frases, sem rolar dados. Se foi vitória, conceda XP com conceder_xp (respeitando o teto); se o jogador caiu a 0 de vida, narre que está caído e inconsciente." + (cb.saqueFim ? " O SAQUE já foi resolvido pelo aplicativo (saque_do_chao: o que ele recolheu já está na bolsa; o que deixou ficou no chão). NÃO chame atualizar_inventario para esses itens e não invente outro saque dos inimigos." : "") });
 }
 async function avancarCb() {
   while (cb.ativo) {
@@ -5097,7 +5343,7 @@ async function executarCombate({ inimigos, mapa, ambiente }) {
   Object.defineProperty(ents[0], "hp", { get: () => ficha.vidaAtual, set: () => {}, enumerable: true });
   const mpa = achaMapa(mapa) || achaMapa(Mundo.mapaAtual()), fc = mpa ? CENAS[mpa.id] : null;
   const cena = [String(ambiente || "").trim().slice(0, 700), fc?.abertura || ""].filter(Boolean).join("\n\n"), chefe = ents.find(e => e.retrato);
-  $("cb-cena-txt").textContent = cena; $("cb-cena").hidden = !cena && !chefe;
+  $("cb-cena-txt").textContent = cena; $("cb-cena").hidden = !cena && !chefe; if ($("cb-saque")) $("cb-saque").hidden = true;
   $("cb-retr").hidden = !chefe; if (chefe) { $("cb-retr").src = chefe.retrato.img; $("cb-retr").alt = chefe.rotulo; }
   if (cena) addMsg(cena, "mestre");                       // o ambiente também fica no chat (e no resumo da campanha)
   $("cb-comecar").hidden = false; $("cb-acoes").hidden = false;
@@ -5109,6 +5355,7 @@ async function executarCombate({ inimigos, mapa, ambiente }) {
   try { if (C3.ok && C3.S?.on) C3.ligar(false); } catch (e) {}   // tabuleiro sempre em 2D (imagens PNG)
   return new Promise(resolve => { cb.resolve = resolve; });
 }
+$("cb-estilo").addEventListener("click", () => { CHIBI.alternar(); $("cb-estilo").textContent = CHIBI.ligado() ? "🎨 Estilo: desenho" : "🎨 Estilo: retrato"; try { if (cb?.mesa) renderMc(); else if (cb) renderCb(); } catch (e) {} });
 $("cb-comecar").addEventListener("click", async () => {
   if (!cb?.ativo || cb.comecou) return;
   cb.comecou = true; $("cb-comecar").hidden = true;
@@ -5123,6 +5370,7 @@ $("cb-comecar").addEventListener("click", async () => {
 });
 $("cb-grade").addEventListener("click", async e => {
   const b = e.target.closest(".cb-c");
+  if (b && cb?.saque) { const k = `${b.dataset.x},${b.dataset.y}`; if (cb.saque.has(k)) SAQUE_CB.pegar(k); return; }
   if (b && cb?.ativo && cb.mina && !cb.comecou) return minaClique(Number(b.dataset.x), Number(b.dataset.y));
   if (!b || !cb?.ativo || cb.mesa || !cb.comecou || cb.rolando || cb.ordem[cb.i] !== cb.ents[0]) return;
   const P = cb.ents[0], x = Number(b.dataset.x), y = Number(b.dataset.y), alvo0 = vivosCb().find(q => q !== P && q.x === x && q.y === y), alvo = alvo0 && !escondidoDe(alvo0, P) ? alvo0 : null;
@@ -6448,13 +6696,14 @@ function renderMc() {
   const efeito = e => {
     const pv = prev.get(e), f = fx.get(e) || {};
     let cls = e.hp > 0 && e.max && e.hp <= e.max * 0.4 ? " ferido" : "", st = "";
-    if (pv && (pv.x !== e.x || pv.y !== e.y)) { cls += " anda"; st += `--dx:${(pv.x - e.x) * 108}%;--dy:${(pv.y - e.y) * 108}%;`; }
+    const kf = CHIBI.eh(imgToken(e)) ? 83 : 108;              // o desenho é 30% maior que a casa: o deslize anda a mesma distância
+    if (pv && (pv.x !== e.x || pv.y !== e.y)) { cls += " anda"; st += `--dx:${(pv.x - e.x) * kf}%;--dy:${(pv.y - e.y) * kf}%;`; }
     if (f.atq) { cls += " ataca"; st += `--ax:${Math.sign(f.atq.x - e.x) * 45}%;--ay:${Math.sign(f.atq.y - e.y) * 45}%;`; }
     if (f.dano != null) cls += " leva";
     if (f.morte) cls += " morre";
     return `class="%C${cls}" style="${st}"`;
   };
-  const token = e => (imgToken(e) ? `<img ${efeito(e).replace("%C", "tk " + (e.pj ? "tkj" : "tki"))} src="${imgToken(e)}" alt="">` + (e.pj ? "" : `<span class="tkl">${esc(e.letra)}</span>`) : `<span ${efeito(e).replace("%C", "tkn")}>${esc(e.letra)}</span>`)
+  const token = e => (imgToken(e) ? `<img ${efeito(e).replace("%C", "tk " + (e.pj ? "tkj" : "tki") + CHIBI.cls(imgToken(e)))} src="${imgToken(e)}" alt="">` + (e.pj ? "" : `<span class="tkl">${esc(e.letra)}</span>`) : `<span ${efeito(e).replace("%C", "tkn")}>${esc(e.letra)}</span>`)
     + (e.pj ? (e === P ? ARTE.camadas(REGRAS.eqArma(), REGRAS.eqEscudo()) : ARTE.camadas(e.arma ? REGRAS.achaArma(e.arma) : null, e.esc)) : "")
     + (fx.get(e)?.dano != null ? `<span class="pop${fx.get(e).dano ? "" : " erra"}">${fx.get(e).dano ? "−" + fx.get(e).dano : "errou"}</span>` : "");
   let h = "";
