@@ -8966,8 +8966,14 @@ const CODEX = (() => {
     const l = Object.values(cx.e).sort((a, b) => b.criado - a.criado).slice(0, 40);
     const regra = "\n\nCODEX: NPCs e locais entram sozinhos (registrar_npc / mudar_local). Quando o jogador mudar o que um NPC sente por ele, chame atualizar_codex com o id e o delta (-15 a +15).";
     if (!l.length) return regra + " O Codex ainda está vazio.";
-    return regra + " A afeição define o tom do NPC.\nCODEX:\n" +
-      l.filter(e => e.tipo === "npc").slice(0, 25).map(e => `- ${e.nome} (id: ${e.id}) · ${e.subtipo} · afeição ${e.afeicao > 0 ? "+" : ""}${e.afeicao} → ${TOM[faixa(e.afeicao)[2]]}`).join("\n");
+    // Economia: ficha completa só dos NPCs da cena (do lugar atual ou citados nas últimas falas); os outros vão só com nome e id
+    const npcs = l.filter(e => e.tipo === "npc");
+    const recente = norm((historico || []).slice(-4).flatMap(h => (h.parts || []).map(p => p.text || "")).join(" "));
+    const naCena = e => (e.local && e.local === ficha.localAtual) || (norm(e.nome).length >= 3 && recente.includes(norm(e.nome))) || (norm(e.nome).split(" ")[0].length >= 4 && recente.includes(norm(e.nome).split(" ")[0]));
+    const cena = npcs.filter(naCena).slice(0, 12), outros = npcs.filter(e => !cena.includes(e)).slice(0, 30);
+    return regra + " A afeição define o tom do NPC.\nCODEX (NPCs desta cena):\n" +
+      (cena.map(e => `- ${e.nome} (id: ${e.id}) · ${e.subtipo} · afeição ${e.afeicao > 0 ? "+" : ""}${e.afeicao} → ${TOM[faixa(e.afeicao)[2]]}`).join("\n") || "- nenhum") +
+      (outros.length ? `\nOutros NPCs já conhecidos (se um deles voltar à cena, use o mesmo nome e id): ${outros.map(e => `${e.nome} (${e.id})`).join(", ")}.` : "");
   }
 
   // ---------- cards na conversa e painel do Codex ----------
