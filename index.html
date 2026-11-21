@@ -2563,11 +2563,42 @@ function mundoMapaInfo(id) {
     (corpos.length ? `<br>☠ ${corpos.map(m => `${esc(m.nome)} (${esc(m.estado)})`).join(", ")}` : "") +
     (fatos.length ? `<br><small>${fatos.map(f => esc(f.texto)).join(" · ")}</small>` : "") +
     (l.pois ? `<br><small>🗺 Vila com mapa: ${esc(l.pois.nome)} (${l.pois.lugares.length} pontos)</small>` : "") +
-    (mp ? `<img src="${mp.img}" alt="Mapa de ${esc(l.nome)}">` : "");
+    (mp ? `<img src="${mp.img}" alt="Mapa de ${esc(l.nome)}">` : "") + viagemHtml(l);
+}
+// Viagem rápida: para lugares já visitados, fora de combate e de perigo. O app muda o lugar; a IA só descreve a chegada.
+function motivoSemViagem(l) {
+  if (!l || l.estado === "citado") return "Só dá para viajar rápido para lugares que você já visitou.";
+  if (l.id === ficha.localAtual) return "Você já está aqui.";
+  if (ficha.morto || ficha.vidaAtual <= 0) return "Você está caído: não dá para viajar.";
+  if (cb?.ativo || mc?.ativo) return "Você está em combate: termine a luta primeiro.";
+  if (MESTRE_HUMANO) return "Na mesa com Mestre humano, peça a viagem a ele.";
+  if ($("entrada").disabled) return "Aguarde o Mestre terminar de narrar.";
+  if (perigoNaCena()) return "Há perigo na cena (inimigos ou ameaça por perto): resolva a situação antes de viajar.";
+  return "";
+}
+function perigoNaCena() {                                 // a última narração do Mestre fala de inimigos ou ameaça imediata?
+  const ms = document.querySelectorAll("#chat .msg.mestre"), u = ms[ms.length - 1]; if (!u) return false;
+  return /\b(inimig\w*|emboscad\w*|ataca(m|ndo)?|avan[cç]a(m)? (contra|em sua dire)|investe(m)?|rosna(m|ndo)?|persegu\w*|cercad[oa]s?|de arma(s)? em punho|amea[cç]a(m|ndo)?|hostil|hostis|vem em sua dire[cç][aã]o|prepar\w* para (atacar|lutar))\b/i.test(norm(u.textContent || ""));
+}
+function viagemHtml(l) {
+  if (!l || l.estado === "citado" || l.id === ficha.localAtual) return "";
+  const nao = motivoSemViagem(l);
+  return `<div class="linha-botoes"><button type="button" data-viajar="${esc(l.id)}" ${nao ? "disabled" : ""}>🧭 Viagem rápida para cá</button></div>${nao ? `<small class="dica">${esc(nao)}</small>` : ""}`;
+}
+function viajarRapido(id) {
+  const l = Mundo.obter(id), nao = motivoSemViagem(l); if (nao) { alert(nao); return; }
+  const de = Mundo.obter(ficha.localAtual)?.nome || "onde estava";
+  try { if (Mundo.ativoNoModo()) Mundo.mudarLocal({ nome: l.nome }); else ficha.localAtual = l.id; } catch (e) { ficha.localAtual = l.id; }
+  try { fecharLoja(); } catch (e) {}
+  $("mundomapa-dlg").hidden = true;
+  try { if (ilustraLugar(l.nome)) { ultimaCena = norm(l.nome); mostrarCenaLugar(l.nome); } } catch (e) {}
+  try { salvarPersonagem(); } catch (e) {}
+  enviarJogador(`🧭 Viagem rápida: de ${de} para ${l.nome}.`, { forcarIA: true, ia: `[APLICATIVO: VIAGEM RÁPIDA — o app já levou o personagem de ${de} até ${l.nome} (lugar já conhecido) e já registrou a chegada; NÃO chame mudar_local. A viagem foi tranquila, sem encontros. Descreva a chegada em 2 ou 3 frases (como o lugar está agora${l.desc ? `; antes era: ${l.desc}` : ""}) e dê as opções.]` });
 }
 $("abrir-mundomapa").addEventListener("click", () => { $("mm-info").hidden = true; mundoMapaDesenhar(); $("mundomapa-dlg").hidden = false; $("mundomapa-dlg").scrollTop = 0; });
 $("mm-fechar").addEventListener("click", () => { $("mundomapa-dlg").hidden = true; });
 $("mm-svg").addEventListener("click", e => { const n = e.target.closest(".no"); if (n) mundoMapaInfo(n.dataset.no); });
+$("mm-info").addEventListener("click", e => { const b = e.target.closest("[data-viajar]"); if (b) viajarRapido(b.dataset.viajar); });
 $("mm-svg").addEventListener("keydown", e => { const n = e.target.closest(".no"); if (n && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); mundoMapaInfo(n.dataset.no); } });
 // ---- diálogo do Ofício (prestígio, mineração, forja, Banca) ----
 function oficioRender() {
@@ -3237,21 +3268,31 @@ function testeDaOpcao(o) {
   try { if (!calcularBonus(pericia).conhecido) return null; } catch (e) { return null; }
   return { pericia_atributo: pericia, cd: Math.min(30, Math.max(5, Number(m[2]) || 12)), motivo: String(o).slice(0, m.index).trim() || pericia };
 }
-function usarPocaoLocal(it) {                           // poção de cura: regra do livro (2d4+2, maior 4d4+4…) aplicada pelo app, sem IA
+// Itens de cura da bolsa: o APP aplica a regra e atualiza a vida, sem perguntar à IA (poções, bandagens, ervas, kits)
+function curaDoItem(it) {                               // [dados, faces, bônus, verbo] ou null
+  const nome = norm(it?.nome || ""), n = nome + " " + norm(it?.nota || "");
+  if (/poc(a|o)o|pocao|elixir|tonico|frasco|ampola|tintura/.test(nome) && /cura|vida|saude|regenera|vital|recupera|heal/.test(n))
+    return [...(/suprem/.test(n) ? [10, 4, 20] : /superior/.test(n) ? [8, 4, 8] : /maior/.test(n) ? [4, 4, 4] : [2, 4, 2]), "bebe"];
+  if (/kit (de )?(curandeiro|medico|primeiros socorros|cura)|maleta medica|kit medico/.test(nome)) return [1, 6, 2, "usa"];
+  if (/bandagem|atadura|curativo|gaze/.test(nome)) return [1, 4, 1, "aplica"];
+  if (/unguento|pomada|balsamo|cataplasma|emplastro/.test(nome) || (/erva|folha|raiz|musgo|flor/.test(nome) && /medicin|curativ|cicatriz|cura|vida/.test(n))) return [1, 6, 1, "usa"];
+  if (/baga(s)? (benigna|boa|magica)|goodberry/.test(nome)) return [0, 0, 1, "come"];
+  return null;
+}
+function usarPocaoLocal(it) {                           // nome antigo: hoje serve para todo item de cura
   try {
-    if (MESTRE_HUMANO || cb?.ativo || ficha?.morto) return false;
-    const n = norm(it?.nome || "");
-    if (!/poc(a|o)o|elixir|tonico/.test(n) || !/cura|vida|saude|regenera/.test(n)) return false;
-    if (ficha.vidaAtual >= ficha.vidaMaxima) { addMsg(`🧪 Sua vida já está cheia (${ficha.vidaAtual}/${ficha.vidaMaxima}). Guarde a ${it.nome} para depois.`, "sistema"); return true; }
-    const [q, b] = /suprem/.test(n) ? [10, 20] : /superior/.test(n) ? [8, 8] : /maior/.test(n) ? [4, 4] : [2, 2];
-    let cura = b; for (let k = 0; k < q; k++) cura += 1 + Math.floor(Math.random() * 4);
+    if (MESTRE_HUMANO || ficha?.morto) return false;
+    const c = curaDoItem(it); if (!c) return false;
+    if (cb?.ativo || mc?.ativo) { addMsg(`⚔ Em combate, use ${it.nome} pelo menu de ações do seu turno (🧪).`, "sistema"); return true; }
+    if (ficha.vidaAtual >= ficha.vidaMaxima) { addMsg(`🧪 Sua vida já está cheia (${ficha.vidaAtual}/${ficha.vidaMaxima}). Guarde ${it.nome} para depois.`, "sistema"); return true; }
+    const [q, f, b, verbo] = c; let cura = b; for (let k = 0; k < q; k++) cura += 1 + Math.floor(Math.random() * f);
     if (--it.qtd <= 0) ficha.inventario.splice(ficha.inventario.indexOf(it), 1);
     const r = aplicarVida({ variacao: cura, motivo: it.nome });
-    addMsg(`🧪 Você bebe a ${it.nome} e sente o calor da cura se espalhar pelo corpo.`, "sistema");
-    notasParaIA.push(`[APLICATIVO: o personagem bebeu ${it.nome} e recuperou ${r.variacao_aplicada} de vida (agora ${r.vida_atual}/${r.vida_maxima}); o item já saiu da bolsa.]`);
-    try { mostrarFicha(); } catch (e) {}
+    addMsg(verbo === "bebe" ? `🧪 Você bebe ${it.nome} e sente o calor da cura se espalhar pelo corpo.` : `🩹 Você ${verbo} ${it.nome} e se sente melhor.`, "sistema");
+    notasParaIA.push(`[APLICATIVO: o personagem usou ${it.nome} e recuperou ${r.variacao_aplicada} de vida (agora ${r.vida_atual}/${r.vida_maxima}); o item já saiu da bolsa. Não chame alterar_vida nem atualizar_inventario por isso.]`);
+    try { mostrarFicha(); } catch (e) {} try { salvarPersonagem(); } catch (e) {}
     return true;
-  } catch (e) { console.warn("poção", e); return false; }
+  } catch (e) { console.warn("item de cura", e); return false; }
 }
 function descansoLongoLocal() {                         // descanso longo tranquilo: o app aplica; às vezes (ou se descansou há pouco) a IA decide
   try {
@@ -3862,8 +3903,12 @@ $("ficha-conteudo").addEventListener("click", async e => {
   if (b.dataset.inv) {                                  // bolsa
     const inv = ficha.inventario, it = inv[Number(b.dataset.i)], a = b.dataset.inv;
     if (a === "usar" && it) {
-      if ($("entrada").disabled) return;
-      $("ficha-tela").hidden = true; fecharFicha?.(); if (!usarPocaoLocal(it)) acaoDoJogador(`Uso o item: ${it.nome}`); return;
+      if (usarPocaoLocal(it)) { $("ficha-tela").hidden = true; fecharFicha?.(); return; }   // item de cura: o app resolve na hora
+      if ($("entrada").disabled) { alert("Aguarde: o Mestre ainda está narrando."); return; }
+      $("ficha-tela").hidden = true; fecharFicha?.();
+      const conf = `[APLICATIVO: confirmado — o personagem TEM "${it.nome}" ×${it.qtd} na bolsa agora (bolsa: ${ficha.inventario.map(i => `${i.nome} ×${i.qtd}`).join(", ")}). Não diga que ele não tem esse item. Se o uso gastar o item, chame atualizar_inventario com quantidade -1.]`;
+      if (MESTRE_HUMANO) acaoDoJogador(`Uso o item: ${it.nome}`); else enviarJogador(`Uso o item: ${it.nome}`, { ia: conf, forcarIA: true });
+      return;
     }
     if (a === "menos" && it) { if (--it.qtd <= 0) inv.splice(inv.indexOf(it), 1); }
     else if (a === "del" && it) inv.splice(inv.indexOf(it), 1);
