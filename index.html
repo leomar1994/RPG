@@ -2126,7 +2126,7 @@ function addMsg(texto, tipo) {
   if (tipo === "mestre") {
     const ex = extrairOpcoes(texto);
     if (ex) { opcoes = ex.opcoes; texto = ex.texto; }
-    if (!restaurando) { contMestre++; try { if (ficha) ficha.desdeDescanso = (ficha.desdeDescanso || 0) + 1; } catch (e) {} if (observando) { observando = false; obsCache = { local: ficha?.localAtual || "", texto, n: contMestre }; } }
+    if (!restaurando) { contMestre++; try { if (ficha) ficha.desdeDescanso = (ficha.desdeDescanso || 0) + 1; } catch (e) {} try { CENAS_SALVAS.capturar(texto); } catch (e) {} if (observando) { observando = false; obsCache = { local: ficha?.localAtual || "", texto, n: contMestre }; } }
   }
   if (!restaurando && (tipo === "mestre" || tipo === "jogador")) registrarLinha(tipo, texto);
   if (!restaurando && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE) && (tipo === "mestre" || tipo === "jogador")) try { CODEX.log(tipo === "mestre" ? "narracao" : "acao", texto); if (opcoes.length) CODEX.log("opcoes", opcoes.join(" | "), { opcoes }); } catch (e) {}   // guarda as últimas linhas da campanha
@@ -2972,7 +2972,7 @@ async function chamarIAInterna() {
           if (ficha.vidaAtual > 0) resposta = { erro: "O personagem não está a 0 de vida." };
           else { const sv = await salvaguardaDeMorte(c.args?.cd, c.args?.motivo); resposta = { ...sv.r, sobreviveu: sv.ok, vida_atual: ficha.vidaAtual, instrucao: sv.ok ? "Narre em 1 ou 2 frases que ele se estabilizou com 1 PV." : "Ele não resistiu: narre em 1 frase, sem opções. O aplicativo decide entre poção e morte." }; }
         }
-        else if (c.name === "mudar_local") { fecharLoja(); try { const nm = c.args?.nome || c.args?.local || ""; if (nm && norm(nm) !== ultimaCena && ilustraLugar(nm)) { ultimaCena = norm(nm); mostrarCenaLugar(nm); } } catch (e) {} resposta = Mundo.ativoNoModo() ? Mundo.mudarLocal(c.args) : { ok: true }; }
+        else if (c.name === "mudar_local") { fecharLoja(); try { CENAS_SALVAS.chegou(c.args?.nome, c.args?.descricao); if (texto) CENAS_SALVAS.capturar(texto); } catch (e) {} try { const nm = c.args?.nome || c.args?.local || ""; if (nm && norm(nm) !== ultimaCena && ilustraLugar(nm)) { ultimaCena = norm(nm); mostrarCenaLugar(nm); } } catch (e) {} resposta = Mundo.ativoNoModo() ? Mundo.mudarLocal(c.args) : { ok: true }; }
         else if (c.name === "abrir_loja") resposta = abrirLoja(c.args);
         else if (c.name === "cobrar") resposta = await executarCobranca(c.args);
         else if (c.name === "fechar_loja") resposta = fecharLoja(true);
@@ -3000,6 +3000,7 @@ async function chamarIAInterna() {
         DIAG.economizou();
         travarChat(false); talvezResumir();
       }
+      else if (++profCont > 3) { addMsg("O que você faz agora?", "mestre"); travarChat(false); }   // a IA só pede funções em sequência: para de gastar pedidos
       else { DIAG.motivo = "continuação: " + chamadas.map(c => c.name).join(", "); await chamarIA(); }   // a IA narra a consequência; ao terminar, o chat é destravado
     } else {
       travarChat(false);
@@ -3046,7 +3047,9 @@ async function refazerUltima() {                         // a IA travou (> 2 min
 }
 $("refazer").addEventListener("click", refazerUltima);
 async function enviarJogador(texto, nota = null) {
-  try { DIAG.novaJogada(nota?.curta || texto); } catch (e) {}      // nota: { ia: texto só para a IA, curta: resumo legível (mesa em rodada) }
+  try { DIAG.novaJogada(nota?.curta || texto); } catch (e) {}
+  profCont = 0;
+  try { CENAS_SALVAS.novaJogada(); if (!nota?.forcarIA && CENAS_SALVAS.repetir(texto)) return; } catch (e) { console.warn("cena salva:", e); }      // nota: { ia: texto só para a IA, curta: resumo legível (mesa em rodada) }
   if (typeof RODADA !== "undefined" && RODADA.ativo) return RODADA.enviar(texto + (nota?.curta ? " " + nota.curta : ""));
   document.querySelectorAll(".reenviar").forEach(b => b.remove());
   travarChat(true);
@@ -3060,11 +3063,57 @@ async function enviarJogador(texto, nota = null) {
   await chamarIA();
 }
 
+/* ---------- Cenas guardadas: a IA descreve um lugar UMA vez; voltar a ele depois não gasta IA ----------
+   Quando a IA leva o personagem a um lugar (mudar_local), a 1ª descrição fica guardada neste aparelho (vale para todos os
+   personagens). "Ir para / voltar à / vou até <lugar>" de um lugar já descrito é narrado pelo app. Só ações novas vão à IA. */
+const CENAS_SALVAS = (() => {
+  const LS = "rpg-cenas-salvas";
+  let db = {}; try { db = JSON.parse(localStorage.getItem(LS) || "{}"); } catch (e) {}
+  const grava = () => { try { const k = Object.keys(db); if (k.length > 300) k.sort((a, b) => db[a].t - db[b].t).slice(0, k.length - 300).forEach(x => delete db[x]); localStorage.setItem(LS, JSON.stringify(db)); } catch (e) {} };
+  let pend = null;                                         // lugar para onde a IA acabou de levar o personagem nesta jogada
+  const chave = n => norm(String(n || "").replace(/\(.*?\)/g, "")).replace(/^(a|o|as|os)\s+/, "").trim();
+  function chegou(nome, desc) { const k = chave(nome); if (!k) return; pend = { k, nome: String(nome).slice(0, 60), desc: String(desc || "").slice(0, 300) }; }
+  function capturar(texto) {                               // a narração da chegada vira a cena guardada do lugar
+    if (!pend || db[pend.k]) { pend = pend && db[pend.k] ? null : pend; return; }
+    const limpo = String(texto || "").replace(/\n[ \t]*\**OP[ÇC][ÕO]ES[\s\S]*$/i, "").trim();
+    if (limpo.length < 120) return;
+    const par = limpo.split(/\n\s*\n/).filter(Boolean);
+    let cena = par[0]; if (cena.length < 220 && par[1]) cena += "\n\n" + par[1];
+    db[pend.k] = { nome: pend.nome, texto: cena.slice(0, 700), desc: pend.desc, t: Date.now() }; pend = null; grava();
+  }
+  const DEST = /^(?:quero\s+)?(?:ir|vou|vamos|volto|voltar|voltamos|sigo|seguir|retorno|retornar|caminho|ando|entro|entrar)\s+(?:de volta\s+|direto\s+|novamente\s+)?(?:para|pra|até|ate|ao|à|aos|às|a|na|no|em|de volta (?:para|pra|a|ao|à))\s+(.+?)\s*[.!]*$/i;
+  function achar(texto) {
+    const m = String(texto || "").trim().match(DEST); if (!m) return null;
+    const k = chave(m[1]); if (!k || k.length < 3) return null;
+    if (db[k]) return db[k];
+    const cand = Object.entries(db).filter(([kk]) => kk.length >= 4 && (k.includes(kk) || kk.includes(k))).sort((a, b) => b[0].length - a[0].length)[0];
+    return cand ? cand[1] : null;
+  }
+  function repetir(texto) {
+    if (MESTRE_HUMANO || cb?.ativo || ficha?.morto || (typeof RODADA !== "undefined" && RODADA.ativo)) return false;
+    const c = achar(texto); if (!c) return false;
+    if (ficha?.localAtual && Mundo.ativoNoModo?.() && norm(Mundo.todos?.().find(l => l.id === ficha.localAtual)?.nome || "") === norm(c.nome)) return false;   // já está lá: deixa a IA responder
+    document.querySelectorAll(".reenviar").forEach(b => b.remove());
+    addMsg(texto, "jogador");
+    try { if (Mundo.ativoNoModo()) Mundo.mudarLocal({ nome: c.nome }); } catch (e) {}
+    try { mostrarCenaLugar(c.nome); } catch (e) {}
+    const narr = `Você volta a ${c.nome}.\n\n${c.texto}`;
+    addMsg(narr, "mestre");
+    const d = document.createElement("div"); d.className = "msg sistema";
+    d.innerHTML = `💾 Cena guardada: não gastou IA. Faça algo novo e o Mestre continua. <button type="button" class="secundario" style="margin-left:6px">✨ Descrever de novo com a IA</button>`;
+    d.querySelector("button").onclick = () => { d.remove(); delete db[chave(c.nome)]; grava(); const u = historico[historico.length - 1]; if (u?.role === "model" && u._cena) { historico.pop(); historico.pop(); } enviarJogador(texto, { forcarIA: true }); };
+    const cx = $("chat"), op = cx.querySelector(".opcoes:last-child"); if (op) cx.insertBefore(d, op); else cx.appendChild(d);
+    historico.push({ role: "user", parts: [{ text: texto }] }, { role: "model", parts: [{ text: narr }], _cena: true });
+    DIAG.economizou(); travarChat(false); try { salvarPersonagem(); } catch (e) {}
+    return true;
+  }
+  return { chegou, capturar, repetir, novaJogada: () => { pend = null; }, lista: () => Object.values(db), apagar: () => { db = {}; grava(); } };
+})();
 /* ---------- Economia de IA: o que o próprio app resolve sem chamar a IA ----------
    1) Opção com teste "(Perícia CD N)": o app rola o D20 no clique e manda a ação JÁ com o resultado (1 chamada em vez de 2).
    2) "Observar o ambiente" de novo, sem nada novo na cena: repete a última descrição.
    3) Poção de cura e descanso longo: o app aplica as regras e só avisa a IA na próxima jogada (notasParaIA). */
-var notasParaIA = [], contMestre = 0, observando = false, obsCache = null;   // var: podem ser usadas antes desta linha (restauração)
+var profCont = 0, notasParaIA = [], contMestre = 0, observando = false, obsCache = null;   // var: podem ser usadas antes desta linha (restauração)
 function testeDaOpcao(o) {
   const m = String(o).match(/\(\s*([^()]+?)(?:[\s,;:–-]*CD\s*(\d{1,2}))?\s*\)\s*$/i);
   if (!m) return null;
