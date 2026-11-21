@@ -2268,6 +2268,11 @@ function deOpenAI(dados) {
 
 // Chamada à API com REPETIÇÃO AUTOMÁTICA. Os provedores limitam pedidos por minuto (erro 429) e o servidor às
 // vezes fica sobrecarregado (503). O app espera cada vez mais e, a partir da 3ª tentativa, usa o modelo reserva.
+const provOk = new Set();         // provedores que já responderam nesta sessão (a internet e o acesso pelo navegador funcionam)
+const modeloMinimo = new Set();   // modelos que recusaram o pedido por tamanho: passam a receber o pedido mínimo
+// Funções indispensáveis para quem limita tokens por minuto (Groq/Cerebras); XP e vida também são lidos da narração se faltar algo
+const FUNCOES_ESSENCIAIS = new Set(["solicitar_teste_dado", "conceder_xp", "alterar_vida", "atualizar_inventario", "iniciar_combate", "mudar_local", "salvaguarda_morte", "abrir_loja", "cobrar"]);
+const soEssenciais = tools => (tools || []).map(t => ({ functionDeclarations: (t.functionDeclarations || []).filter(d => FUNCOES_ESSENCIAIS.has(d.name)) }));
 const bloqueados = new Map();   // item da fila -> instante (ms) em que volta a ser usado
 let modeloAtual = "";
 const IA_ATUAL = { x: null, ac: null, pausar: null, ger: 0 };
@@ -2330,8 +2335,9 @@ function corpoPara(x, corpo, reserva) {                    // o que cada provedo
   if (x.orc) return reserva ? enxugar(corpo) : corpo;     // OpenRouter conta PEDIDOS, não tokens
   if (x.prov === "gemini" || x.prov === "mistral" || x.prov === "sambanova" || x.prov === "anthropic") return reduzirParaLimite(reserva ? enxugar(corpo) : corpo, 30000);   // Gemini aceita muito texto por minuto
   // Groq / Cerebras: limite de tokens por minuto (6 a 12 mil). Prompt completo só se couber; senão versão enxuta e funções curtas
-  let c = reduzirParaLimite(corpo, 3600);              // o limite por minuto do Groq conta também a resposta: 3600 + 1300 cabe nos 6–8 mil
-  if (estTok(c) > 3600) { c = enxugar(corpo); if (c.tools) c = { ...c, tools: ferramentasCurtas(c.tools) }; c = reduzirParaLimite(c, 3600); }
+  const alvo = modeloMinimo.has(x.id) ? 2600 : 3600;    // o limite por minuto do Groq conta também a resposta: 3600 + 1300 cabe nos 6–8 mil
+  let c = modeloMinimo.has(x.id) ? corpo : reduzirParaLimite(corpo, alvo);
+  if (modeloMinimo.has(x.id) || estTok(c) > alvo) { c = enxugar(corpo); if (c.tools) c = { ...c, tools: ferramentasCurtas(soEssenciais(c.tools)) }; c = reduzirParaLimite(c, alvo); }
   return c;
 }
 let SEM_IA_MESA = false;
@@ -2378,6 +2384,7 @@ async function chamarAPI(corpo, container) {
       clearTimeout(limite); clearTimeout(aviso);
       DIAG.add(x, resp.ok && !dados.error, resp.ok && !dados.error ? "ok" : `${dados.error?.code || resp.status} ${dados.error?.message || ""}`, Date.now() - t0);
       if (resp.ok && !dados.error) {
+        provOk.add(x.prov || (x.orc ? "orc" : x.id));
         const r = deOpenAI(dados);
         if (!r.candidates.length) {                       // resposta vazia (comum em modelos gratuitos): pausa breve e tenta o próximo
           bloqueados.set(x.id, Date.now() + 45000);
@@ -2397,6 +2404,7 @@ async function chamarAPI(corpo, container) {
         continue;
       }
       if (/only available|agentic harness|not available (?:in|for|on)|not supported|unsupported|no longer available|has been (?:removed|deprecated)/i.test(dados.error?.message || "")) { ultimoErro = erro; pausar(x, 86400000); continue; }   // modelo que não serve para chamadas comuns: pula por 24 h e tenta o próximo
+      if (/request too large|too large for model|tokens per minute|context.length|maximum context/i.test(dados.error?.message || "") && !modeloMinimo.has(x.id) && !x.orc) { modeloMinimo.add(x.id); ultimoErro = erro; continue; }   // pedido grande demais: tenta de novo já com o pedido mínimo (menos funções e histórico)
       if (/request too large|too large for model|tool calling. is not supported|does not support (tools|function)/i.test(dados.error?.message || "")) { ultimoErro = erro; pausar(x, 6 * 3600000); continue; }   // este modelo nunca vai servir para este pedido: pula por 6 h
       if (![400, 402, 404, 408, 413, 422, 429, 500, 502, 503, 504, 529].includes(status)) throw Object.assign(erro, { definitivo: true });   // chave do OpenRouter inválida etc.
       ultimoErro = erro;
@@ -2420,6 +2428,7 @@ async function chamarAPI(corpo, container) {
       if (e.vazio) { ultimoErro = e; continue; }
       if (e.name === "AbortError") { ultimoErro = new Error(`${modelo}: sem resposta em ${Math.round(espMax / 1000)} s`); pausar(x, 300000); continue; }
       ultimoErro = e;
+      if (!x.orc && !x.local && e instanceof TypeError && !provOk.has(x.prov) && [...provOk].length) { pausar(x, 12 * 3600000); continue; }   // outras IAs respondem e esta nunca respondeu: o site dela bloqueia o navegador (ex.: SambaNova) — sai da fila por 12 h
       if (!x.orc) { pausar(x, 300000); continue; }       // provedor extra inacessível (rede/CORS): pula por 5 min
       pausar(x, 60000);                                   // falha de rede neste modelo: tenta o próximo
       if (!livres()) { mostrarEspera(container, t, TOTAL, 2000); await esperar(2000); }
