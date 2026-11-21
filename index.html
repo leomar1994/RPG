@@ -1027,7 +1027,10 @@ async function descobrirLocal() {
 function montarFila() {                                  // lista final de tentativas: provedores extras primeiro, depois o OpenRouter, por último a IA do computador
   const fila = [];
   const dePv = pv => { const c = lerLS(pv.ls); if (c) for (const m of (modelosDescobertos(pv) || pv.modelos).filter(m => !EXCLUIDOS.test(m))) fila.push({ id: `${pv.id}|${m}`, modelo: m, url: pv.url, chave: c, nome: pv.nome, prov: pv.id }); };
-  for (const pv of PROVEDORES) if (!pv.reservaFinal) dePv(pv);
+  // intercalada: 1 modelo de cada provedor por vez (Gemini, Groq, SambaNova…). Se um provedor fica sobrecarregado,
+  // o próximo da fila já é de outra empresa, em vez de vários modelos do mesmo provedor seguidos.
+  const grupos = PROVEDORES.filter(pv => !pv.reservaFinal).map(pv => { const ini = fila.length; dePv(pv); return fila.splice(ini); }).filter(g => g.length);
+  for (let i = 0; grupos.some(g => i < g.length); i++) for (const g of grupos) if (i < g.length) fila.push(g[i]);
   const orc = OPENROUTER_API_KEY || lerLS("openrouter_key");
   if (orc) for (const m of modelosOR().filter(m => /:free$|^openrouter\/free$/.test(m))) fila.push({ id: m, modelo: m, url: URL_API, chave: orc, nome: "OpenRouter", orc: true });
   const lu = LOCAL.url(); if (lu) for (const m of LOCAL.modelos()) fila.push({ id: "local|" + m, modelo: m, url: lu, chave: "local", nome: "IA do computador", prov: "local", local: true, ctx: LOCAL.ctx() });
@@ -2389,6 +2392,8 @@ async function chamarAPI(corpo, container) {
   if (!fila.length) throw new Error("Falta a chave de IA. Siga o assistente 🔑 (é grátis e leva ~1 minuto), cole a chave e toque em “🔄 Reenviar”.");
   const livres = () => fila.find(x => (bloqueados.get(x.id) || 0) <= Date.now());
   const pausar = (x, ms) => { for (const y of fila) if (y === x || (x.prov && y.prov === x.prov && ms >= 3600000)) bloqueados.set(y.id, Date.now() + Math.min(ms, 24 * 3600000)); };
+  // provedor sobrecarregado (503/529) ou travado: os outros modelos dele quase sempre estão iguais, então a empresa toda sai da vez por um tempo
+  const pausarProvedor = (x, ms) => { if (!x.prov || x.local) return; for (const y of fila) if (y.prov === x.prov) bloqueados.set(y.id, Math.max(bloqueados.get(y.id) || 0, Date.now() + ms)); };
   const TOTAL = fila.length * 2 + 2, principal = fila[0], ped = DIAG.pedido(corpo), inicio = Date.now();
   const LIMITE_TOTAL = principalIA ? 75000 : 180000;     // não fica preso para sempre: depois disso mostra o botão de reenviar
   const temFuncoes = (corpo.contents || []).some(h => h.parts?.some(p => p.functionCall || p.functionResponse));
@@ -2405,14 +2410,15 @@ async function chamarAPI(corpo, container) {
     }
     const modelo = x.modelo, reserva = x !== principal, corpoX = corpoPara(x, achatado ? achatarFuncoes(corpo) : corpo, reserva);   // IA do computador com memória grande: recebe o prompt completo (mesma qualidade de roteiro)
     if (t > 1 && container && !container._espera) mostrarEspera(container, t, TOTAL, 0);
-    const espMax = x.local ? Math.max(corpo.limiteMs || 0, 240000) : corpo.limiteMs || 30000, ac = new AbortController(), limite = setTimeout(() => ac.abort(), espMax);
-    if (principalIA) Object.assign(IA_ATUAL, { x, ac, pausar: ms => pausar(x, ms) });   // modelo que não responde: desiste (30 s na narração) e passa para o próximo
+    const espMax = x.local ? Math.max(corpo.limiteMs || 0, 240000) : corpo.limiteMs || 20000, ac = new AbortController(), limite = setTimeout(() => ac.abort(), espMax);
+    if (principalIA) Object.assign(IA_ATUAL, { x, ac, pausar: ms => pausar(x, ms) });   // modelo que não responde: desiste (20 s na narração) e passa para o próximo
     const t0 = Date.now();
     const aviso = t === 1 && container ? setTimeout(() => { if (!container._espera) mostrarEspera(container, t, TOTAL, -1); }, 7000) : 0;
     try {
       const cab = { "Content-Type": "application/json", "Authorization": "Bearer " + x.chave };
       if (x.orc) cab["X-Title"] = "RPG Mestre IA";
       const req = ajustarProvedor(x, paraOpenAI(corpoX, modelo, !!x.orc)), claude = x.prov === "anthropic";
+      if (modeloMinimo.has(x.id) && req.max_tokens > 800) req.max_tokens = 800;   // pedido mínimo: resposta máxima menor também
       const resp = await fetch(x.url, { method: "POST", headers: claude ? CLAUDE.cab(x.chave) : cab, signal: ac.signal, body: JSON.stringify(claude ? CLAUDE.pedido(req) : req) });
       let dados = await resp.json().catch(() => ({}));
       if (claude) dados = CLAUDE.resposta(dados);
@@ -2452,6 +2458,7 @@ async function chamarAPI(corpo, container) {
       const sugMs = sug ? ((Number(sug[1]) || 0) * 60 + (sug[3] === "ms" ? Number(sug[2]) / 1000 : Number(sug[2]))) * 1000 + 800 : 0;
       const pausa = sugMs && status === 429 ? Math.min(sugMs, 120000) : status === 400 || status === 422 ? 300000 : status === 402 || status === 413 ? 600000 : status === 404 ? 3600000 : reset > Date.now() ? reset - Date.now() : dica ? dica * 1000 + 500 : status === 429 ? 60000 : 20000;
       pausar(x, pausa);
+      if ([500, 502, 503, 504, 529].includes(status)) pausarProvedor(x, 90000);
       if (x.orc && status === 429 && /per.?day|daily|free-models-per-day/i.test(dados.error?.message || "")) {
         const ate = reset > Date.now() ? reset : Date.now() + 3600000;
         for (const y of fila) if (y.orc) bloqueados.set(y.id, ate);
@@ -2462,7 +2469,7 @@ async function chamarAPI(corpo, container) {
       if (e.definitivo) throw e;
       if (!e.vazio) DIAG.add(x, false, e.name === "AbortError" ? `sem resposta em ${Math.round(espMax / 1000)} s` : "falha de rede: " + (e.message || e), Date.now() - t0, ped);
       if (e.vazio) { ultimoErro = e; continue; }
-      if (e.name === "AbortError") { ultimoErro = new Error(`${modelo}: sem resposta em ${Math.round(espMax / 1000)} s`); pausar(x, 300000); continue; }
+      if (e.name === "AbortError") { ultimoErro = new Error(`${modelo}: sem resposta em ${Math.round(espMax / 1000)} s`); pausar(x, 300000); pausarProvedor(x, 120000); continue; }
       ultimoErro = e;
       if (!x.orc && !x.local && e instanceof TypeError && !provOk.has(x.prov) && [...provOk].length) { pausar(x, 12 * 3600000); continue; }   // outras IAs respondem e esta nunca respondeu: o site dela bloqueia o navegador (ex.: SambaNova) — sai da fila por 12 h
       if (!x.orc) { pausar(x, 300000); continue; }       // provedor extra inacessível (rede/CORS): pula por 5 min
