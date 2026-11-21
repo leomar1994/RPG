@@ -2351,6 +2351,18 @@ function corpoPara(x, corpo, reserva) {                    // o que cada provedo
   if (modeloMinimo.has(x.id) || estTok(c) > alvo) { c = enxugar(corpo); if (c.tools) c = { ...c, tools: ferramentasCurtas(soEssenciais(c.tools)) }; c = reduzirParaLimite(c, alvo); }
   return c;
 }
+function achatarFuncoes(corpo) {                         // funções e resultados viram texto: qualquer modelo aceita
+  const txt = p => p.functionCall ? `[o Mestre usou ${p.functionCall.name}: ${JSON.stringify(p.functionCall.args || {}).slice(0, 300)}]`
+    : p.functionResponse ? `[resultado de ${p.functionResponse.name}: ${JSON.stringify(p.functionResponse.response || {}).slice(0, 600)}]` : p.text || "";
+  const contents = [];
+  for (const h of corpo.contents || []) {
+    const parts = (h.parts || []).map(p => ({ text: txt(p) })).filter(p => p.text);
+    if (!parts.length) continue;
+    const u = contents[contents.length - 1];
+    if (u && u.role === h.role) u.parts.push(...parts); else contents.push({ role: h.role, parts });
+  }
+  return { ...corpo, contents };
+}
 let SEM_IA_MESA = false;
 const avisouChave = {};                                   // o Mestre humano escolheu jogar sem IA
 async function chamarAPI(corpo, container) {
@@ -2369,17 +2381,21 @@ async function chamarAPI(corpo, container) {
   if (!fila.length) throw new Error("Falta a chave de IA. Siga o assistente 🔑 (é grátis e leva ~1 minuto), cole a chave e toque em “🔄 Reenviar”.");
   const livres = () => fila.find(x => (bloqueados.get(x.id) || 0) <= Date.now());
   const pausar = (x, ms) => { for (const y of fila) if (y === x || (x.prov && y.prov === x.prov && ms >= 3600000)) bloqueados.set(y.id, Date.now() + Math.min(ms, 24 * 3600000)); };
-  const TOTAL = fila.length * 2 + 2, principal = fila[0], ped = DIAG.pedido(corpo);
-  let ultimoErro;
+  const TOTAL = fila.length * 2 + 2, principal = fila[0], ped = DIAG.pedido(corpo), inicio = Date.now();
+  const LIMITE_TOTAL = principalIA ? 75000 : 180000;     // não fica preso para sempre: depois disso mostra o botão de reenviar
+  const temFuncoes = (corpo.contents || []).some(h => h.parts?.some(p => p.functionCall || p.functionResponse));
+  let ultimoErro, achatado = false;
   for (let t = 1; t <= TOTAL; t++) {
     if (cancelado()) throw Object.assign(new Error("cancelado"), { cancelado: true });
+    if (Date.now() - inicio > LIMITE_TOTAL && !fila.some(x => x.local && (bloqueados.get(x.id) || 0) <= Date.now())) break;
     const x = livres();
     if (!x && corpo.semEspera) throw Object.assign(new Error("todas em pausa"), { semFila: true });   // revezamento da mesa: passa logo para o próximo jogador
     if (!x) {                                             // todos em pausa: espera o primeiro que liberar
-      const livre = Math.min(...fila.map(y => bloqueados.get(y.id) || 0)), ms = Math.min(30000, Math.max(1000, livre - Date.now()));
+      const livre = Math.min(...fila.map(y => bloqueados.get(y.id) || 0)), ms = Math.min(30000, Math.max(1000, livre - Date.now(), 0));
+      if (livre - inicio > LIMITE_TOTAL) break;              // a próxima IA só volta depois do limite: para já e oferece o reenvio     // a próxima IA só volta depois do limite: para já e oferece o reenvio
       mostrarEspera(container, t, TOTAL, ms); await esperar(ms); continue;
     }
-    const modelo = x.modelo, reserva = x !== principal, corpoX = corpoPara(x, corpo, reserva);   // IA do computador com memória grande: recebe o prompt completo (mesma qualidade de roteiro)
+    const modelo = x.modelo, reserva = x !== principal, corpoX = corpoPara(x, achatado ? achatarFuncoes(corpo) : corpo, reserva);   // IA do computador com memória grande: recebe o prompt completo (mesma qualidade de roteiro)
     if (t > 1 && container && !container._espera) mostrarEspera(container, t, TOTAL, 0);
     const espMax = x.local ? Math.max(corpo.limiteMs || 0, 240000) : corpo.limiteMs || 30000, ac = new AbortController(), limite = setTimeout(() => ac.abort(), espMax);
     if (principalIA) Object.assign(IA_ATUAL, { x, ac, pausar: ms => pausar(x, ms) });   // modelo que não responde: desiste (30 s na narração) e passa para o próximo
@@ -2417,13 +2433,14 @@ async function chamarAPI(corpo, container) {
       if (/only available|agentic harness|not available (?:in|for|on)|not supported|unsupported|no longer available|has been (?:removed|deprecated)/i.test(dados.error?.message || "")) { ultimoErro = erro; pausar(x, 86400000); continue; }   // modelo que não serve para chamadas comuns: pula por 24 h e tenta o próximo
       if (/request too large|too large for model|tokens per minute|context.length|maximum context/i.test(dados.error?.message || "") && !modeloMinimo.has(x.id) && !x.orc) { modeloMinimo.add(x.id); ultimoErro = erro; continue; }   // pedido grande demais: tenta de novo já com o pedido mínimo (menos funções e histórico)
       if (/request too large|too large for model|tool calling. is not supported|does not support (tools|function)/i.test(dados.error?.message || "")) { ultimoErro = erro; pausar(x, 6 * 3600000); continue; }   // este modelo nunca vai servir para este pedido: pula por 6 h
+      if ((status === 400 || status === 422) && temFuncoes && !achatado && /function|tool|signature|thought|role|turn|content/i.test(dados.error?.message || "")) { achatado = true; ultimoErro = erro; continue; }   // recusou o histórico com funções: tenta de novo com ele em texto
       if (![400, 402, 404, 408, 413, 422, 429, 500, 502, 503, 504, 529].includes(status)) throw Object.assign(erro, { definitivo: true });   // chave do OpenRouter inválida etc.
       ultimoErro = erro;
       if (!x.orc && (status === 404 || status === 400) && /does not exist|not found|no access|model/i.test(dados.error?.message || "")) { const pv = PROVEDORES.find(q => q.id === x.prov); if (pv) { try { localStorage.removeItem("modelos_" + pv.id); } catch (e) {} descobrirModelos(pv, true).then(() => { fila = montarFila(); }); } }
       // limite diário/por minuto, sem crédito ou modelo fora do ar: pausa só este modelo e tenta o próximo na hora
       const reset = Number(dados.error?.metadata?.headers?.["X-RateLimit-Reset"]);
       const dica = parseFloat(resp.headers.get("retry-after"));
-      const sug = String(dados.error?.message || "").match(/try again in\s+(?:(\d+)m)?\s*([\d.]+)(ms|s)/i);
+      const sug = String(dados.error?.message || "").match(/(?:try again|retry) in\s+(?:(\d+)m)?\s*([\d.]+)\s*(ms|s)/i) || String(JSON.stringify(dados.error || {})).match(/retryDelay"?\s*:\s*"?()([\d.]+)(s)/i);
       const sugMs = sug ? ((Number(sug[1]) || 0) * 60 + (sug[3] === "ms" ? Number(sug[2]) / 1000 : Number(sug[2]))) * 1000 + 800 : 0;
       const pausa = sugMs && status === 429 ? Math.min(sugMs, 120000) : status === 400 || status === 422 ? 300000 : status === 402 || status === 413 ? 600000 : status === 404 ? 3600000 : reset > Date.now() ? reset - Date.now() : dica ? dica * 1000 + 500 : status === 429 ? 60000 : 20000;
       pausar(x, pausa);
@@ -2446,7 +2463,8 @@ async function chamarAPI(corpo, container) {
     }
   }
   if (ultimoErro) console.warn("IA:", ultimoErro.message);
-  throw new Error("Não consegui me reconectar ao Mestre agora. Aguarde alguns segundos e toque em 🔄 Recarregar e reenviar.");
+  const prox = Math.min(...fila.map(y => bloqueados.get(y.id) || 0)), hora = new Date(prox).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  throw new Error(prox - Date.now() > 120000 ? `Todas as IAs grátis estão no limite agora (a próxima libera por volta das ${hora}). Toque em 🔄 Recarregar e reenviar para tentar de novo, ou adicione outra chave em 🔑 Chaves de IA.` : "Não consegui me reconectar ao Mestre agora. Aguarde alguns segundos e toque em 🔄 Recarregar e reenviar.");
 }
 /* =====================================================================
    6B) CHAVES DE IA (OpenRouter + provedores extras)
@@ -2782,7 +2800,7 @@ if (lerLS("openrouter_key") || OPENROUTER_API_KEY) descobrirModelosOR();   // ao
 function mostrarEspera(container, t, total, ms) {
   if (!container) return;
   if (!container._espera) { container._espera = document.createElement("div"); container._espera.className = "msg sistema"; container.appendChild(container._espera); }
-  container._espera.textContent = ms < 0 ? "🔌 Conectando ao Mestre… (os modelos grátis às vezes demoram um pouco)" : ms >= 3000 ? `🔌 Reconectando… (${Math.round(ms / 1000)}s)` : "🔌 Reconectando…";
+  container._espera.textContent = ms < 0 ? "🔌 Conectando ao Mestre… (os modelos grátis às vezes demoram um pouco)" : ms >= 3000 ? `⏳ As IAs grátis estão no limite por minuto. Tentando de novo em ${Math.round(ms / 1000)}s…` : "🔌 Reconectando…";
   container.scrollTop = container.scrollHeight;
 }
 function limparEspera(container) { container._espera?.remove(); container._espera = null; }
@@ -2983,7 +3001,7 @@ async function chamarIAInterna() {
     if (minha !== gerIA || e?.cancelado) return;
     iaDesde = 0; limparEspera($("chat"));
     console.warn("IA:", e?.message);
-    addMsg(/chave|Reconectar|reconectar/i.test(e?.message || "") ? "⚠ " + String(e.message).replace(/^[^:]*·[^:]*:\s*/, "") : "🔌 Conexão com o Mestre perdida. Toque em 🔄 Recarregar e reenviar para reconectar.", "sistema");
+    addMsg(/chave|Reconectar|reconectar|no limite/i.test(e?.message || "") ? "⚠ " + String(e.message).replace(/^[^:]*·[^:]*:\s*/, "") : "🔌 Conexão com o Mestre perdida. Toque em 🔄 Recarregar e reenviar para reconectar.", "sistema");
     $("chat").lastElementChild?.classList.add("erro-ia");
     travarChat(false);
     oferecerReenvio();
@@ -2999,6 +3017,7 @@ function oferecerReenvio() {
   b.onclick = async () => {
     if (ficha.morto || morteEmCurso) { b.remove(); return; }
     document.querySelectorAll(".reenviar, .erro-ia").forEach(x => x.remove());
+    const ag = Date.now(); bloqueados.forEach((v, k) => { if (v - ag < 10 * 60000) bloqueados.delete(k); });   // pausas curtas (lentidão, erro passageiro) são esquecidas: tenta todas de novo
     const u = historico[historico.length - 1];
     if (u?.role === "model" && u.parts?.some(p => p.functionCall)) historico.pop();   // chamada de função sem resposta: descarta antes de repetir
     travarChat(true); await chamarIA();
