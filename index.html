@@ -2126,7 +2126,7 @@ function addMsg(texto, tipo) {
   if (tipo === "mestre") {
     const ex = extrairOpcoes(texto);
     if (ex) { opcoes = ex.opcoes; texto = ex.texto; }
-    if (!restaurando) { contMestre++; try { if (ficha) ficha.desdeDescanso = (ficha.desdeDescanso || 0) + 1; } catch (e) {} try { CENAS_SALVAS.capturar(texto); } catch (e) {} if (observando) { observando = false; obsCache = { local: ficha?.localAtual || "", texto, n: contMestre }; } }
+    if (!restaurando) { contMestre++; try { if (ficha) ficha.desdeDescanso = (ficha.desdeDescanso || 0) + 1; } catch (e) {} try { CENAS_SALVAS.capturar(texto); FALAS_NPC.capturar(texto); } catch (e) {} if (observando) { observando = false; obsCache = { local: ficha?.localAtual || "", texto, n: contMestre }; } }
   }
   if (!restaurando && (tipo === "mestre" || tipo === "jogador")) registrarLinha(tipo, texto);
   if (!restaurando && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE) && (tipo === "mestre" || tipo === "jogador")) try { CODEX.log(tipo === "mestre" ? "narracao" : "acao", texto); if (opcoes.length) CODEX.log("opcoes", opcoes.join(" | "), { opcoes }); } catch (e) {}   // guarda as últimas linhas da campanha
@@ -3049,7 +3049,7 @@ $("refazer").addEventListener("click", refazerUltima);
 async function enviarJogador(texto, nota = null) {
   try { DIAG.novaJogada(nota?.curta || texto); } catch (e) {}
   profCont = 0;
-  try { CENAS_SALVAS.novaJogada(); if (!nota?.forcarIA && CENAS_SALVAS.repetir(texto)) return; } catch (e) { console.warn("cena salva:", e); }      // nota: { ia: texto só para a IA, curta: resumo legível (mesa em rodada) }
+  try { CENAS_SALVAS.novaJogada(); FALAS_NPC.novaJogada(); if (!nota?.forcarIA && (await CENAS_SALVAS.repetir(texto) || FALAS_NPC.repetir(texto))) return; FALAS_NPC.antesDaIA(texto); } catch (e) { console.warn("cena salva:", e); }      // nota: { ia: texto só para a IA, curta: resumo legível (mesa em rodada) }
   if (typeof RODADA !== "undefined" && RODADA.ativo) return RODADA.enviar(texto + (nota?.curta ? " " + nota.curta : ""));
   document.querySelectorAll(".reenviar").forEach(b => b.remove());
   travarChat(true);
@@ -3063,6 +3063,97 @@ async function enviarJogador(texto, nota = null) {
   await chamarIA();
 }
 
+/* ---------- Falas guardadas dos NPCs: a 1ª resposta vem da IA; a mesma pergunta depois é respondida pelo app ---------- */
+const FALAS_NPC = (() => {
+  const LS = "rpg-falas-npc";
+  let db = {}; try { db = JSON.parse(localStorage.getItem(LS) || "{}"); } catch (e) {}
+  const grava = () => { try { localStorage.setItem(LS, JSON.stringify(db)); } catch (e) {} };
+  const PARAR = new Set("a o e de da do das dos em no na nos nas um uma uns umas que com para pra por ao aos à às eu me meu minha voce você ele ela isso esse essa este esta se sobre lhe te ti vou quero pergunto pergunta digo falo".split(" "));
+  const palavras = t => norm(t).replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(w => w.length > 2 && !PARAR.has(w));
+  const SAUDA = /^(?:vou\s+)?(?:falo|falar|converso|conversar|cumprimento|cumprimentar|me aproximo|aproximo|chamo|chamar|saudo|saudar|oi|ola|olá|bom dia|boa tarde|boa noite)\b/i;
+  function npcs() {
+    const l = []; try { for (const e of Object.values(ficha?.codex?.e || {})) if (e.tipo === "npc") l.push(e.nome); } catch (e) {}
+    try { for (const e of Mundo.todos?.() || []) if (e.tipo === "npc" && e.nome) l.push(e.nome); } catch (e) {}
+    return [...new Set(l.filter(n => String(n).length >= 3))];
+  }
+  function quem(texto) {                                   // NPC citado pelo nome (ou pelo primeiro nome)
+    const t = " " + norm(texto) + " ";
+    return npcs().find(n => t.includes(" " + norm(n) + " ") || (norm(n).split(" ")[0].length >= 4 && t.includes(" " + norm(n).split(" ")[0] + " ")));
+  }
+  let pend = null;
+  function antesDaIA(texto) { const n = quem(texto); pend = n ? { n, q: texto } : null; }
+  function capturar(narr) {                                // guarda a resposta da IA a quem falou com o NPC
+    if (!pend) return; const limpo = String(narr || "").replace(/\n[ \t]*\**OP[ÇC][ÕO]ES[\s\S]*$/i, "").trim(); if (limpo.length < 60) return;
+    const k = norm(pend.n), l = db[k] ||= [];
+    const w = palavras(pend.q.replace(new RegExp(pend.n, "ig"), "")), saud = SAUDA.test(pend.q.trim()) && w.length <= 3;
+    if (!l.some(x => x.q.join(" ") === w.join(" "))) l.push({ q: w, saud, txt: limpo.slice(0, 700), t: Date.now() });
+    db[k] = l.slice(-25); pend = null; grava();
+  }
+  function achar(texto) {
+    const n = quem(texto); if (!n) return null;
+    const l = db[norm(n)] || []; if (!l.length) return null;
+    const w = palavras(texto.replace(new RegExp(n, "ig"), "")), saud = SAUDA.test(texto.trim()) && w.length <= 3;
+    if (saud) { const g = l.find(x => x.saud); return g ? { n, ...g } : null; }
+    let melhor = null, nota = 0;
+    for (const x of l) { if (x.saud || !x.q.length || !w.length) continue; const A = new Set(w), B = new Set(x.q), com = [...A].filter(y => B.has(y)).length, j = com / (A.size + B.size - com); if (j > nota) { nota = j; melhor = x; } }
+    return nota >= .6 ? { n, ...melhor } : null;
+  }
+  function repetir(texto) {
+    if (MESTRE_HUMANO || cb?.ativo || ficha?.morto || (typeof RODADA !== "undefined" && RODADA.ativo)) return false;
+    const r = achar(texto); if (!r) return false;
+    addMsg(texto, "jogador");
+    const narr = r.saud ? r.txt : `${r.n} responde o mesmo que da outra vez:\n\n${r.txt}`;
+    addMsg(narr, "mestre");
+    const d = document.createElement("div"); d.className = "msg sistema";
+    d.innerHTML = `💾 Fala guardada de ${esc(r.n)}: não gastou IA. <button type="button" class="secundario" style="margin-left:6px">✨ Perguntar de novo à IA</button>`;
+    d.querySelector("button").onclick = () => { d.remove(); const l = db[norm(r.n)] || []; db[norm(r.n)] = l.filter(x => x.txt !== r.txt); grava(); if (historico[historico.length - 1]?._cena) { historico.pop(); historico.pop(); } enviarJogador(texto, { forcarIA: true }); };
+    const cx = $("chat"), op = cx.querySelector(".opcoes:last-child"); if (op) cx.insertBefore(d, op); else cx.appendChild(d);
+    historico.push({ role: "user", parts: [{ text: texto }] }, { role: "model", parts: [{ text: narr }], _cena: true });
+    DIAG.economizou(); travarChat(false); try { salvarPersonagem(); } catch (e) {}
+    return true;
+  }
+  return { antesDaIA, capturar, repetir, novaJogada: () => { pend = null; } };
+})();
+
+/* ---------- Viagem entre lugares conhecidos: o app sorteia o que acontece no caminho ----------
+   Dentro da mesma vila não há evento. Fora dela: ~65% nada, ~15% um encontro na estrada (texto), ~10% um achado,
+   ~10% emboscada (abre o tabuleiro; vitória dá XP do bestiário). Derrota ou fuga: a IA narra a consequência. */
+const VIAGEM = (() => {
+  const mesmaVila = (a, b) => { const A = norm(a || ""), B = norm(b || ""); if (!A || !B) return false;
+    return (ficha?.mapasLocais || []).some(m => { const ns = [m.nome, ...(m.lugares || []).map(l => l.nome)].map(norm); return ns.includes(A) && ns.includes(B); }) || (!!ilustraLugar(a) && !!ilustraLugar(b)); };
+  const ENCONTROS = ["No caminho você cruza com um mascate puxando uma mula carregada; ele acena e segue resmungando do preço do sal.",
+    "Uma garoa fina acompanha a viagem inteira e deixa a estrada escorregadia, mas nada além disso.",
+    "Você passa por um pequeno santuário de beira de estrada, com velas recém-acesas e flores do campo.",
+    "Um grupo de peregrinos canta baixo enquanto caminha na direção oposta; um deles deseja boa sorte.",
+    "Corvos acompanham você por um trecho, pousando nas cercas, até perderem o interesse.",
+    "Rastros frescos de lobo cruzam a trilha, mas nenhum animal aparece."];
+  const ACHADOS = [["Moeda de ouro", 0.01, () => 1 + Math.floor(Math.random() * 6), "Algumas moedas perdidas brilham na poeira da estrada."],
+    ["Erva medicinal", 0.05, () => 1, "Você nota um tufo de erva medicinal à beira do caminho e colhe."],
+    ["Ração de viagem (1 dia)", 0.9, () => 1, "Um embrulho caído de alguma carroça guarda uma ração ainda boa."]];
+  function grupo(nv) {
+    const op = nv <= 1 ? [["Bandido", 2], ["Lobo", 2], ["Goblin", 2]] : nv <= 3 ? [["Bandido", 3], ["Lobo", 3], ["Goblin", 3], ["Orc", 1]] : [["Orc", 2], ["Lobo Atroz", 1], ["Bandido", 4]];
+    const [n, q] = op[Math.floor(Math.random() * op.length)];
+    return Array.from({ length: Math.min(6, q) }, () => ({ nome: n, bestiario: n }));
+  }
+  async function noCaminho(de, para, pedido) {                     // devolve um texto para antes da chegada, ou { parou: true } se a IA assumiu
+    if (!de || mesmaVila(de, para) || norm(de) === norm(para)) return "";
+    const r = Math.random();
+    if (r < .65) return "";
+    if (r < .8) return ENCONTROS[Math.floor(Math.random() * ENCONTROS.length)];
+    if (r < .9) { const [nome, peso, q, txt] = ACHADOS[Math.floor(Math.random() * ACHADOS.length)], n = q(); aplicarInventario({ nome, quantidade: n, peso_kg: peso }); try { mostrarFicha(); } catch (e) {} addMsg(`🎒 Achou: ${nome} ×${n}`, "sistema"); return txt; }
+    const inim = grupo(ficha.nivel || 1);
+    addMsg(`⚠ Emboscada na estrada entre ${de} e ${para}!`, "mestre");
+    const res = await executarCombate({ inimigos: inim, mapa: "estrada_emboscada", ambiente: "A caminho de " + para + ", vultos saem do mato dos dois lados da estrada." });
+    if (res?.resultado === "vitoria") {
+      const xp = inim.reduce((a, e) => a + (Number(catMonstro(e.bestiario)?.xp) || 25), 0);
+      await executarConcessaoXp({ quantidade: xp, motivo: "vencer a emboscada na estrada", tipo_resolucao: "combate" });
+      return "Depois da luta, você recupera o fôlego e segue viagem.";
+    }
+    historico.push({ role: "user", parts: [{ text: `${pedido}\n[APLICATIVO] Na viagem de ${de} para ${para}, o personagem sofreu uma emboscada de ${inim.length} ${inim[0].nome}(s). Resultado do combate: ${JSON.stringify(res || {}).slice(0, 700)}. Narre a consequência.` }] });
+    await chamarIA(); return { parou: true };
+  }
+  return { noCaminho };
+})();
 /* ---------- Cenas guardadas: a IA descreve um lugar UMA vez; voltar a ele depois não gasta IA ----------
    Quando a IA leva o personagem a um lugar (mudar_local), a 1ª descrição fica guardada neste aparelho (vale para todos os
    personagens). "Ir para / voltar à / vou até <lugar>" de um lugar já descrito é narrado pelo app. Só ações novas vão à IA. */
@@ -3089,21 +3180,26 @@ const CENAS_SALVAS = (() => {
     const cand = Object.entries(db).filter(([kk]) => kk.length >= 4 && (k.includes(kk) || kk.includes(k))).sort((a, b) => b[0].length - a[0].length)[0];
     return cand ? cand[1] : null;
   }
-  function repetir(texto) {
+  async function repetir(texto) {
     if (MESTRE_HUMANO || cb?.ativo || ficha?.morto || (typeof RODADA !== "undefined" && RODADA.ativo)) return false;
     const c = achar(texto); if (!c) return false;
-    if (ficha?.localAtual && Mundo.ativoNoModo?.() && norm(Mundo.todos?.().find(l => l.id === ficha.localAtual)?.nome || "") === norm(c.nome)) return false;   // já está lá: deixa a IA responder
+    const aqui = Mundo.todos?.().find(l => l.id === ficha?.localAtual)?.nome || "";
+    if (aqui && norm(aqui) === norm(c.nome)) return false;   // já está lá: deixa a IA responder
     document.querySelectorAll(".reenviar").forEach(b => b.remove());
     addMsg(texto, "jogador");
+    travarChat(true);
+    const caminho = await VIAGEM.noCaminho(aqui, c.nome, texto);
+    if (caminho?.parou) return true;
+    if (caminho) addMsg(caminho, "mestre");
     try { if (Mundo.ativoNoModo()) Mundo.mudarLocal({ nome: c.nome }); } catch (e) {}
     try { mostrarCenaLugar(c.nome); } catch (e) {}
-    const narr = `Você volta a ${c.nome}.\n\n${c.texto}`;
+    const narr = `Você volta a ${c.nome}.\n\n${c.texto}`, viagem = caminho ? caminho + "\n\n" : "";
     addMsg(narr, "mestre");
     const d = document.createElement("div"); d.className = "msg sistema";
     d.innerHTML = `💾 Cena guardada: não gastou IA. Faça algo novo e o Mestre continua. <button type="button" class="secundario" style="margin-left:6px">✨ Descrever de novo com a IA</button>`;
     d.querySelector("button").onclick = () => { d.remove(); delete db[chave(c.nome)]; grava(); const u = historico[historico.length - 1]; if (u?.role === "model" && u._cena) { historico.pop(); historico.pop(); } enviarJogador(texto, { forcarIA: true }); };
     const cx = $("chat"), op = cx.querySelector(".opcoes:last-child"); if (op) cx.insertBefore(d, op); else cx.appendChild(d);
-    historico.push({ role: "user", parts: [{ text: texto }] }, { role: "model", parts: [{ text: narr }], _cena: true });
+    historico.push({ role: "user", parts: [{ text: texto }] }, { role: "model", parts: [{ text: viagem + narr }], _cena: true });
     DIAG.economizou(); travarChat(false); try { salvarPersonagem(); } catch (e) {}
     return true;
   }
@@ -8077,10 +8173,10 @@ O resumo inteiro deve ter NO MÁXIMO 700 caracteres, em frases curtas. Guarde s�
 
 // A cada ~3 narrações, a IA condensa o que aconteceu em poucas linhas (em segundo plano, sem travar o jogo)
 function talvezResumir() {
-  if (resumindo || pendentesResumo.length < 12) return;
+  if (resumindo || pendentesResumo.length < 24) return;   // economia: um resumo a cada 24 falas (antes 12)
   resumindo = true;
   const novas = pendentesResumo.splice(0);
-  const devolver = () => { pendentesResumo = [...novas, ...pendentesResumo].slice(-12); };
+  const devolver = () => { pendentesResumo = [...novas, ...pendentesResumo].slice(-24); };
   chamarAPI({ leve: true, systemInstruction: { parts: [{ text: PROMPT_RESUMO }] },
     contents: [{ role: "user", parts: [{ text: `RESUMO ANTERIOR:\n${resumoCampanha || "(nenhum)"}\n\nNOVAS CENAS:\n` + novas.map(l => `- ${l.autor === "mestre" ? "Mestre" : "Jogador"}: ${l.texto}`).join("\n") }] }] }, document.createElement("div"))
     .then(d => {
