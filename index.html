@@ -1108,8 +1108,8 @@ VIDA:
 - ECONOMIA: registre apenas o essencial — lugares novos (mudar_local, uma vez por lugar), mapa de local (registrar_mapa_local, só uma vez), NPCs novos e missões/rota (atualizar_campanha). Use registrar_fato só para mudanças duradouras importantes. Faça todas as chamadas de registro JUNTAS na mesma resposta em que narra, sem repetir e sem narrar nada extra por causa delas. Respostas curtas e diretas.
 - MAPA DO LOCAL: ao apresentar uma vila, cidade ou local com vários pontos de interesse, chame registrar_mapa_local (nome do local e a lista de lugares com tipo) em vez de narrar cada ponto; descreva só a chegada em poucas frases e diga que o mapa está na bolsa. O jogador escolhe o destino no mapa e você narra apenas o trajeto e a cena de lá. Se o local já consta em MAPAS DO JOGADOR, não registre de novo, só acrescente lugares realmente novos.
 - O personagem tem uma bolsa (inventário) controlada pelo aplicativo; o jogador NÃO pode adicionar itens por conta própria, só consumi-los: itens novos só entram quando a história os dá (achados, compras, presentes) e você chama atualizar_inventario. Sempre que ele ganhar, comprar, encontrar, perder ou consumir um item, chame atualizar_inventario (quantidade positiva adiciona, negativa remove) com o peso_kg de uma unidade segundo o D&D 5e. Ao usar um consumível (poção, tocha, flecha), remova uma unidade. Só deixe o jogador usar itens que estão na BOLSA DO JOGADOR. Respeite a carga: acima do limite leve o deslocamento cai 3 m; muito sobrecarregado cai 6 m e há desvantagem em ataques e testes de Força, Destreza e Constituição; acima da capacidade máxima ele não consegue se mover.
-- O personagem tem uma barra de Vida controlada pelo aplicativo. Sempre que ele sofrer dano ou receber cura (poções, magias, descanso), chame alterar_vida com variacao (negativa para dano, positiva para cura) e motivo.
-- Nunca invente valores de vida: use os valores devolvidos (vida_atual e vida_maxima) e a "Vida atual" do contexto. O dano dos inimigos deve ser proporcional ao nível (referência: 1d6 a 2d10 por ataque nos níveis 1 a 5); no modo grupo, aplique o multiplicador de dificuldade ao dano.
+- O personagem tem uma barra de Vida controlada pelo aplicativo, que CALCULA TODO dano e cura. Você nunca calcula nem escreve números de vida, dano ou PV no texto (nada de "-3 de vida", "(−2 PV)", "perde 4"). Quando ele se ferir fora de combate (armadilha, queda, fumaça, veneno), chame alterar_vida só com gravidade ("leve", "moderado" ou "grave") e motivo: o aplicativo rola os dados e mostra o resultado. Para cura, gravidade "cura_leve", "cura_moderada" ou "cura_grande".
+- Inimigo que ataca, parte para cima ou ameaça golpear o personagem = COMBATE: chame iniciar_combate na mesma resposta. Nunca narre golpes de inimigos acertando nem dano fora do combate do aplicativo.
 - POÇÕES: só existe poção que está na BOLSA DO JOGADOR. Nunca dê, invente ou faça aparecer poção para salvar alguém: ao curar com poção, chame alterar_vida com motivo contendo "poção" e o aplicativo gasta uma da bolsa (se não houver, ele recusa). Personagem CAÍDO (0 PV) não pode ser curado por você de outro jeito: o aplicativo faz a salvaguarda contra a morte e decide se um aliado ajuda.
 - Se a vida chegar a 0 (estado "caido"), você PODE dar uma última chance chamando salvaguarda_morte (cd 10 padrão, 15 ferimento grave, 20 quase mortal), no máximo uma vez, só se a história justificar; não chame se o ferimento for claramente letal. Depois narre em UMA frase o personagem caindo e NÃO ofereça opções: o aplicativo decide se ele bebe uma poção de cura ou morre (morte definitiva). Quando o aplicativo avisar que o personagem MORREU, narre a morte em 2 ou 3 frases, com respeito, sem opções.
 - Descanso curto recupera cerca de metade da vida máxima; descanso longo recupera tudo.
@@ -1120,7 +1120,7 @@ const SYSTEM_ENXUTO = `Você é o Mestre de D&D 5e (português do Brasil, segund
 OBRIGATÓRIO: toda resposta que não chame função termina com uma linha só "OPÇÕES:" e, abaixo, 3 a 4 linhas "1) ação curta" (até 8 palavras cada), com a perícia e a CD entre parênteses quando a ação pedir teste, ex.: "1) Seguir os rastros (Sobrevivência CD 12)". Se a mensagem do jogador trouxer "[TESTE JÁ ROLADO PELO APLICATIVO", NÃO peça teste: narre o resultado.
 FUNÇÕES (use sempre; nunca narre o resultado no lugar delas):
 - solicitar_teste_dado: ação arriscada ou incerta e armadilhas (pericia_atributo, cd 10/15/20, motivo). Um teste por vez, no máximo 1 frase antes, sem narrar o desfecho e sem rolar dados.
-- alterar_vida: SEMPRE que o personagem sofrer dano (armadilha, queda, golpe, veneno) ou se curar. variacao negativa para dano (1d6 a 2d6 nos níveis 1 a 5, ex.: -4) e motivo. Se a narração diz que ele se feriu, a função DEVE ser chamada.
+- alterar_vida: SEMPRE que o personagem se ferir fora de combate (armadilha, queda, fumaça, veneno) ou se curar: gravidade (leve/moderado/grave ou cura_leve/cura_moderada/cura_grande) e motivo; o aplicativo calcula o valor. Nunca escreva o número no texto. Golpe de inimigo não é alterar_vida: é iniciar_combate.
 - conceder_xp: ao fim de combate, enigma ou missão. atualizar_inventario: item ganho, perdido ou consumido. iniciar_combate: quando uma luta começar (sem narrar a luta). registrar_mapa_local: ao apresentar vila ou cidade. mudar_local: sempre que o personagem chegar a um lugar (nome estável; saidas = lugares ligados). registrar_fato: mudança permanente. alterar_morto: corpo do MUNDO que mudou. saquear_morto: o jogador pega item de um corpo. Obedeça o bloco MUNDO PERSISTENTE.
 Depois de um teste, narre exatamente o resultado recebido (falha = custo ou dano); se vier sucesso_excepcional, acrescente UMA dica extra concreta, sem citar números nem bônus. Nunca decida ações do jogador nem invente números de vida. Vida 0 = caído: 1 frase, sem opções (o app decide entre poção e morte definitiva); se o app avisar que morreu, narre a morte em 2 frases.`;
 function enxugar(c) {
@@ -1357,14 +1357,15 @@ const FERRAMENTAS = [{
       motivo: { type: "STRING", description: "Frase curta, ex.: 'o veneno ainda não chegou ao coração'." } }, required: ["cd", "motivo"] }
   }, {
     name: "alterar_vida",
-    description: "Altera a Vida do jogador: dano sofrido ou cura recebida.",
+    description: "Ferimento fora de combate ou cura. O aplicativo calcula o valor pela gravidade (você não calcula).",
     parameters: {
       type: "OBJECT",
       properties: {
-        variacao: { type: "INTEGER", description: "Negativo para dano, positivo para cura." },
-        motivo:   { type: "STRING", description: "Frase curta, ex.: 'golpe do goblin', 'poção de cura', 'descanso longo'." }
+        gravidade: { type: "STRING", enum: ["leve", "moderado", "grave", "cura_leve", "cura_moderada", "cura_grande"], description: "O quanto feriu ou curou. O aplicativo rola os dados conforme o nível." },
+        motivo:    { type: "STRING", description: "Frase curta, ex.: 'queda no fosso', 'fumaça tóxica', 'poção de cura', 'descanso longo'." },
+        variacao:  { type: "INTEGER", description: "Opcional e ignorado no valor: só o sinal (negativo = dano, positivo = cura) se não usar gravidade." }
       },
-      required: ["variacao", "motivo"]
+      required: ["gravidade", "motivo"]
     }
   }, {
     name: "iniciar_combate",
@@ -1612,7 +1613,19 @@ function aplicarVida({ variacao, motivo }) {
   if (ficha.vidaAtual <= 0 && delta < 0) setTimeout(verificarMorte, 300);
   return { variacao_aplicada: delta, vida_atual: ficha.vidaAtual, vida_maxima: ficha.vidaMaxima, estado: ficha.vidaAtual === 0 ? "caido" : "normal" };
 }
-function vidaPelaIA(a) {                                 // filtro da cura pedida pela IA
+// Dano e cura fora de combate: o APP rola os dados pela gravidade e pelo nível (a IA só diz leve/moderado/grave)
+function valorPorGravidade(g, nivel = ficha.nivel || 1) {
+  const tier = nivel <= 4 ? 0 : nivel <= 10 ? 1 : nivel <= 16 ? 2 : 3;
+  const T = { leve: [[1, 4, 0], [2, 4, 0], [3, 6, 0], [4, 6, 0]], moderado: [[1, 8, 0], [2, 8, 0], [4, 8, 0], [6, 8, 0]], grave: [[2, 8, 0], [4, 8, 0], [8, 8, 0], [10, 8, 0]],
+    cura_leve: [[1, 4, 1], [2, 4, 2], [4, 4, 4], [6, 4, 6]], cura_moderada: [[2, 4, 2], [4, 4, 4], [6, 4, 8], [8, 4, 10]], cura_grande: [[4, 4, 4], [8, 4, 8], [10, 4, 20], [12, 4, 30]] };
+  const [q, f, b] = (T[g] || T.leve)[tier]; let s = b; for (let k = 0; k < q; k++) s += 1 + Math.floor(Math.random() * f); return s;
+}
+const gravidadeDe = n => { n = Math.abs(n); return n <= 3 ? "leve" : n <= 7 ? "moderado" : "grave"; };
+function vidaPelaIA(a) {                                 // a IA diz a gravidade; o app decide o valor
+  const g0 = String(a?.gravidade || "").toLowerCase(), v0 = Math.round(Number(a?.variacao ?? a?.quantidade ?? a?.valor)) || 0;
+  const cura = /^cura/.test(g0) || (!g0 && v0 > 0), descanso = /descanso longo|dorm|noite de sono/.test(norm(a?.motivo || ""));
+  const g = /^(leve|moderado|grave|cura_leve|cura_moderada|cura_grande)$/.test(g0) ? g0 : cura ? (v0 >= 8 ? "cura_grande" : v0 >= 4 ? "cura_moderada" : "cura_leve") : gravidadeDe(v0 || 4);
+  a = { ...a, variacao: cura ? (descanso ? ficha.vidaMaxima : valorPorGravidade(g)) : -valorPorGravidade(g) };
   const v = Math.round(Number(a?.variacao)) || 0, mot = norm(a?.motivo || ""), ehPocao = /poc(a|o)o|pocao|elixir|frasco|tonico|pocoes/.test(mot);
   if (v > 0 && (ehPocao || ficha.vidaAtual <= 0)) {
     const po = pocaoDeCura();
@@ -2946,6 +2959,16 @@ async function executarChamadasDoTexto(lista) {           // aplica no jogo as f
 async function completarNarracao(texto) {                // sem IA: lê o dano direto do texto (antes era uma chamada extra à IA)
   return { dano: danoDoTexto(texto), opcoes: [] };        // opções: o leitor de OPÇÕES já cobre; se faltar, entram os botões padrão
 }
+let ultimoPedidoLuta = false;
+function tirarStatusEscrito(texto) {                     // tira "-3 de vida", "(−2 PV)", "+2 HP" do texto mostrado
+  return String(texto || "").replace(/\s*\(?\s*[-−–+]\s*\d{1,2}\s*(?:pontos?\s+)?(?:de\s*)?(?:vida|pv|hp)\b[^.!?\n)]*\)?\.?/giu, "").replace(/[ \t]{2,}/g, " ").trim();
+}
+function ataqueContraJogador(texto) {                     // a narração mostra um inimigo atacando o personagem?
+  const fr = String(texto).replace(/\n[ \t]*\**OP[ÇC][ÕO]ES[\s\S]*$/, "").split(/(?<=[.!?…])\s+|\n+/);
+  const verbo = /\b(avan[cç]a\w*|parte\w* para cima|investe\w*|ataca\w*|desfer\w*|golpei\w*|arremet\w*|dispar\w*|salta\w* sobre|pula\w* sobre|lan[cç]a\w* contra|ergue\w* (?:a|o) (?:espada|machado|cutelo|clava|arma|punhal|adaga))\b/iu;
+  const alvo = /(?:^|[^\p{L}])(voc[eê]|te|ti|sua dire[cç][aã]o|seu peito|sua cabe[cç]a)(?![\p{L}])/iu, armado = /\b(brandindo|empunhando|de (?:faca|espada|arma) em punho|com (?:um|uma) (?:faca|cutelo|espada|machado|clava|adaga|punhal))\b/iu;
+  return fr.some(f => !/^\s*voc[eê]\s+(ataca|golpeia|investe|avan[cç]a|dispara)/iu.test(f) && verbo.test(f) && (alvo.test(f) || armado.test(f)));
+}
 // Só a linha de status escrita ("-3 de vida", "(−2 PV)"), para quando a IA chamou outras funções mas não alterar_vida
 function statusVidaEscrito(texto) {
   const menos = /(?:^|[\s(\[,;:])[-−–]\s*(\d{1,2})\s*(?:pontos?\s+)?(?:de\s*)?(?:vida|pv|hp)\b/iu;
@@ -3029,10 +3052,16 @@ async function chamarIAInterna() {
       try { danoExtra = statusVidaEscrito(texto); } catch (e) {}
     }
     texto = CODEX.extrairJson(texto);
+    texto = tirarStatusEscrito(texto);                     // o número que a IA escreveu não vale: quem calcula é o app
+    // inimigo atacou fora do combate do app: não aplica dano narrado e pede o combate de verdade
+    const pedirLuta = !MESTRE_HUMANO && !cb?.ativo && !(typeof mc !== "undefined" && mc?.ativo) && !chamadas.some(c => c.name === "iniciar_combate") && !doTexto.chamadas.some(c => c.name === "iniciar_combate") && ataqueContraJogador(texto) && !ultimoPedidoLuta;
+    if (pedirLuta) { danoExtra = 0; narrado.cura = 0; }
+    ultimoPedidoLuta = pedirLuta;
     if (texto) addMsg(texto, "mestre");
+    if (pedirLuta) setTimeout(() => { if (!cb?.ativo) enviarJogador("⚔ Eu me preparo para lutar!", { forcarIA: true, ia: "[APLICATIVO: na sua última narração um inimigo partiu para cima do personagem. Chame iniciar_combate AGORA com esse(s) inimigo(s) (use o bestiário). O aplicativo conduz a luta e calcula o dano; não narre golpes nem números de vida.]" }); }, 600);
     if (doTexto.chamadas.length) await executarChamadasDoTexto(doTexto.chamadas);
     if (narrado.cura > 0 && !jaAlterouVida(conteudo)) vidaPelaIA({ variacao: narrado.cura, motivo: narrado.motivoCura || "recuperação narrada" });
-    else if (danoExtra > 0 && !jaAlterouVida(conteudo)) aplicarVida({ variacao: -danoExtra, motivo: "ferimento narrado" });
+    else if (danoExtra > 0 && !jaAlterouVida(conteudo)) aplicarVida({ variacao: -valorPorGravidade(gravidadeDe(danoExtra)), motivo: "ferimento narrado" });
     if (narrado.xp > 0 && !jaDeuXp(conteudo)) await executarConcessaoXp({ quantidade: narrado.xp, motivo: narrado.motivoXp || "a aventura", tipo_resolucao: narrado.tipo || "combate" });
     if (conteudo._doTexto) conteudo._feitos = [...new Set([...(conteudo._feitos || []), ...(narrado.xp ? ["conceder_xp"] : []), ...(narrado.cura || danoExtra ? ["alterar_vida"] : [])])];
 
