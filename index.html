@@ -2757,11 +2757,69 @@ function recorteDeHistorico(lista, max = 20) {
   return i < lista.length ? lista.slice(i) : lista;
 }
 
-const jaAlterouVida = () => { for (let i = historico.length - 1; i >= 0; i--) { const h = historico[i]; if (h.role === "user" && h.parts?.some(p => p.text)) return false; if (h.parts?.some(p => p.functionCall?.name === "alterar_vida")) return true; } return false; };
+// já houve alteração de vida / XP nesta jogada (desde a última fala do jogador)? Evita contar duas vezes o que a IA narrou depois de chamar a função.
+const jaFezNaJogada = (nome, atual) => { for (let i = historico.length - 1; i >= 0; i--) { const h = historico[i]; if (h.role === "user" && h.parts?.some(p => p.text)) return false; if (h.parts?.some(p => p.functionCall?.name === nome)) return true; if (h !== atual && h._doTexto && (h._feitos || []).includes(nome)) return true; } return false; };
+const jaAlterouVida = atual => jaFezNaJogada("alterar_vida", atual);
+const jaDeuXp = atual => jaFezNaJogada("conceder_xp", atual);
+/* Modelos sem suporte a funções (ou que as escrevem como texto) quebravam o XP e a vida ao trocar de IA.
+   chamadasDoTexto: acha conceder_xp / alterar_vida / atualizar_inventario escritas na narração e as tira do texto.
+   eventosNarrados: lê "+50 XP", "você ganha 50 de experiência", "recupera 6 pontos de vida" etc. */
+const NOMES_FUNCOES = () => FERRAMENTAS.flatMap(t => t.functionDeclarations || []).map(d => d.name);
+function chamadasDoTexto(texto) {
+  let t = String(texto || "");
+  const nomes = NOMES_FUNCOES(), achadas = [], re = nomes.join("|");
+  const add = (name, args, trecho) => { if (!nomes.includes(name)) return; if (typeof args === "string") { try { args = JSON.parse(args); } catch (e) { args = {}; } } achadas.push({ name, args: args && typeof args === "object" ? args : {} }); if (trecho) t = t.replace(trecho, ""); };
+  const json = s => { try { return JSON.parse(s); } catch (e) { try { return JSON.parse(String(s).replace(/'/g, '"').replace(/,\s*([}\]])/g, "$1")); } catch (e2) { return null; } } };
+  const deObj = o => { if (!o) return false; const lista = Array.isArray(o) ? o : [o]; let ok = false; for (const x of lista) { const nm = x?.name || x?.function?.name || x?.tool || x?.funcao; const ar = x?.arguments ?? x?.parameters ?? x?.args ?? x?.function?.arguments ?? {}; if (nomes.includes(nm)) { add(nm, ar); ok = true; } } return ok; };
+  for (const m of [...t.matchAll(/<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/gi)]) { deObj(json(m[1])); t = t.replace(m[0], ""); }
+  for (const m of [...t.matchAll(new RegExp(`<function=(${re})>\\s*(\\{[\\s\\S]*?\\})\\s*(?:</function>)?`, "gi"))]) add(m[1], json(m[2]) || {}, m[0]);
+  for (const m of [...t.matchAll(/```(?:json|tool_code|python)?\s*([\s\S]*?)```/gi)]) { const o = json(m[1].trim()); if (deObj(o)) t = t.replace(m[0], ""); else if (new RegExp(`\\b(${re})\\s*\\(`).test(m[1])) { pelaSintaxe(m[1]); t = t.replace(m[0], ""); } }
+  for (const m of [...t.matchAll(new RegExp(`\\{\\s*"(?:name|tool|funcao)"\\s*:\\s*"(${re})"[\\s\\S]*?\\}\\s*\\}`, "g"))]) { if (deObj(json(m[0]))) t = t.replace(m[0], ""); }
+  pelaSintaxe(t, true);
+  function pelaSintaxe(src, tirar) {                   // conceder_xp({"quantidade": 50}) ou conceder_xp(quantidade=50, motivo="...")
+    for (const m of [...String(src).matchAll(new RegExp(`\\[?\\b(${re})\\s*\\(([^()]*)\\)\\]?`, "g"))]) {
+      const corpo = m[2].trim(); let args = corpo.startsWith("{") ? json(corpo) : null;
+      if (!args) { args = {}; for (const k of corpo.matchAll(/(\w+)\s*[=:]\s*("([^"]*)"|'([^']*)'|-?\d+(?:\.\d+)?)/g)) args[k[1]] = k[3] ?? k[4] ?? Number(k[2]); }
+      add(m[1], args); if (tirar) t = t.replace(m[0], "");
+    }
+  }
+  return { texto: t.replace(/\n{3,}/g, "\n\n").trim(), chamadas: achadas };
+}
+function eventosNarrados(texto) {
+  const frases = String(texto).replace(/\n[ \t]*\**OP[ÇC][ÕO]ES[\s\S]*$/, "").split(/(?<=[.!?…])\s+|\n+/);
+  const r = { xp: 0, cura: 0 };
+  const xp1 = /\+\s*(\d{1,5})\s*(?:de\s+)?(?:XP|EXP|pontos?\s+de\s+experi[eê]ncia)\b/i, xp2 = /\b(?:ganh\w*|receb\w*|conquist\w*|obt[eé]m|obteve|acumul\w*|soma\w*|concede\w*|rend\w*)\s+(?:mais\s+)?(\d{1,5})\s*(?:de\s+)?(?:XP|EXP|pontos?\s+de\s+experi[eê]ncia|de\s+experi[eê]ncia)\b/i, xp3 = /\b(?:XP|experi[eê]ncia)\s*(?:ganha|recebida|obtida)?\s*[:=]\s*\+?\s*(\d{1,5})\b/i;
+  const cura1 = /\+\s*(\d{1,3})\s*(?:de\s+)?(?:PV|HP|pontos?\s+de\s+vida|de\s+vida|vida)\b/i;
+  const cura2 = /\b(?:recuper\w*|restaur\w*|regener\w*|cur\w*|recobr\w*|ganh\w*|receb\w*|devolv\w*)\s+(?:mais\s+)?(\d{1,3})\s*(?:de\s+)?(?:PV|HP|pontos?\s+de\s+vida|de\s+vida|vida)\b/i;
+  const cura3 = /\b(?:recuper\w*|restaur\w*|regener\w*|cur\w*)\s+(\d{1,2})\s*d\s*(\d{1,2})(?:\s*\+\s*(\d{1,2}))?/i;
+  const outro = /\b(o|a|os|as)\s+(goblin|inimigo|orc|lobo|bandido|criatura|monstro|dragão|esqueleto|oponente|adversário)\w*\s+(recupera|regenera|cura|ganha)/i;
+  for (const f of frases) {
+    let m;
+    if (!r.xp && ((m = f.match(xp1)) || (m = f.match(xp2)) || (m = f.match(xp3)))) { r.xp = +m[1]; r.motivoXp = motivoDe(f); r.tipo = /enigma|charada|quebra-cabe/i.test(f) ? "enigma" : /miss[aã]o|tarefa|recompensa/i.test(f) ? "missao" : /fug|negoci|convenc|furtiv|evit/i.test(f) ? "narrativa" : "combate"; continue; }
+    if (outro.test(f) || /\bdano\b/i.test(f)) continue;
+    if (!r.cura && ((m = f.match(cura1)) || (m = f.match(cura2)))) { r.cura = +m[1]; r.motivoCura = /po[çc][aã]o|elixir|frasco|t[oô]nico/i.test(f) ? "poção de cura" : /descans|dorm|repous/i.test(f) ? "descanso" : "recuperação narrada"; continue; }
+    if (!r.cura && (m = f.match(cura3))) { let t = Number(m[3]) || 0; for (let k = 0; k < Math.min(10, +m[1]); k++) t += 1 + Math.floor(Math.random() * +m[2]); r.cura = t; r.motivoCura = /po[çc][aã]o|elixir/i.test(f) ? "poção de cura" : "recuperação narrada"; }
+  }
+  return r;
+  function motivoDe(f) { const m = f.match(/\b(?:por|ao|pela|pelo)\s+([^.!?,;:()]{3,50})/i); return m ? m[1].replace(/\*+/g, "").trim() : "a aventura"; }
+}
+async function executarChamadasDoTexto(lista) {           // aplica no jogo as funções que a IA escreveu como texto (sem nova chamada à IA)
+  const atual = historico[historico.length - 1], feitos = [];
+  for (const c of lista) {
+    try {
+      if (c.name === "conceder_xp") { if (jaDeuXp(atual)) continue; await executarConcessaoXp({ quantidade: c.args.quantidade ?? c.args.xp ?? c.args.amount, motivo: c.args.motivo || "a aventura", tipo_resolucao: c.args.tipo_resolucao || "combate" }); }
+      else if (c.name === "alterar_vida") { if (jaAlterouVida(atual)) continue; vidaPelaIA({ variacao: c.args.variacao ?? c.args.quantidade ?? c.args.valor, motivo: c.args.motivo || "" }); }
+      else if (c.name === "atualizar_inventario") aplicarInventario(c.args);
+      else continue;
+      feitos.push(c.name);
+    } catch (e) { console.warn("função no texto:", c.name, e); }
+  }
+  if (atual) atual._feitos = [...(atual._feitos || []), ...feitos];
+}
 async function completarNarracao(texto) {                // sem IA: lê o dano direto do texto (antes era uma chamada extra à IA)
   return { dano: danoDoTexto(texto), opcoes: [] };        // opções: o leitor de OPÇÕES já cobre; se faltar, entram os botões padrão
 }
-function danoDoTexto(texto) {                             // pontos de vida que o JOGADOR perdeu na narração (0 se nada indica)
+function danoDoTexto(texto, soNumero) {                             // pontos de vida que o JOGADOR perdeu na narração (0 se nada indica)
   const R = (src, f = "iu") => new RegExp(src.replace(/\\b/g, "(?:(?<![\\p{L}\\d])(?=[\\p{L}\\d])|(?<=[\\p{L}\\d])(?![\\p{L}\\d]))"), f);   // \b que entende acentos
   const frases = String(texto).replace(/\n[ \t]*\**OP[ÇC][ÕO]ES[\s\S]*$/, "").split(/(?<=[.!?…])\s+|\n+/);
   const voce = R("\\b(você|voce|te|seu|sua|teus?|tuas?|lhe)\\b");
@@ -2774,11 +2832,12 @@ function danoDoTexto(texto) {                             // pontos de vida que 
   let total = 0, achou = false;
   for (const f of frases) {
     if (!voce.test(f) || ofensivo.test(f)) continue;       // só frases sobre o personagem do jogador, nunca sobre o dano que ele causa
+    if (/\b(recuper\w*|restaur\w*|regener\w*|cura\w*|curou|curad\w*)\b/i.test(f) && !/\bdano\b/i.test(f)) continue;   // frase de cura não é dano
     let m = f.match(dados);
     if (m && temDano.test(f)) { total += rolar(+m[1], +m[2], m[3]); achou = true; continue; }
     m = f.match(num1) || f.match(num2);
     if (m) { total += +m[1]; achou = true; continue; }
-    if (!ferido.test(f)) continue;
+    if (soNumero || !ferido.test(f)) continue;
     total += grave.test(f) ? 7 : leve.test(f) ? 2 : 4;
     achou = true;
   }
@@ -2817,13 +2876,23 @@ async function chamarIAInterna() {
 
     let texto = conteudo.parts.filter(p => p.text).map(p => p.text).join("\n").trim();
     const chamadas = conteudo.parts.filter(p => p.functionCall).map(p => p.functionCall);
-    let danoExtra = 0;
-    if (dados._reserva && !chamadas.length && texto) {   // IA reserva: garante as opções e o dano que ela narrou sem chamar a função
-      try { const ex = await completarNarracao(texto); if (ex.opcoes.length && !/OP[ÇC][ÕO]ES/i.test(texto)) texto += "\n\nOPÇÕES:\n" + ex.opcoes.map((o, k) => `${k + 1}) ${o}`).join("\n"); danoExtra = ex.dano; } catch (e) {}
+    let danoExtra = 0, doTexto = { chamadas: [] }, narrado = { xp: 0, cura: 0 };
+    if (!chamadas.length && texto) {                     // IA sem funções nativas (comum ao trocar de IA): lê as funções escritas no texto e o XP/vida narrados
+      try { doTexto = chamadasDoTexto(texto); texto = doTexto.texto; } catch (e) {}
+      try { if (!doTexto.chamadas.length) narrado = eventosNarrados(texto); } catch (e) {}
+      if (!doTexto.chamadas.some(c => c.name === "alterar_vida")) try {
+        const ex = await completarNarracao(texto); if (ex.opcoes.length && !/OP[ÇC][ÕO]ES/i.test(texto)) texto += "\n\nOPÇÕES:\n" + ex.opcoes.map((o, k) => `${k + 1}) ${o}`).join("\n");
+        danoExtra = dados._reserva ? ex.dano : danoDoTexto(texto, true);   // IA principal: só o dano com número; a reserva também o ferimento sem número
+      } catch (e) {}
+      if (doTexto.chamadas.length || narrado.xp || narrado.cura || danoExtra) conteudo._doTexto = true;
     }
     texto = CODEX.extrairJson(texto);
     if (texto) addMsg(texto, "mestre");
-    if (danoExtra > 0 && !jaAlterouVida()) aplicarVida({ variacao: -danoExtra, motivo: "ferimento narrado" });
+    if (doTexto.chamadas.length) await executarChamadasDoTexto(doTexto.chamadas);
+    if (narrado.cura > 0 && !jaAlterouVida(conteudo)) vidaPelaIA({ variacao: narrado.cura, motivo: narrado.motivoCura || "recuperação narrada" });
+    else if (danoExtra > 0 && !jaAlterouVida(conteudo)) aplicarVida({ variacao: -danoExtra, motivo: "ferimento narrado" });
+    if (narrado.xp > 0 && !jaDeuXp(conteudo)) await executarConcessaoXp({ quantidade: narrado.xp, motivo: narrado.motivoXp || "a aventura", tipo_resolucao: narrado.tipo || "combate" });
+    if (conteudo._doTexto) conteudo._feitos = [...new Set([...(conteudo._feitos || []), ...(narrado.xp ? ["conceder_xp"] : []), ...(narrado.cura || danoExtra ? ["alterar_vida"] : [])])];
 
     // A IA pode pedir uma ou mais funções; cada uma gera uma resposta (functionResponse)
     if (chamadas.length) {
