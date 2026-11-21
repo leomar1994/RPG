@@ -2277,7 +2277,18 @@ const bloqueados = new Map();   // item da fila -> instante (ms) em que volta a 
 let modeloAtual = "";
 const IA_ATUAL = { x: null, ac: null, pausar: null, ger: 0 };
 const DIAG = (() => { let l = []; try { l = JSON.parse(localStorage.getItem("diag_ia") || "[]"); } catch (e) {}
-  return { add(x, ok, txt, ms) { l.push({ t: Date.now(), n: x.nome, m: x.modelo, ok, txt: String(txt || "").slice(0, 160), ms }); l = l.slice(-40); try { localStorage.setItem("diag_ia", JSON.stringify(l)); } catch (e) {} }, lista: () => l.slice() }; })();     // pedido principal em andamento (para o "Reenviar a última" cancelar de verdade)
+  // Por jogada: cada pedido (narração, continuação depois de funções, resumo...) e quantas tentativas ele custou
+  let jg = []; try { jg = JSON.parse(localStorage.getItem("diag_jogadas") || "[]"); } catch (e) {}
+  const guardaJ = () => { jg = jg.slice(-15); try { localStorage.setItem("diag_jogadas", JSON.stringify(jg)); } catch (e) {} };
+  const D = { motivo: "",
+    add(x, ok, txt, ms, ped) { l.push({ t: Date.now(), n: x.nome, m: x.modelo, ok, txt: String(txt || "").slice(0, 160), ms }); l = l.slice(-40); try { localStorage.setItem("diag_ia", JSON.stringify(l)); } catch (e) {}
+      if (ped) { ped.tent++; if (ok) { ped.ok = 1; ped.ia = `${x.nome} · ${x.modelo}`; } guardaJ(); } },
+    lista: () => l.slice(),
+    novaJogada(txt) { jg.push({ t: Date.now(), txt: String(txt || "").slice(0, 50), ped: [], econ: 0 }); guardaJ(); },
+    pedido(corpo) { if (!jg.length) D.novaJogada("(início)"); const p = { m: corpo.principal ? (D.motivo || "narração") : corpo.leve ? "resumo da campanha" : "tarefa extra", tent: 0, ok: 0 }; D.motivo = ""; jg[jg.length - 1].ped.push(p); guardaJ(); return p; },
+    economizou() { if (jg.length) { jg[jg.length - 1].econ++; guardaJ(); } },
+    jogadas: () => jg.slice() };
+  return D; })();     // pedido principal em andamento (para o "Reenviar a última" cancelar de verdade)
 const ehLeve = id => /lite|8b|instant|mini|nano|scout|flash-lite|20b|32b/i.test(id);
 const estTok = c => JSON.stringify(paraOpenAI(c, "x", false)).length / 3.2;
 // Descrições das funções encurtadas (1ª frase): para provedores que limitam TOKENS por minuto (Groq, Cerebras)
@@ -2358,7 +2369,7 @@ async function chamarAPI(corpo, container) {
   if (!fila.length) throw new Error("Falta a chave de IA. Siga o assistente 🔑 (é grátis e leva ~1 minuto), cole a chave e toque em “🔄 Reenviar”.");
   const livres = () => fila.find(x => (bloqueados.get(x.id) || 0) <= Date.now());
   const pausar = (x, ms) => { for (const y of fila) if (y === x || (x.prov && y.prov === x.prov && ms >= 3600000)) bloqueados.set(y.id, Date.now() + Math.min(ms, 24 * 3600000)); };
-  const TOTAL = fila.length * 2 + 2, principal = fila[0];
+  const TOTAL = fila.length * 2 + 2, principal = fila[0], ped = DIAG.pedido(corpo);
   let ultimoErro;
   for (let t = 1; t <= TOTAL; t++) {
     if (cancelado()) throw Object.assign(new Error("cancelado"), { cancelado: true });
@@ -2382,7 +2393,7 @@ async function chamarAPI(corpo, container) {
       let dados = await resp.json().catch(() => ({}));
       if (claude) dados = CLAUDE.resposta(dados);
       clearTimeout(limite); clearTimeout(aviso);
-      DIAG.add(x, resp.ok && !dados.error, resp.ok && !dados.error ? "ok" : `${dados.error?.code || resp.status} ${dados.error?.message || ""}`, Date.now() - t0);
+      DIAG.add(x, resp.ok && !dados.error, resp.ok && !dados.error ? "ok" : `${dados.error?.code || resp.status} ${dados.error?.message || ""}`, Date.now() - t0, ped);
       if (resp.ok && !dados.error) {
         provOk.add(x.prov || (x.orc ? "orc" : x.id));
         const r = deOpenAI(dados);
@@ -2424,7 +2435,7 @@ async function chamarAPI(corpo, container) {
       if (e.name === "AbortError" && IA_ATUAL.cancelado === ac) { clearTimeout(limite); clearTimeout(aviso); throw Object.assign(new Error("cancelado"), { cancelado: true }); }
       clearTimeout(limite); clearTimeout(aviso);
       if (e.definitivo) throw e;
-      if (!e.vazio) DIAG.add(x, false, e.name === "AbortError" ? `sem resposta em ${Math.round(espMax / 1000)} s` : "falha de rede: " + (e.message || e), Date.now() - t0);
+      if (!e.vazio) DIAG.add(x, false, e.name === "AbortError" ? `sem resposta em ${Math.round(espMax / 1000)} s` : "falha de rede: " + (e.message || e), Date.now() - t0, ped);
       if (e.vazio) { ultimoErro = e; continue; }
       if (e.name === "AbortError") { ultimoErro = new Error(`${modelo}: sem resposta em ${Math.round(espMax / 1000)} s`); pausar(x, 300000); continue; }
       ultimoErro = e;
@@ -2710,6 +2721,11 @@ function textoDiag() {
   linhas.push("", "FILA DE IAs (ordem de tentativa):");
   if (!fila.length) linhas.push("  nenhuma chave salva");
   fila.forEach((x, i) => { const b = bloqueados.get(x.id) || 0; linhas.push(`  ${i + 1}. ${x.nome} · ${x.modelo} — ${b > agora ? "em pausa até " + hora(b) : "livre"}`); });
+  linhas.push("", "PEDIDOS POR JOGADA (cada tentativa conta no limite das IAs grátis):");
+  const jgs = DIAG.jogadas(); if (!jgs.length) linhas.push("  nenhuma ainda");
+  jgs.slice(-8).reverse().forEach(j => { const tot = j.ped.reduce((a, p) => a + p.tent, 0);
+    linhas.push(`  ${hora(j.t)} "${j.txt}" → ${j.ped.length} pedido(s), ${tot} tentativa(s)${j.econ ? ` · ${j.econ} chamada(s) economizada(s)` : ""}`);
+    j.ped.forEach(p => linhas.push(`      · ${p.m}: ${p.tent} tentativa(s) ${p.ok ? "✅ " + (p.ia || "") : "❌"}`)); });
   linhas.push("", "ÚLTIMAS TENTATIVAS:");
   const l = DIAG.lista(); if (!l.length) linhas.push("  nenhuma ainda");
   l.slice(-20).reverse().forEach(d => linhas.push(`  ${hora(d.t)} ${d.ok ? "✅" : "❌"} ${d.n} · ${d.m} (${d.ms} ms) ${d.ok ? "" : "→ " + d.txt}`));
@@ -2950,9 +2966,15 @@ async function chamarIAInterna() {
       }
       historico.push({ role: "user", parts: respostas });
       const SEM_VOLTA = new Set(["alterar_vida", "atualizar_inventario", "conceder_xp"]);   // com narração pronta e sem erro: o app só registra
-      const okSemVolta = (c, i) => CHAMADAS_SILENCIOSAS.has(c.name) || (SEM_VOLTA.has(c.name) && /OP[ÇC][ÕO]ES/i.test(texto) && !respostas[i]?.functionResponse?.response?.erro && ficha.vidaAtual > 0 && !ficha.morto);
-      if (texto && texto.length > 60 && chamadas.every(okSemVolta)) { travarChat(false); talvezResumir(); }   // já narrou: só registros, sem nova chamada paga
-      else await chamarIA();   // a IA narra a consequência; ao terminar, o chat é destravado
+      // Economia: XP, vida, inventário e registros não precisam de nova narração paga. Se a IA já narrou, o app só registra;
+      // se não narrou nada, o app escreve uma linha curta e os botões padrão aparecem. Erro ou personagem caído: a IA narra.
+      const okSemVolta = (c, i) => CHAMADAS_SILENCIOSAS.has(c.name) || (SEM_VOLTA.has(c.name) && !respostas[i]?.functionResponse?.response?.erro && ficha.vidaAtual > 0 && !ficha.morto);
+      if (chamadas.every(okSemVolta) && (texto.length > 60 || chamadas.some(c => SEM_VOLTA.has(c.name)))) {
+        if (texto.length <= 60) { const fez = [...new Set(chamadas.filter(c => SEM_VOLTA.has(c.name)).map(c => ({ conceder_xp: "seu XP", alterar_vida: "sua vida", atualizar_inventario: "sua bolsa" })[c.name]))]; addMsg(`📜 O Mestre atualizou ${fez.join(", ")}. O que você faz agora?`, "mestre"); }
+        DIAG.economizou();
+        travarChat(false); talvezResumir();
+      }
+      else { DIAG.motivo = "continuação: " + chamadas.map(c => c.name).join(", "); await chamarIA(); }   // a IA narra a consequência; ao terminar, o chat é destravado
     } else {
       travarChat(false);
       talvezResumir();
@@ -2996,7 +3018,8 @@ async function refazerUltima() {                         // a IA travou (> 2 min
   $("refazer").hidden = true; travarChat(true); await chamarIA();
 }
 $("refazer").addEventListener("click", refazerUltima);
-async function enviarJogador(texto, nota = null) {      // nota: { ia: texto só para a IA, curta: resumo legível (mesa em rodada) }
+async function enviarJogador(texto, nota = null) {
+  try { DIAG.novaJogada(nota?.curta || texto); } catch (e) {}      // nota: { ia: texto só para a IA, curta: resumo legível (mesa em rodada) }
   if (typeof RODADA !== "undefined" && RODADA.ativo) return RODADA.enviar(texto + (nota?.curta ? " " + nota.curta : ""));
   document.querySelectorAll(".reenviar").forEach(b => b.remove());
   travarChat(true);
