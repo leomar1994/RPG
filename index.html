@@ -3112,7 +3112,8 @@ const FALAS_NPC = (() => {
     DIAG.economizou(); travarChat(false); try { salvarPersonagem(); } catch (e) {}
     return true;
   }
-  return { antesDaIA, capturar, repetir, novaJogada: () => { pend = null; } };
+  return { antesDaIA, capturar, repetir, novaJogada: () => { pend = null; },
+    exportar: () => db, juntar: o => { for (const [k, v] of Object.entries(o || {})) { const l = db[k] ||= []; for (const x of v || []) if (!l.some(y => y.txt === x.txt)) l.push(x); db[k] = l.slice(-25); } grava(); } };
 })();
 
 /* ---------- Viagem entre lugares conhecidos: o app sorteia o que acontece no caminho ----------
@@ -3203,7 +3204,19 @@ const CENAS_SALVAS = (() => {
     DIAG.economizou(); travarChat(false); try { salvarPersonagem(); } catch (e) {}
     return true;
   }
-  return { chegou, capturar, repetir, novaJogada: () => { pend = null; }, lista: () => Object.values(db), apagar: () => { db = {}; grava(); } };
+  function importarDiario(linhas) {                        // o que o personagem já jogou: a 1ª descrição de cada lugar vira cena guardada
+    let n = 0;
+    for (const d of linhas || []) {
+      if (d.a !== "mestre" || !d.l) continue;
+      const k = chave(d.l); if (!k || db[k]) continue;
+      const limpo = String(d.x || "").replace(/\n[ \t]*\**OP[ÇC][ÕO]ES[\s\S]*$/i, "").trim(); if (limpo.length < 160) continue;
+      const par = limpo.split(/\n\s*\n/).filter(Boolean); let cena = par[0]; if (cena.length < 220 && par[1]) cena += "\n\n" + par[1];
+      db[k] = { nome: String(d.l).slice(0, 60), texto: cena.slice(0, 700), t: d.t || Date.now(), doDiario: 1 }; n++;
+    }
+    if (n) grava(); return n;
+  }
+  return { chegou, capturar, repetir, importarDiario, novaJogada: () => { pend = null; }, lista: () => Object.values(db), apagar: () => { db = {}; grava(); },
+    exportar: () => db, juntar: o => { for (const [k, v] of Object.entries(o || {})) if (!db[k]) db[k] = v; grava(); } };
 })();
 /* ---------- Economia de IA: o que o próprio app resolve sem chamar a IA ----------
    1) Opção com teste "(Perícia CD N)": o app rola o D20 no clique e manda a ação JÁ com o resultado (1 chamada em vez de 2).
@@ -8212,7 +8225,7 @@ const BKP_ARQ = "rpg-mestre-ia-backup.json";
 function montarBackup() {
   const lj = (k, pad) => { try { return JSON.parse(localStorage.getItem(k)) ?? pad; } catch { return pad; } };
   const saves = lerSaves(), diarios = {}; for (const r of saves) { const d = lerDiario(r.id); if (d.length) diarios[r.id] = d; }
-  return { tipo: "backup-rpg", v: 1, em: new Date().toISOString(), saves, diarios, mundo: lj("rpg-mesa:mundo:local", null), cemiterio: lj("rpg-mesa:cemiterio", []) };
+  return { tipo: "backup-rpg", v: 1, em: new Date().toISOString(), saves, diarios, mundo: lj("rpg-mesa:mundo:local", null), cemiterio: lj("rpg-mesa:cemiterio", []), cenas: lj("rpg-cenas-salvas", {}), falasNpc: lj("rpg-falas-npc", {}) };
 }
 const EXCL_CHAVE = "rpg-mesa:excluidos";
 const lerExcluidos = () => { try { return new Set(JSON.parse(localStorage.getItem(EXCL_CHAVE)) || []); } catch { return new Set(); } };
@@ -8236,6 +8249,7 @@ function restaurarBackup(b, respeitar) {
   try { for (const [id, d] of Object.entries(b.diarios || {})) { const a = lerDiario(id); if (d.length > a.length) localStorage.setItem(DIARIO_CHAVE(id), JSON.stringify(d.slice(-400))); } } catch {}
   try { if (b.mundo?.ents) { const k = "rpg-mesa:mundo:local", c = JSON.parse(localStorage.getItem(k)) || { ents: [], v: 0, pend: [] }, m = new Map((c.ents || []).map(e => [e.id, e]));
       for (const e of b.mundo.ents) { const a = m.get(e.id); if (!a || (a.ts || 0) <= (e.ts || 0)) m.set(e.id, e); } c.ents = [...m.values()]; localStorage.setItem(k, JSON.stringify(c)); Mundo.carregar(); } } catch {}
+  try { if (b.cenas) CENAS_SALVAS.juntar(b.cenas); if (b.falasNpc) FALAS_NPC.juntar(b.falasNpc); } catch {}   // cenas e falas guardadas vêm junto no save
   return n;
 }
 let arqHandle = null, pastaH = null;
@@ -8428,6 +8442,7 @@ function continuarPersonagem(reg) {
       campanha.map(l => `- ${l.autor === "mestre" ? "Mestre" : "Jogador"}: ${String(l.texto).slice(0, 400)}`).join("\n") +
       "\nContinue a história de forma coerente com elas, sem repetir a narração."
     : "";
+  try { const n = CENAS_SALVAS.importarDiario(lerDiario(ficha.id)); if (n) setTimeout(() => addMsg(`💾 ${n} lugar(es) que você já visitou foram guardados: voltar a eles não gasta IA.`, "sistema"), 1500); } catch (e) {}
   $("personagens").hidden = true; $("criacao").hidden = true;
   mostrarFicha();
   restaurando = true;                                  // não registra de novo as linhas mostradas
