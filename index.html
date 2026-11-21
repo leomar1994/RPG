@@ -1585,7 +1585,7 @@ const contextoGrupo = () =>
   `Teto de XP total do grupo: ${tetoXp()} por combate, enigma ou missão; ${tetoXp("narrativa")} por saída narrativa. O aplicativo divide o XP entre os jogadores. ` +
   `Vida atual: ${ficha.vidaAtual}/${ficha.vidaMaxima}.` +
   `\nBESTIÁRIO (campo bestiario de iniciar_combate; escolha criaturas coerentes com o local e o nível, e monte grupos usando a SINERGIA: quem costuma andar junto): ${CAT_MONSTROS.map(m => `${m.nome} [${m.encontros}; ${String(m.habitat).split(",")[0]}; sinergia: ${String(m.sinergia).replace(/\.$/, "").slice(0, 70)}]`).join("; ")}. Para o nível do grupo, prefira criaturas de ND até o nível do personagem +1; chefes podem ter ND maior com capangas.` +
-  (todosMapas().length ? `\nMAPAS DE COMBATE (use o id no campo mapa de iniciar_combate, escolhendo o que combina com o cenário): ${todosMapas().map(m => `${m.id}=${m.desc || m.nome}${CENAS[m.id] ? " [sugestão de encontro: " + CENAS[m.id].enc + "]" : ""}`).join("; ")}. RETRATOS DE CRIATURAS (campo retrato, opcional): ${RETRATOS.map(r => `${r.id}=${r.desc}`).join("; ")}.` : "") +
+  (todosMapas().length ? `\nMAPAS DE COMBATE (use o id no campo mapa de iniciar_combate, escolhendo o que combina com o cenário): ${todosMapas().map(m => `${m.id}=${m.desc || m.nome}${CENAS[m.id] ? " [" + String(CENAS[m.id].enc).split(":")[0].slice(0, 40) + "]" : ""}`).join("; ")}. RETRATOS DE CRIATURAS (campo retrato, opcional): ${RETRATOS.map(r => `${r.id}=${r.desc}`).join("; ")}.` : "") +
   ((ficha.mapasLocais || []).length ? `\nMAPAS DO JOGADOR: ${ficha.mapasLocais.map(m => `${m.nome} [${m.lugares.map(l => l.nome).join(", ")}]`).join("; ")}.` : "") +
   `\nBOLSA DO JOGADOR (${kgTxt(cargaEstado().p)}/${kgTxt(cargaEstado().max)} kg; ${cargaEstado().txt}): ${(ficha.inventario || []).slice(0, 40).map(i => `${i.nome} x${i.qtd}`).join(", ") || "vazia"}.` +
   (typeof REGRAS !== "undefined" ? REGRAS.contexto() + MAGIA.contexto() : "") +
@@ -2341,11 +2341,19 @@ const CLAUDE = {
     return { choices: [{ message: { content: texto, ...(calls.length ? { tool_calls: calls } : {}) }, finish_reason: d?.stop_reason }] };
   }
 };
+// Groq/Cerebras (limite de tokens por minuto): bestiário só com nome e ND, mapas só com id, sem a lista de retratos
+function contextoCurto(c) {
+  const t = c.systemInstruction?.parts?.[0]?.text; if (!t) return c;
+  const n = t.replace(/\nBESTIÁRIO \([^)]*\): ([^\n]*)/, (_, l) => "\nBESTIÁRIO (nome [ND]): " + l.replace(/\[([^;\]]*)[^\]]*\]/g, "[$1]").replace(/\. Para o nível[\s\S]*$/, ".").slice(0, 2500))
+    .replace(/\nMAPAS DE COMBATE \([^)]*\): ([^\n]*)/, (_, l) => "\nMAPAS DE COMBATE (id para iniciar_combate): " + l.split(". RETRATOS")[0].split("; ").map(x => x.split("=")[0]).join(", ") + ".");
+  return { ...c, systemInstruction: { parts: [{ text: n }] } };
+}
 function corpoPara(x, corpo, reserva) {                    // o que cada provedor recebe
   if (x.local) return x.ctx >= 24000 ? corpo : reduzirParaLimite(reserva ? enxugar(corpo) : corpo, Math.round(x.ctx * 0.7));
   if (x.orc) return reserva ? enxugar(corpo) : corpo;     // OpenRouter conta PEDIDOS, não tokens
   if (x.prov === "gemini" || x.prov === "mistral" || x.prov === "sambanova" || x.prov === "anthropic") return reduzirParaLimite(reserva ? enxugar(corpo) : corpo, 30000);   // Gemini aceita muito texto por minuto
   // Groq / Cerebras: limite de tokens por minuto (6 a 12 mil). Prompt completo só se couber; senão versão enxuta e funções curtas
+  corpo = contextoCurto(corpo);
   const alvo = modeloMinimo.has(x.id) ? 2600 : 3600;    // o limite por minuto do Groq conta também a resposta: 3600 + 1300 cabe nos 6–8 mil
   let c = modeloMinimo.has(x.id) ? corpo : reduzirParaLimite(corpo, alvo);
   if (modeloMinimo.has(x.id) || estTok(c) > alvo) { c = enxugar(corpo); if (c.tools) c = { ...c, tools: ferramentasCurtas(soEssenciais(c.tools)) }; c = reduzirParaLimite(c, alvo); }
