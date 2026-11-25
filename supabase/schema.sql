@@ -34,3 +34,25 @@ language sql security definer set search_path = public as $$
   returning n;
 $$;
 revoke all on function public.rpg_conta_uso(uuid) from public, anon, authenticated;
+
+-- Chaves de IA do dono do jogo (usadas pela função "ia"). Sem políticas: só a função lê.
+create table if not exists public.rpg_chaves_dono (
+  prov       text primary key,
+  chave      text not null,
+  atualizado timestamptz not null default now()
+);
+alter table public.rpg_chaves_dono enable row level security;
+revoke all on public.rpg_chaves_dono from anon, authenticated;
+
+-- Banco de chaves: jogadores emprestam as próprias chaves (opcional, com aceite dos termos).
+-- Usadas só nas mesas do dono. Apagar a conta apaga as chaves (cascade).
+create table if not exists public.rpg_banco_chaves (
+  user_id        uuid not null references auth.users (id) on delete cascade,
+  prov           text not null,
+  chave          text not null,
+  aceitou_termos timestamptz not null,
+  criado         timestamptz not null default now(),
+  primary key (user_id, prov)
+);
+alter table public.rpg_banco_chaves enable row level security;
+revoke all on public.rpg_banco_chaves from anon, authenticated;

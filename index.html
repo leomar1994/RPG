@@ -681,6 +681,13 @@
     <fieldset class="ch-local"><legend>🤝 Mesa em grupo</legend>
       <label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="ch-emprestar" style="margin-top:4px"> <span><b>Emprestar minha IA para a mesa</b><br><span class="dica">Quando os créditos do anfitrião acabarem, ele pode narrar pela SUA chave, em revezamento com os outros. A chave nunca sai deste navegador: só a narração vai e volta.</span></span></label>
       <p id="ch-emp-status" class="dica"></p>
+      <label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="ch-emprestar-mestre" style="margin-top:4px"> <span><b>Emprestar também para a mesa com Mestre humano</b><br><span class="dica">O navegador do Mestre pode narrar pela sua chave, do mesmo jeito: a chave não sai daqui.</span></span></label>
+    </fieldset>
+    <fieldset class="ch-local" id="ch-banco"><legend>🏦 Banco de chaves do jogo</legend>
+      <p class="dica">Empreste as suas chaves para a IA do jogo. Elas ficam guardadas no servidor (ninguém consegue vê-las) e só são usadas nas mesas do dono do jogo. Você retira quando quiser, e ao excluir a sua conta elas são apagadas. Confira se os termos do seu provedor de IA permitem esse uso.</p>
+      <label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="ch-banco-aceito" style="margin-top:4px"> <span>Li e aceito os <a href="termos.html" target="_blank" rel="noopener">termos de uso</a> do banco de chaves.</span></label>
+      <div class="linha-botoes"><button type="button" id="ch-banco-emprestar">🏦 Emprestar minhas chaves</button><button type="button" id="ch-banco-retirar" class="secundario">Retirar do banco</button></div>
+      <p id="ch-banco-status" class="dica">Entre na sua conta (☁ no menu inicial) para usar o banco de chaves.</p>
     </fieldset>
     <fieldset class="ch-local"><legend>🖥 IA no meu computador — reserva final</legend>
       <p class="dica">Só entra quando TODAS as IAs grátis estiverem no limite ou fora do ar, e continua a história de onde parou. Funciona com o Ollama ou o LM Studio rodando neste computador (sem limite e sem custo).</p>
@@ -2734,7 +2741,7 @@ function salvarLocal() {
     localStorage.setItem("local_ctx", $("ch-local-ctx").value); } catch (e) {}
   bloqueados.forEach((v, k) => { if (k.startsWith("local|")) bloqueados.delete(k); });
 }
-function mostrarLocal() { try { $("ch-emprestar").checked = lerLS("emprestar_ia") !== "nao"; MESA_IA.status(); } catch (e) {} try { $("ch-local-url").value = lerLS("local_url"); $("ch-local-modelo").value = lerLS("local_modelo"); $("ch-local-ctx").value = String(LOCAL.ctx()); } catch (e) {} }
+function mostrarLocal() { try { $("ch-emprestar").checked = lerLS("emprestar_ia") !== "nao"; $("ch-emprestar-mestre").checked = lerLS("emprestar_ia_mestre") !== "nao"; MESA_IA.status(); } catch (e) {} try { NUVEM.bancoStatus(); } catch (e) {} try { $("ch-local-url").value = lerLS("local_url"); $("ch-local-modelo").value = lerLS("local_modelo"); $("ch-local-ctx").value = String(LOCAL.ctx()); } catch (e) {} }
 async function testarLocal() {
   salvarLocal(); const st = $("ch-local-status"), u = LOCAL.url(); if (!u) { st.textContent = "Informe o endereço do programa (ex.: http://localhost:11434)."; return; }
   st.textContent = "🔌 Testando a conexão…"; let ids = [];
@@ -2755,6 +2762,7 @@ async function testarLocal() {
   } catch (e) { st.textContent = "❌ " + e.message; }
 }
 $("ch-local-testar").addEventListener("click", testarLocal);
+$("ch-emprestar-mestre").addEventListener("change", () => { try { localStorage.setItem("emprestar_ia_mestre", $("ch-emprestar-mestre").checked ? "sim" : "nao"); if (ficha.id && salaAtiva) sala.postMessage(perfilJogador()); } catch (e) {} });
 $("ch-emprestar").addEventListener("change", () => { try { localStorage.setItem("emprestar_ia", $("ch-emprestar").checked ? "sim" : "nao"); if (ficha.id && (salaAtiva || RODADA.ativo)) sala.postMessage(perfilJogador()); } catch (e) {} });
 $("ch-local-remover").addEventListener("click", () => { ["local_url", "local_modelo", "modelos_local"].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} }); mostrarLocal(); $("ch-local-status").textContent = "IA do computador removida."; });
 $("ch-local-ajuda").addEventListener("click", () => abrirRegras(`<div class="caixa-rg"><h2>🖥 IA no meu computador</h2>
@@ -2776,9 +2784,9 @@ $("ch-local-ajuda").addEventListener("click", () => abrirRegras(`<div class="cai
   <li>A história continua igual: a IA do computador recebe o mesmo resumo da campanha, o histórico recente, o mundo e o Codex. Com a janela de 32 mil, ela recebe também o prompt completo do Mestre.</li>
   <li>Modelo maior = narra e segue as regras melhor, mas é mais lento.</li></ul>
   <button type="button" class="secundario" data-fechar-rg>Fechar</button></div>`));
-$("ch-salvar").addEventListener("click", () => { setTimeout(() => { try { NUVEM.enviar(true); NUVEM.chavesParaServidor(); } catch (e) {} }, 500);
+$("ch-salvar").addEventListener("click", () => { setTimeout(() => { try { NUVEM.enviar(true); NUVEM.chavesParaServidor(); if (lerLS("banco_emprestando") === "sim") NUVEM.bancoEmprestar(true); } catch (e) {} }, 500);
   salvarLocal();
-  try { localStorage.setItem("emprestar_ia", $("ch-emprestar").checked ? "sim" : "nao"); } catch (e) {}
+  try { localStorage.setItem("emprestar_ia", $("ch-emprestar").checked ? "sim" : "nao"); localStorage.setItem("emprestar_ia_mestre", $("ch-emprestar-mestre").checked ? "sim" : "nao"); } catch (e) {}
   try { if (salaAtiva || RODADA.ativo) sala.postMessage(perfilJogador()); } catch (e) {}
   for (const c of CHAVES) { const v = $("ch-" + c.ls).value.trim().replace(/^Bearer\s+/i, ""); if (v) {
     const ruim = problemaChave(c.ls, v); if (ruim) { alert(`${c.nome}: ${ruim}`); continue; }
@@ -8343,6 +8351,8 @@ const MESA_IA = (() => {
   const API = { anfitriao: "" };
   const temChave = () => { try { return montarFila().some(x => !x.local); } catch (e) { return false; } };
   API.empresta = () => lerLS("emprestar_ia") !== "nao" && temChave();
+  API.emprestaMestre = () => API.empresta() && lerLS("emprestar_ia_mestre") !== "nao";
+  const meuId = () => (typeof souMestreNaSala !== "undefined" && souMestreNaSala) ? "mestre" : ficha.id;
   const nomeDe = id => id === ficha.id ? "você" : (presentes.get(id)?.nome || "um jogador");
   function status() {
     const el = document.getElementById("ch-emp-status"); if (!el) return;
@@ -8356,20 +8366,20 @@ const MESA_IA = (() => {
       const rid = Math.random().toString(36).slice(2) + Date.now().toString(36);
       const t = setTimeout(() => { pend.delete(rid); falha(new Error("tempo esgotado")); }, ms);
       pend.set(rid, { ok: d => { clearTimeout(t); ok(d); }, falha: e => { clearTimeout(t); falha(e); } });
-      sala.postMessage({ tipo: "ia-pedido", id: rid, de: ficha.id, para: id, corpo });
+      sala.postMessage({ tipo: "ia-pedido", id: rid, de: meuId(), para: id, corpo });
     });
   }
   // usado pelo anfitrião na narração da rodada
   API.chamar = async (corpo, container) => {
-    const outros = [...presentes.values()].filter(p => p.papel === "jogador" && p.id !== ficha.id && p.ia).map(p => p.id);
+    const eu = meuId(), outros = [...presentes.values()].filter(p => p.papel === "jogador" && p.id !== eu && p.ia).map(p => p.id);
     if (!outros.length) return chamarAPI(corpo, container);
-    const roda = [ficha.id, ...outros.sort()], ini = vez++ % roda.length;
+    const roda = [eu, ...outros.sort()], ini = vez++ % roda.length;
     const ordem = roda.slice(ini).concat(roda.slice(0, ini));
     let ultimoErro;
     for (const id of ordem) {
       try {
         let d;
-        if (id === ficha.id) d = await chamarAPI({ ...corpo, semLocal: true, semEspera: true }, container);
+        if (id === eu) d = await chamarAPI({ ...corpo, semLocal: true, semEspera: true }, container);
         else {
           if (container) mostrarEspera(container, 1, 1, -1);
           d = await pedirA(id, corpo, 150000);
@@ -8386,20 +8396,22 @@ const MESA_IA = (() => {
   // lado de quem empresta
   API.msg = async m => {
     if (m.tipo === "ia-resposta") {
-      if (m.para !== ficha.id) return;
+      if (m.para !== meuId()) return;
       const p = pend.get(m.id); if (!p) return; pend.delete(m.id);
       if (m.ok && m.dados?.candidates) p.ok(m.dados); else p.falha(new Error(m.erro || "falhou"));
       return;
     }
-    if (m.para !== ficha.id) return;
-    const responder = (o) => sala.postMessage({ tipo: "ia-resposta", id: m.id, de: ficha.id, para: m.de, ...o });
+    if (m.para !== meuId()) return;
+    const responder = (o) => sala.postMessage({ tipo: "ia-resposta", id: m.id, de: meuId(), para: m.de, ...o });
     // só atende o anfitrião da mesa em que está, com o pedido no formato da narração, e no máximo 1 a cada 8 s
-    const valido = m.de && m.de === API.anfitriao && RODADA.ativo && !RODADA.E.host && m.corpo && Array.isArray(m.corpo.contents) &&
-      m.corpo.contents.length <= 60 && JSON.stringify(m.corpo).length < 200000 && !m.corpo.tools;
-    if (!valido || !API.empresta() || Date.now() - ultimoAtendido < 8000) { responder({ ok: false, erro: "indisponível" }); return; }
+    // ... ou o Mestre humano da mesa em que está (se o jogador permitiu emprestar também para o Mestre)
+    const doMestre = m.de === "mestre" && MESTRE_HUMANO && !souMestreNaSala && salaAtiva;
+    const valido = m.de && ((m.de === API.anfitriao && RODADA.ativo && !RODADA.E.host) || doMestre) && m.corpo && Array.isArray(m.corpo.contents) &&
+      m.corpo.contents.length <= 60 && JSON.stringify(m.corpo).length < 200000 && (doMestre || !m.corpo.tools);
+    if (!valido || !(doMestre ? API.emprestaMestre() : API.empresta()) || Date.now() - ultimoAtendido < 8000) { responder({ ok: false, erro: "indisponível" }); return; }
     ultimoAtendido = Date.now();
     try {
-      const corpo = { systemInstruction: m.corpo.systemInstruction, contents: m.corpo.contents, semLocal: true, semEspera: true, semServidor: true, limiteMs: Math.min(Number(m.corpo.limiteMs) || 30000, 60000) };
+      const corpo = { systemInstruction: m.corpo.systemInstruction, contents: m.corpo.contents, ...(doMestre && m.corpo.tools ? { tools: m.corpo.tools } : {}), semLocal: true, semEspera: true, semServidor: true, limiteMs: Math.min(Number(m.corpo.limiteMs) || 30000, 60000) };
       const d = await chamarAPI(corpo, null);
       emprestadas++; status();
       responder({ ok: true, dados: { candidates: d.candidates } });
@@ -8415,7 +8427,7 @@ let retomadaTs = 0, anfitriaoAtivo = false, forcarInicio = false;
 const recebeuRetomada = new Set();
 const perfilJogador = () => ({ tipo: "presenca", id: ficha.id, papel: "jogador", nome: ficha.nome, classe: ficha.classe, raca: ficha.raca,
   historia: (ficha.historia || "").slice(0, 500), avatar: ficha.avatar, esperados: GRUPO.jogadores,
-  retoma: campanha.length && aventuraSolo ? { n: campanha.length, ts: retomadaTs || Date.now() } : null, ia: MESA_IA.empresta() });
+  retoma: campanha.length && aventuraSolo ? { n: campanha.length, ts: retomadaTs || Date.now() } : null, ia: MESTRE_HUMANO ? MESA_IA.emprestaMestre() : MESA_IA.empresta() });
 // Anfitrião: quem tem a campanha salva mais recente (retoma a história); sem campanha, o de menor código
 function anfitriao(jog) {
   const com = jog.filter(x => x.retoma).sort((a, b) => (b.retoma.ts - a.retoma.ts) || String(a.id).localeCompare(String(b.id)));
@@ -8859,7 +8871,7 @@ $("m-camp-adaptar").addEventListener("click", async () => {
   campanhaMestre = texto;
   const grupo = jogadoresPresentes().map(j => `- ${j.nome}: ${[j.raca, j.classe].filter(Boolean).join(" ")}${j.historia ? ". História: " + j.historia : ""}`).join("\n") || "(nenhum jogador na sala ainda)";
   try {
-    const dados = await chamarAPI({ systemInstruction: { parts: [{ text: PROMPT_ADAPTADOR }] },
+    const dados = await MESA_IA.chamar({ systemInstruction: { parts: [{ text: PROMPT_ADAPTADOR }] },
       contents: [{ role: "user", parts: [{ text: `CAMPANHA DO MESTRE:\n${texto}\n\nJOGADORES NA SALA:\n${grupo}` }] }] }, $("m-camp-status"));
     limparEspera($("m-camp-status"));
     const saida = dados.candidates?.[0]?.content?.parts?.filter(p => p.text).map(p => p.text).join("\n").trim();
@@ -8949,7 +8961,7 @@ $("m-narrar").addEventListener("click", async () => {
   try {
     const ctx = jogadoresMesa.size ? "Personagens dos jogadores: " + [...jogadoresMesa.values()].map(f => `${f.nome}, ${f.classe} nível ${f.nivel}`).join("; ") + "." : "";
     historicoNarrador.push({ role: "user", parts: [{ text: `Tom: ${$("m-tom").value}.\n${ctx}\nO Mestre decidiu que acontece:\n${evento}` }] });
-    const dados = await chamarAPI({ systemInstruction: { parts: [{ text: PROMPT_NARRADOR + contextoMestre() }] }, contents: recorteDeHistorico(historicoNarrador, 12) }, $("m-log"));
+    const dados = await MESA_IA.chamar({ systemInstruction: { parts: [{ text: PROMPT_NARRADOR + contextoMestre() }] }, contents: recorteDeHistorico(historicoNarrador, 12) }, $("m-log"));
     limparEspera($("m-log"));
     const conteudo = dados.candidates?.[0]?.content;
     const texto = conteudo?.parts?.filter(p => p.text).map(p => p.text).join("\n").trim();
@@ -9105,7 +9117,7 @@ async function responderComIA(it) {
   logMestre(`🤖 A IA está respondendo a ${it.quem}…`, "sistema");
   let dados;
   try {
-    dados = await chamarAPI({ systemInstruction: { parts: [{ text: PROMPT_CUMPLICE + `\nTom: ${$("m-tom").value}.` + contextoMestre() + segredosTxt() + (jogadoresMesa.size ? "\n\nPERSONAGENS DOS JOGADORES: " + [...jogadoresMesa.values()].map(f => `${f.nome} (${f.classe} nv ${f.nivel}, vida ${f.vidaAtual}/${f.vidaMaxima})`).join("; ") : "") }] },
+    dados = await MESA_IA.chamar({ systemInstruction: { parts: [{ text: PROMPT_CUMPLICE + `\nTom: ${$("m-tom").value}.` + contextoMestre() + segredosTxt() + (jogadoresMesa.size ? "\n\nPERSONAGENS DOS JOGADORES: " + [...jogadoresMesa.values()].map(f => `${f.nome} (${f.classe} nv ${f.nivel}, vida ${f.vidaAtual}/${f.vidaMaxima})`).join("; ") : "") }] },
       contents: recorteDeHistorico(historicoNarrador, 16), tools: DECL_CUMPLICE }, $("m-log"));
     limparEspera($("m-log"));
   } catch (e) { limparEspera($("m-log")); historicoNarrador.pop(); logMestre("Erro da IA: " + e.message + " — responda você mesmo ou tente de novo.", "sistema");
@@ -9453,7 +9465,7 @@ const NUVEM_CFG = { url: "https://dgwionegmpyruvkkcune.supabase.co", anon: "eyJh
 const NUVEM = (() => {
   const cfg = () => ({ url: (NUVEM_CFG.url || lerLS("nuvem_url")).replace(/\/+$/, ""), anon: NUVEM_CFG.anon || lerLS("nuvem_anon") });
   const configurado = () => !!(cfg().url && cfg().anon);
-  const CHAVES_LS = () => [...PROVEDORES.map(p => p.ls), "openrouter_key", "local_url", "local_modelo", "local_ctx", "emprestar_ia"].filter((v, i, a) => a.indexOf(v) === i);
+  const CHAVES_LS = () => [...PROVEDORES.map(p => p.ls), "openrouter_key", "local_url", "local_modelo", "local_ctx", "emprestar_ia", "emprestar_ia_mestre"].filter((v, i, a) => a.indexOf(v) === i);
   let sb = null, sessao = null, carregando = null, tEnvio = 0, enviando = false, srvInfo = null;
   const status = t => { try { const e = $("nuvem-status"); if (e) e.textContent = t; } catch (e) {} };
   async function cliente() {
@@ -9475,12 +9487,12 @@ const NUVEM = (() => {
   }
   async function entrar() {                                // login padrão de jogo: e-mail e senha (ou Google)
     const c = await cliente(); if (!c) return alert("A nuvem ainda não foi configurada neste jogo.");
-    if (logado()) { if (confirm(`Sair da conta ${email()}? Os personagens continuam salvos na nuvem e neste aparelho.`)) { await c.auth.signOut(); sessao = null; botao(); status("Você saiu da conta."); } return; }
+    if (logado()) return painelConta();
     let o = $("conta-painel"); if (o) o.remove();
     o = document.createElement("div"); o.id = "conta-painel"; o.setAttribute("role", "dialog"); o.setAttribute("aria-modal", "true");
     o.innerHTML = `<form class="cena-caixa" autocomplete="on">
       <h3>☁ Sua conta</h3>
-      <p class="dica">Entre para salvar personagens e chaves na nuvem e jogar em qualquer aparelho.</p>
+      <p class="dica">Entre para salvar personagens e chaves na nuvem e jogar em qualquer aparelho. Ao criar a conta você aceita os <a href="termos.html" target="_blank" rel="noopener">termos de uso</a> e a <a href="privacidade.html" target="_blank" rel="noopener">política de privacidade</a>.</p>
       <label>E-mail<input type="email" id="ct-email" autocomplete="username" required maxlength="120"></label>
       <label>Senha<input type="password" id="ct-senha" autocomplete="current-password" required minlength="6" maxlength="72"></label>
       <p id="ct-msg" class="dica" role="status"></p>
@@ -9598,6 +9610,61 @@ const NUVEM = (() => {
       return j;
     } catch (e) { status("☁ Não deu para gravar as chaves no servidor: " + (e.message || e)); return null; }
   }
+  // ----- banco de chaves (jogador empresta as chaves dele para a IA do jogo) -----
+  async function fn(q, corpo) {
+    const r = await fetch(cfg().url + "/functions/v1/ia?" + q, { method: corpo ? "POST" : "GET", headers: { Authorization: "Bearer " + sessao.access_token, apikey: cfg().anon, ...(corpo ? { "Content-Type": "application/json" } : {}) }, ...(corpo ? { body: JSON.stringify(corpo) } : {}) });
+    const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error?.message || "erro " + r.status); return j;
+  }
+  const nomeProv = p => PROVEDORES.find(x => x.id === p)?.nome || (p === "openrouter" ? "OpenRouter" : p);
+  async function bancoStatus() {
+    const el = $("ch-banco-status"); if (!el) return;
+    if (!logado()) { el.textContent = "Entre na sua conta (☁ no menu inicial) para usar o banco de chaves."; return; }
+    if (srvInfo?.dono) { el.textContent = "Você é o dono do jogo: as suas chaves já são a IA do jogo (salve-as acima)."; return; }
+    try { const j = await fn("banco=1"); el.textContent = j.provs.length ? `Você empresta ao banco: ${j.provs.map(nomeProv).join(", ")}. Obrigado!` : "Você ainda não emprestou chaves ao banco."; lerLS("banco_emprestando") !== (j.provs.length ? "sim" : "") && localStorage.setItem("banco_emprestando", j.provs.length ? "sim" : ""); }
+    catch (e) { el.textContent = "Não deu para consultar o banco agora."; }
+  }
+  async function bancoEmprestar(silencioso) {
+    if (!logado()) return alert("Entre na sua conta primeiro (☁ no menu inicial).");
+    if (!silencioso && !$("ch-banco-aceito")?.checked) return alert("Para emprestar, marque que leu e aceita os termos de uso do banco de chaves.");
+    const ch = {}; for (const pv of PROVEDORES) { const v = lerLS(pv.ls); if (v && !pv.reservaFinal) ch[pv.ls] = v; } const orc = lerLS("openrouter_key"); if (orc) ch.openrouter_key = orc;
+    if (!Object.keys(ch).length) { if (!silencioso) alert("Cole pelo menos uma chave grátis acima (Gemini, Groq…) e salve antes de emprestar."); return; }
+    try { const j = await fn("banco=emprestar", { chaves: ch, aceito: true }); localStorage.setItem("banco_emprestando", "sim"); if (!silencioso) addMsg(`🏦 Você emprestou ao banco do jogo: ${j.provs.map(nomeProv).join(", ")}.`, "sistema"); }
+    catch (e) { if (!silencioso) alert("Não deu para emprestar: " + e.message); }
+    await bancoStatus();
+  }
+  async function bancoRetirar() {
+    if (!logado()) return;
+    if (!confirm("Retirar todas as suas chaves do banco do jogo?")) return;
+    try { await fn("banco=retirar", {}); localStorage.setItem("banco_emprestando", ""); addMsg("🏦 Suas chaves foram retiradas do banco do jogo.", "sistema"); } catch (e) { alert("Não deu para retirar: " + e.message); }
+    await bancoStatus();
+  }
+  // ----- conta: sair ou excluir -----
+  async function painelConta() {
+    let o = $("conta-painel"); if (o) o.remove();
+    o = document.createElement("div"); o.id = "conta-painel"; o.setAttribute("role", "dialog"); o.setAttribute("aria-modal", "true");
+    o.innerHTML = `<div class="cena-caixa"><h3>☁ ${esc(email())}</h3>
+      <p class="dica">Seus personagens, campanhas e chaves estão salvos na nuvem. <a href="termos.html" target="_blank" rel="noopener">Termos de uso</a> · <a href="privacidade.html" target="_blank" rel="noopener">Privacidade</a></p>
+      <div class="cena-bts"><button type="button" id="ct-sair" class="secundario">Sair da conta</button><button type="button" id="ct-fechar">Fechar</button></div>
+      <h3>Excluir conta do jogo</h3>
+      <p class="dica">Apaga da nuvem os seus personagens, campanhas, chaves e as chaves que você emprestou ao banco. Os personagens deste aparelho continuam aqui. Não dá para desfazer.</p>
+      <label>Para confirmar, digite EXCLUIR<input id="ct-confirma" maxlength="10" autocomplete="off"></label>
+      <p id="ct-msg" class="dica"></p>
+      <div class="cena-bts"><button type="button" id="ct-excluir" class="secundario">🗑 Excluir minha conta do jogo</button></div></div>`;
+    document.body.append(o);
+    const v = id => o.querySelector("#" + id);
+    v("ct-fechar").onclick = () => o.remove(); o.addEventListener("click", e => { if (e.target === o) o.remove(); });
+    v("ct-sair").onclick = async () => { const c = await cliente(); await c.auth.signOut(); sessao = null; botao(); status("Você saiu da conta."); o.remove(); };
+    v("ct-excluir").onclick = async () => {
+      if (v("ct-confirma").value.trim().toUpperCase() !== "EXCLUIR") return v("ct-msg").textContent = "Digite EXCLUIR no campo acima para confirmar.";
+      v("ct-excluir").disabled = true; v("ct-msg").textContent = "Excluindo…";
+      try {
+        const j = await fn("excluir_conta=1", {}); const c = await cliente();
+        try { await c.auth.signOut(); } catch (e) {} sessao = null; localStorage.setItem("banco_emprestando", ""); localStorage.removeItem("nuvem_ia_info"); srvInfo = null; botao();
+        o.remove(); addMsg(j.loginApagado ? "🗑 Sua conta do jogo foi excluída, com os saves e as chaves da nuvem." : "🗑 Seus dados do RPG foram apagados da nuvem. O login continua existindo porque ele também é usado no jogo de futebol (Técnico).", "sistema");
+        status("Conta do jogo excluída.");
+      } catch (e) { v("ct-excluir").disabled = false; v("ct-msg").textContent = "Não deu para excluir: " + e.message; }
+    };
+  }
   function filaServidor() {                               // entradas da fila de IAs que passam pelo servidor do jogo
     if (!logado() || !configurado()) return [];
     if (!srvInfo) { try { const d = JSON.parse(lerLS("nuvem_ia_info") || "null")?.d || null; srvInfo = d?.v === 2 ? d : null; } catch (e) {} if (!srvInfo) { infoServidor(); return []; } }
@@ -9607,9 +9674,11 @@ const NUVEM = (() => {
     return out;
   }
   const pronto = cliente().catch(e => { console.warn("nuvem:", e); });   // na abertura: se já havia sessão, entra sozinho
-  return { chavesParaServidor, entrar, enviar, logado, email, filaServidor, infoServidor, configurado, botao, pronto, aplicar, pacote };
+  return { bancoStatus, bancoEmprestar, bancoRetirar, chavesParaServidor, entrar, enviar, logado, email, filaServidor, infoServidor, configurado, botao, pronto, aplicar, pacote };
 })();
 $("nuvem-btn").addEventListener("click", () => NUVEM.entrar());
+$("ch-banco-emprestar").addEventListener("click", () => NUVEM.bancoEmprestar(false));
+$("ch-banco-retirar").addEventListener("click", () => NUVEM.bancoRetirar());
 NUVEM.botao();
 let arqHandle = null, pastaH = null;
 /* ----- Pasta de saves (Chrome/Edge no computador): o jogo lê os personagens da pasta e grava neles ao salvar ----- */
