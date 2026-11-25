@@ -2418,6 +2418,7 @@ async function chamarAPI(corpo, container) {
   let fila = montarFila();
   if (corpo.semLocal) fila = fila.filter(x => !x.local);
   if (corpo.soLocal) fila = fila.filter(x => x.local);
+  if (corpo.semServidor) fila = fila.filter(x => !x.srv);   // IA emprestada para a mesa de outra pessoa: nunca usa as chaves do dono no servidor
   if (corpo.leve) fila = [...fila.filter(x => !x.local && ehLeve(x.modelo)), ...fila.filter(x => x.local || !ehLeve(x.modelo))];   // tarefas pequenas (resumo, extrair dano) vão primeiro aos modelos pequenos, poupando os grandes
   const principalIA = !!corpo.principal, meuGer = principalIA ? ++IA_ATUAL.ger : 0;
   const cancelado = () => principalIA && meuGer !== IA_ATUAL.ger;   // um "Reenviar a última" começou outro pedido: este para de tentar
@@ -8398,7 +8399,7 @@ const MESA_IA = (() => {
     if (!valido || !API.empresta() || Date.now() - ultimoAtendido < 8000) { responder({ ok: false, erro: "indisponível" }); return; }
     ultimoAtendido = Date.now();
     try {
-      const corpo = { systemInstruction: m.corpo.systemInstruction, contents: m.corpo.contents, semLocal: true, semEspera: true, limiteMs: Math.min(Number(m.corpo.limiteMs) || 30000, 60000) };
+      const corpo = { systemInstruction: m.corpo.systemInstruction, contents: m.corpo.contents, semLocal: true, semEspera: true, semServidor: true, limiteMs: Math.min(Number(m.corpo.limiteMs) || 30000, 60000) };
       const d = await chamarAPI(corpo, null);
       emprestadas++; status();
       responder({ ok: true, dados: { candidates: d.candidates } });
@@ -9579,8 +9580,8 @@ const NUVEM = (() => {
   // ---------- IA do jogo (chaves do dono no servidor) ----------
   async function infoServidor(forcar) {
     if (!logado()) return null;
-    try { const c = JSON.parse(lerLS("nuvem_ia_info") || "null"); if (!forcar && c && Date.now() - c.t < 6 * 3600000) return (srvInfo = c.d); } catch (e) {}
-    try { const r = await fetch(cfg().url + "/functions/v1/ia?info=1", { headers: { Authorization: "Bearer " + sessao.access_token, apikey: cfg().anon } }); if (!r.ok) return null; srvInfo = await r.json(); localStorage.setItem("nuvem_ia_info", JSON.stringify({ t: Date.now(), d: srvInfo })); return srvInfo; } catch (e) { return null; }
+    try { const c = JSON.parse(lerLS("nuvem_ia_info") || "null"); if (!forcar && c && "dono" in (c.d || {}) && c.d.v === 2 && Date.now() - c.t < 6 * 3600000) return (srvInfo = c.d); } catch (e) {}
+    try { const r = await fetch(cfg().url + "/functions/v1/ia?info=1", { headers: { Authorization: "Bearer " + sessao.access_token, apikey: cfg().anon } }); if (!r.ok) return null; srvInfo = { ...(await r.json()), v: 2 }; localStorage.setItem("nuvem_ia_info", JSON.stringify({ t: Date.now(), d: srvInfo })); return srvInfo; } catch (e) { return null; }
   }
   async function chavesParaServidor() {                  // dono do jogo: as chaves coladas no 🔑 viram a IA do jogo para todos (gravadas no servidor)
     if (!logado()) return null;
@@ -9599,7 +9600,8 @@ const NUVEM = (() => {
   }
   function filaServidor() {                               // entradas da fila de IAs que passam pelo servidor do jogo
     if (!logado() || !configurado()) return [];
-    if (!srvInfo) { try { srvInfo = JSON.parse(lerLS("nuvem_ia_info") || "null")?.d || null; } catch (e) {} if (!srvInfo) { infoServidor(); return []; } }
+    if (!srvInfo) { try { const d = JSON.parse(lerLS("nuvem_ia_info") || "null")?.d || null; srvInfo = d?.v === 2 ? d : null; } catch (e) {} if (!srvInfo) { infoServidor(); return []; } }
+    if (!srvInfo.dono) return [];                         // só o dono usa as chaves do servidor (no solo e nas mesas em que ele é o Mestre/anfitrião)
     const out = [];
     for (const [p, ms] of Object.entries(srvInfo.provedores || {})) for (const m of ms.slice(0, 3)) out.push({ id: `srv|${p}|${m}`, modelo: m, url: `${cfg().url}/functions/v1/ia?p=${encodeURIComponent(p)}`, chave: sessao.access_token, nome: `IA do jogo (${p})`, prov: "srv_" + p, srv: true });
     return out;
