@@ -1,6 +1,6 @@
 // Função "ia" (Supabase Edge Function): repassa o pedido do jogo para a IA usando as chaves do DONO.
 // As chaves ficam no servidor (segredos *_KEY ou a tabela rpg_chaves_dono) e nunca vão para o navegador.
-// Só jogador logado (o Supabase confere o token) e com limite de pedidos por dia.
+// Só o DONO usa as chaves do servidor (no solo dele e nas mesas em que ele é o Mestre/anfitrião: os pedidos saem do navegador dele).
 //   GET  ?info=1          -> { provedores: { groq: [modelos], ... }, limite, dono }
 //   POST ?p=groq          -> corpo no formato OpenAI (chat/completions); devolve a resposta do provedor
 //   POST ?salvar_chaves=1 -> só o dono: { chaves: { gemini_key: "...", groq_key: "" (apaga), ... } }
@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
 
   if (url.searchParams.get("info")) {
     const k = await chaves();
-    return json({ provedores: Object.fromEntries(Object.entries(PROV).filter(([p]) => k[p]).map(([p, pv]) => [p, pv.modelos])), limite: LIMITE_DIA, dono: ehDono });
+    return json({ provedores: ehDono ? Object.fromEntries(Object.entries(PROV).filter(([p]) => k[p]).map(([p, pv]) => [p, pv.modelos])) : {}, limite: LIMITE_DIA, dono: ehDono });
   }
   if (!u?.user) return json({ error: { code: 401, message: "Entre com a sua conta para usar a IA do jogo." } }, 401);
 
@@ -57,6 +57,7 @@ Deno.serve(async (req) => {
     return json({ ok: true, salvos, apagados });
   }
 
+  if (!ehDono) return json({ error: { code: 403, message: "A IA do jogo é só do dono e das mesas dele. Use a sua própria chave de IA." } }, 403);
   const p = url.searchParams.get("p") || "", pv = PROV[p], chave = pv && (await chaves())[p];
   if (!pv || !chave) return json({ error: { code: 404, message: `Provedor ${p} indisponível no servidor.` } }, 404);
 
