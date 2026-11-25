@@ -2773,7 +2773,7 @@ $("ch-local-ajuda").addEventListener("click", () => abrirRegras(`<div class="cai
   <li>A história continua igual: a IA do computador recebe o mesmo resumo da campanha, o histórico recente, o mundo e o Codex. Com a janela de 32 mil, ela recebe também o prompt completo do Mestre.</li>
   <li>Modelo maior = narra e segue as regras melhor, mas é mais lento.</li></ul>
   <button type="button" class="secundario" data-fechar-rg>Fechar</button></div>`));
-$("ch-salvar").addEventListener("click", () => { setTimeout(() => { try { NUVEM.enviar(true); } catch (e) {} }, 500);
+$("ch-salvar").addEventListener("click", () => { setTimeout(() => { try { NUVEM.enviar(true); NUVEM.chavesParaServidor(); } catch (e) {} }, 500);
   salvarLocal();
   try { localStorage.setItem("emprestar_ia", $("ch-emprestar").checked ? "sim" : "nao"); } catch (e) {}
   try { if (salaAtiva || RODADA.ativo) sala.postMessage(perfilJogador()); } catch (e) {}
@@ -9537,6 +9537,21 @@ const NUVEM = (() => {
     try { const c = JSON.parse(lerLS("nuvem_ia_info") || "null"); if (!forcar && c && Date.now() - c.t < 6 * 3600000) return (srvInfo = c.d); } catch (e) {}
     try { const r = await fetch(cfg().url + "/functions/v1/ia?info=1", { headers: { Authorization: "Bearer " + sessao.access_token, apikey: cfg().anon } }); if (!r.ok) return null; srvInfo = await r.json(); localStorage.setItem("nuvem_ia_info", JSON.stringify({ t: Date.now(), d: srvInfo })); return srvInfo; } catch (e) { return null; }
   }
+  async function chavesParaServidor() {                  // dono do jogo: as chaves coladas no 🔑 viram a IA do jogo para todos (gravadas no servidor)
+    if (!logado()) return null;
+    const info = await infoServidor(true); if (!info?.dono) return null;
+    const ch = {}; for (const pv of PROVEDORES) { const v = lerLS(pv.ls); if (v) ch[pv.ls] = v; } const orc = lerLS("openrouter_key"); if (orc) ch.openrouter_key = orc;
+    if (!Object.keys(ch).length) return null;
+    try {
+      const r = await fetch(cfg().url + "/functions/v1/ia?salvar_chaves=1", { method: "POST", headers: { Authorization: "Bearer " + sessao.access_token, apikey: cfg().anon, "Content-Type": "application/json" }, body: JSON.stringify({ chaves: ch }) });
+      const j = await r.json().catch(() => ({})); if (!r.ok || !j.ok) throw new Error(j.error?.message || "erro " + r.status);
+      await infoServidor(true);
+      const nomes = j.salvos.map(p => PROVEDORES.find(x => x.id === p)?.nome || (p === "openrouter" ? "OpenRouter" : p));
+      try { addMsg(`☁ Suas chaves (${nomes.join(", ")}) agora são a IA do jogo para todos os jogadores logados.`, "sistema"); } catch (e) {}
+      status(`☁ IA do jogo atualizada no servidor: ${nomes.join(", ")}.`);
+      return j;
+    } catch (e) { status("☁ Não deu para gravar as chaves no servidor: " + (e.message || e)); return null; }
+  }
   function filaServidor() {                               // entradas da fila de IAs que passam pelo servidor do jogo
     if (!logado() || !configurado()) return [];
     if (!srvInfo) { try { srvInfo = JSON.parse(lerLS("nuvem_ia_info") || "null")?.d || null; } catch (e) {} if (!srvInfo) { infoServidor(); return []; } }
@@ -9545,7 +9560,7 @@ const NUVEM = (() => {
     return out;
   }
   const pronto = cliente().catch(e => { console.warn("nuvem:", e); });   // na abertura: se já havia sessão, entra sozinho
-  return { entrar, enviar, logado, email, filaServidor, infoServidor, configurado, botao, pronto, aplicar, pacote };
+  return { chavesParaServidor, entrar, enviar, logado, email, filaServidor, infoServidor, configurado, botao, pronto, aplicar, pacote };
 })();
 $("nuvem-btn").addEventListener("click", () => NUVEM.entrar());
 NUVEM.botao();
