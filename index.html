@@ -2711,7 +2711,7 @@ $("abrir-habil").addEventListener("click", () => HABIL.painel());
 $("cb-habil").addEventListener("click", () => { if (cb?.mesa) return logCb("⚔ Na mesa em grupo, use as habilidades pelo painel fora do tabuleiro; no tabuleiro elas valem no combate solo."); HABIL.painel(); });
 $("av-m-editor").addEventListener("click", () => EDITOR_CAMP.abrir("av-m-texto"));
 $("m-camp-editor").addEventListener("click", () => EDITOR_CAMP.abrir("m-camp"));
-setInterval(() => { try { TRAMA.botao(); } catch (e) {} }, 4000);
+setInterval(() => { try { TRAMA.botao(); HABIL.botao(); } catch (e) {} }, 4000);
 $("abrir-mundomapa").addEventListener("click", () => { $("mm-info").hidden = true; mundoMapaDesenhar(); $("mundomapa-dlg").hidden = false; $("mundomapa-dlg").scrollTop = 0; });
 $("mm-fechar").addEventListener("click", () => { $("mundomapa-dlg").hidden = true; });
 $("mm-svg").addEventListener("click", e => { const n = e.target.closest(".no"); if (n) mundoMapaInfo(n.dataset.no); });
@@ -3793,6 +3793,22 @@ const HABIL = (() => {
   const METAS = ["Magia Acelerada", "Magia Cuidadosa", "Magia Distante", "Magia Potencializada", "Magia Estendida", "Magia Elevada", "Magia Sutil", "Magia Gêmea"];
   const PERICIAS_K = ["acrobacia", "adestrar animais", "arcanismo", "atletismo", "atuacao", "enganacao", "furtividade", "historia", "intimidacao", "intuicao", "investigacao", "medicina", "natureza", "percepcao", "persuasao", "prestidigitacao", "religiao", "sobrevivencia"];
   const rotPer = k => (typeof ROTULOS_PERICIAS !== "undefined" && ROTULOS_PERICIAS[k]) || k;
+  const SUBCLASSES = {                                   // Livro do Jogador (D&D 5e)
+    "Bárbaro": ["Caminho do Berserker", "Caminho do Guerreiro Totêmico"],
+    "Bardo": ["Colégio do Conhecimento", "Colégio da Bravura"],
+    "Bruxo": ["A Arquifada", "O Corruptor", "O Grande Antigo"],
+    "Clérigo": ["Domínio do Conhecimento", "Domínio da Enganação", "Domínio da Guerra", "Domínio da Luz", "Domínio da Natureza", "Domínio da Tempestade", "Domínio da Vida"],
+    "Druida": ["Círculo da Terra", "Círculo da Lua"],
+    "Feiticeiro": ["Linhagem Dracônica", "Magia Selvagem"],
+    "Guerreiro": ["Campeão", "Mestre de Batalha", "Cavaleiro Arcano"],
+    "Ladino": ["Ladrão", "Assassino", "Trapaceiro Arcano"],
+    "Mago": ["Escola de Abjuração", "Escola de Adivinhação", "Escola de Conjuração", "Escola de Encantamento", "Escola de Evocação", "Escola de Ilusão", "Escola de Necromancia", "Escola de Transmutação"],
+    "Monge": ["Caminho da Mão Aberta", "Caminho da Sombra", "Caminho dos Quatro Elementos"],
+    "Paladino": ["Juramento de Devoção", "Juramento dos Anciões", "Juramento de Vingança"],
+    "Patrulheiro": ["Caçador", "Mestre das Feras"]
+  };
+  const INIMIGOS = ["Aberrações", "Bestas", "Celestiais", "Constructos", "Dragões", "Elementais", "Fadas", "Corruptores", "Gigantes", "Monstruosidades", "Limos", "Plantas", "Mortos-vivos", "Humanoides: orcs e goblinoides", "Humanoides: gnolls e kobolds", "Humanoides: humanos e elfos", "Humanoides: anões e gnomos"];
+  const TERRENOS = ["Ártico", "Costa", "Deserto", "Floresta", "Montanha", "Pântano", "Planície", "Subterrâneo"];
 
   // [nível, id, nome, descrição, opções]  ·  uso: "acao" | "bonus" | "reacao" | "livre" | "passiva"  ·  auto: o app aplica o efeito
   const H = (nivel, id, nome, desc, o = {}) => ({ nivel, id, nome, desc, uso: "passiva", ...o });
@@ -4154,9 +4170,9 @@ const HABIL = (() => {
     if (tem("invocacoes")) L.push(`<fieldset><legend>Invocações Místicas (${nInvoc()})</legend><div class="cena-npcs">${INVOC.map(k => `<label class="cena-npc"><input type="checkbox" data-inv="${esc(k)}"${h.invoc.includes(k) ? " checked" : ""}> ${esc(k)}</label>`).join("")}</div></fieldset>`);
     if (tem("dadiva")) L.push(`<label>Dádiva do Pacto<select data-h="dadiva"><option value="">— escolha —</option>${["Pacto da Lâmina", "Pacto da Corrente", "Pacto do Tomo"].map(k => `<option${h.dadiva === k ? " selected" : ""}>${k}</option>`).join("")}</select></label>`);
     if (tem("metamagia")) L.push(`<fieldset><legend>Metamagia (${nMeta()})</legend><div class="cena-npcs">${METAS.map(k => `<label class="cena-npc"><input type="checkbox" data-meta="${esc(k)}"${h.meta.includes(k) ? " checked" : ""}> ${esc(k)}</label>`).join("")}</div></fieldset>`);
-    if (tem("inimigo_fav")) L.push(`<label>Inimigo Favorito<input data-h="inimigo" maxlength="40" value="${esc(h.inimigo || "")}" placeholder="Ex.: mortos-vivos, orcs, dragões"></label>`, `<label>Terreno Favorito<select data-h="terreno"><option value="">— escolha —</option>${["Ártico", "Costa", "Deserto", "Floresta", "Montanha", "Pântano", "Planície", "Subterrâneo"].map(k => `<option${h.terreno === k ? " selected" : ""}>${k}</option>`).join("")}</select></label>`);
+    if (tem("inimigo_fav")) L.push(`<label>Inimigo Favorito<select data-h="inimigo"><option value="">— escolha —</option>${INIMIGOS.map(k => `<option${h.inimigo === k ? " selected" : ""}>${k}</option>`).join("")}</select></label>`, `<label>Terreno Favorito<select data-h="terreno"><option value="">— escolha —</option>${TERRENOS.map(k => `<option${h.terreno === k ? " selected" : ""}>${k}</option>`).join("")}</select></label>`);
     const arq = (DADOS[C()] || []).find(d => d.escolha === "arquetipo");
-    if (arq && arq.nivel <= N()) L.push(`<label>${esc(arq.nome)}<input data-h="arquetipo" maxlength="50" value="${esc(h.arquetipo || "")}" placeholder="Ex.: ${esc((arq.desc.match(/\(([^)]*)\)/)?.[1] || "").replace(/^ex\.:?\s*/i, ""))}"></label>`);
+    if (arq && arq.nivel <= N()) L.push(`<label>${esc(arq.nome)}<select data-h="arquetipo"><option value="">— escolha —</option>${(SUBCLASSES[C()] || []).map(k => `<option${h.arquetipo === k ? " selected" : ""}>${k}</option>`).join("")}</select></label>`);
     return L.join("");
   }
   function lerEscolhas(o) {
@@ -4166,9 +4182,49 @@ const HABIL = (() => {
     if (nEspec()) h.espec = marcados("[data-esp]", nEspec()).map(i => i.dataset.esp);
     if (tem("invocacoes")) h.invoc = marcados("[data-inv]", nInvoc()).map(i => i.dataset.inv);
     if (tem("metamagia")) h.meta = marcados("[data-meta]", nMeta()).map(i => i.dataset.meta);
-    salvar();
+    salvar(); try { botao(); } catch (e) {}
   }
 
+  function pendentes() {                                  // escolhas que o nível atual já liberou e ainda não foram feitas
+    if (!ficha?.id || !DADOS[C()]) return [];
+    const h = est(), P = [], arq = (DADOS[C()] || []).find(d => d.escolha === "arquetipo");
+    if (arq && arq.nivel <= N() && !h.arquetipo) P.push(arq.nome);
+    if (tem("estilo") && !h.estilo) P.push("Estilo de Luta");
+    if (nEspec() && h.espec.length < Math.min(nEspec(), (ficha.proficiencias || []).filter(k => PERICIAS_K.includes(k)).length)) P.push(C() === "Bardo" ? "Aptidão" : "Especialização");
+    if (tem("invocacoes") && h.invoc.length < nInvoc()) P.push("Invocações Místicas");
+    if (tem("dadiva") && !h.dadiva) P.push("Dádiva do Pacto");
+    if (tem("metamagia") && h.meta.length < nMeta()) P.push("Metamagia");
+    if (tem("inimigo_fav") && (!h.inimigo || !h.terreno)) P.push("Inimigo e Terreno Favoritos");
+    return P;
+  }
+  function escolhasNivel(de, para) {                     // janela do level-up (e da criação): o que este nível liberou + as escolhas
+    return new Promise(res => {
+      if (!ficha?.id || !DADOS[C()]) return res();
+      const novas = (DADOS[C()] || []).filter(h => h.nivel > (de || 0) && h.nivel <= (para || N()));
+      const P = pendentes(), magias = (() => { try { return MAGIA.conjurador() && de > 0 && (MAGIA.nMagias() > 0 || MAGIA.nTruques() > 0); } catch (e) { return false; } })();
+      const asi = (() => { try { return aumentosPendentes(); } catch (e) { return 0; } })();
+      if (!novas.length && !P.length && !magias && !asi) return res();
+      let o = $("habil-painel"); if (o) o.remove();
+      o = document.createElement("div"); o.id = "habil-painel"; o.setAttribute("role", "dialog"); o.setAttribute("aria-modal", "true");
+      const usoTxt = { acao: "ação", bonus: "ação bônus", reacao: "reação", livre: "livre", passiva: "passiva" };
+      o.innerHTML = `<div class="cena-caixa">
+        <h3>⚔ ${de ? `Nível ${para}: o que você ganhou` : `${esc(C())}: suas primeiras escolhas`}</h3>
+        ${novas.length ? `<div class="habil-lista">${novas.map(h => `<div class="habil-item"><b>${h.nivel}º · ${esc(h.nome)}</b> <small>${usoTxt[h.uso]}${h.auto ? " · ✔ o jogo aplica" : ""}</small><div class="dica">${esc(h.desc)}</div></div>`).join("")}</div>` : ""}
+        ${P.length ? `<h3>Escolha agora (regras do Livro do Jogador)</h3><p class="dica">Pendente: ${P.map(esc).join(", ")}.</p>${escolhasHtml()}` : ""}
+        ${asi ? `<p class="dica">📈 Você tem ${asi * 2} pontos de Aumento de Atributo para distribuir na ficha.</p>` : ""}
+        ${magias ? `<p class="dica">✨ Seu nível de conjurador mudou: confira as magias novas e troque as que quiser.</p>` : ""}
+        <div class="cena-bts">${magias ? `<button type="button" id="hb-magias" class="secundario">✨ Ver magias</button>` : ""}<button type="button" id="hb-depois" class="secundario">Escolher depois</button><button type="button" id="hb-ok">${P.length ? "💾 Salvar escolhas" : "Continuar"}</button></div></div>`;
+      document.body.append(o);
+      const fechar = () => { o.remove(); botao(); res(); };
+      o.querySelector("#hb-depois").onclick = () => { if (P.length) addMsg(`⚔ Escolhas de classe pendentes: ${P.join(", ")}. Abra ⚔ Habilidades quando quiser.`, "sistema"); fechar(); };
+      o.querySelector("#hb-magias")?.addEventListener("click", () => { if (P.length) lerEscolhas(o); fechar(); try { abrirGrimorio(); } catch (e) {} });
+      o.querySelector("#hb-ok").onclick = () => {
+        if (P.length) { lerEscolhas(o); const falta = pendentes(); if (falta.length) { o.querySelector(".dica").textContent = `Ainda falta: ${falta.join(", ")}. (Ou toque em Escolher depois.)`; return; } addMsg("⚔ Escolhas de classe salvas.", "sistema"); }
+        fechar();
+      };
+    });
+  }
+  function botao() { try { const b = $("abrir-habil"); if (b) b.textContent = pendentes().length ? "⚔ Habilidades ●" : "⚔ Habilidades"; } catch (e) {} }
   function painel() {
     if (!ficha?.id) return;
     let o = $("habil-painel"); if (o) o.remove();
@@ -4197,7 +4253,7 @@ const HABIL = (() => {
     const esc2 = [h.arquetipo && `subclasse: ${h.arquetipo}`, h.estilo && `estilo: ${ESTILOS[h.estilo]}`, h.invoc.length && `invocações: ${h.invoc.join(", ")}`, h.dadiva, h.meta.length && `metamagia: ${h.meta.join(", ")}`, h.inimigo && `inimigo favorito: ${h.inimigo}`, h.terreno && `terreno favorito: ${h.terreno}`, kiMax() && `ki ${kiResta()}/${kiMax()}`, ptsMax() && `pontos de feitiçaria ${ptsResta()}/${ptsMax()}`].filter(Boolean);
     return `HABILIDADES DE CLASSE (${C()} ${N()}; usos e efeitos são controlados pelo aplicativo, o jogador as usa pelo botão ⚔ Habilidades; respeite-as na narração e não invente outras): ${L.join("; ")}.${esc2.length ? " Escolhas: " + esc2.join("; ") + "." : ""}`;
   }
-  return { somaMod, golpeDesarmado, lista, tem, painel, contexto, descanso, bonusTeste, aposFalha, nAtaques, podeAtacar, consumirAtaque, inicioTurno, ajustarAtaque, aposAtaque, danoRecebido, modoInimigo, modoJogadorExtra, acoes, est, DADOS, furiaAtiva, formaAtiva };
+  return { pendentes, escolhasNivel, botao, somaMod, golpeDesarmado, lista, tem, painel, contexto, descanso, bonusTeste, aposFalha, nAtaques, podeAtacar, consumirAtaque, inicioTurno, ajustarAtaque, aposAtaque, danoRecebido, modoInimigo, modoJogadorExtra, acoes, est, DADOS, furiaAtiva, formaAtiva };
 })();
 /* ---------- PONTOS DE TRAMA e TRAÇOS (ideias do Cortex, sem sair do D&D 5e) ----------
    Pontos de trama (0 a 3, começa com 1): ganha 1 a cada falha ou falha crítica num teste.
@@ -4559,6 +4615,7 @@ async function mostrarLevelUp(r) {
   $("lv-continuar").focus();
   await new Promise(res => $("lv-continuar").addEventListener("click", res, { once: true }));
   $("levelup").classList.remove("ativo");
+  try { await HABIL.escolhasNivel(r.nivelAnterior, r.nivelNovo); } catch (e) { console.warn("escolhas do nível:", e); }   // habilidades novas + escolhas do Livro do Jogador
   if (aumentosPendentes() > 0) await abrirFicha(true);   // a ficha abre para o jogador melhorar os atributos
   addMsg(`🎉 Level Up! ${ficha.nome} agora é nível ${ficha.nivel}.`, "sistema");
 }
@@ -4826,6 +4883,7 @@ $("form-ficha").addEventListener("submit", e => {
   salvarPersonagem();                                  // grava já na criação (antes só gravava ao escolher a aventura)
   mostrarFicha();
   enviarFichaAoMestre();
+  setTimeout(() => { try { if (HABIL.pendentes().length) HABIL.escolhasNivel(0, ficha.nivel); } catch (e) {} }, 800);
   entrarNaSala();
 });
 
