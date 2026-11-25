@@ -30,6 +30,8 @@
   #editor-camp fieldset { border: 1px solid var(--borda); border-radius: 8px; display: grid; gap: 6px; padding: 8px 10px; } #editor-camp legend { color: var(--latao); font-weight: 700; padding: 0 4px; }
   #editor-camp .ed-linha { display: flex; gap: 6px; flex-wrap: wrap; } #editor-camp .ed-linha input { flex: 1 1 140px; width: auto; min-width: 0; }
   #editor-camp select { padding: 7px 9px; border-radius: 8px; border: 1px solid var(--borda); background: var(--fundo); color: var(--texto); font: inherit; }
+  #conta-painel { position: fixed; inset: 0; background: rgba(15,10,25,.85); display: flex; align-items: center; justify-content: center; padding: 14px; z-index: 97; }
+  #conta-painel input { padding: 9px 10px; border-radius: 8px; border: 1px solid var(--borda); background: var(--fundo); color: var(--texto); font: inherit; }
   #habil-painel { position: fixed; inset: 0; background: rgba(15,10,25,.85); display: flex; align-items: center; justify-content: center; padding: 14px; z-index: 94; }
   #habil-painel .cena-npcs { display: flex; flex-wrap: wrap; gap: 6px; } #habil-painel label.cena-npc { flex-direction: row; align-items: center; gap: 6px; color: var(--texto); border: 1px solid var(--borda); border-radius: 999px; padding: 4px 10px; }
   #habil-painel .habil-acoes { display: flex; flex-direction: column; gap: 6px; } #habil-painel .habil-acoes button { text-align: left; }
@@ -39,18 +41,18 @@
   #trama-painel .trama-traco { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   #trama-painel .trama-traco input { flex: 1 1 180px; } #trama-painel select { padding: 6px; border-radius: 8px; border: 1px solid var(--borda); background: var(--fundo); color: var(--texto); font: inherit; }
   #cena-painel { position: fixed; inset: 0; background: rgba(15,10,25,.82); display: flex; align-items: center; justify-content: center; padding: 14px; z-index: 20; }
-  #habil-painel .cena-caixa,#editor-camp .cena-caixa,#cena-painel .cena-caixa,#trama-painel .cena-caixa,#trama-pergunta .cena-caixa { background: var(--painel); border: 1px solid var(--latao); border-radius: 12px; padding: 16px 18px; width: min(560px, 100%); max-height: 92vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
-  #habil-painel h3,#editor-camp h3,#cena-painel h3,#trama-painel h3,#trama-pergunta h3 { margin: 6px 0 0; color: var(--latao); font: 700 1.3rem "Cormorant Garamond", Georgia, serif; }
-  #habil-painel label,#editor-camp label,#cena-painel label,#trama-painel label,#trama-pergunta label { display: flex; flex-direction: column; gap: 3px; font-size: .88rem; color: var(--suave); }
+  #conta-painel .cena-caixa,#habil-painel .cena-caixa,#editor-camp .cena-caixa,#cena-painel .cena-caixa,#trama-painel .cena-caixa,#trama-pergunta .cena-caixa { background: var(--painel); border: 1px solid var(--latao); border-radius: 12px; padding: 16px 18px; width: min(560px, 100%); max-height: 92vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  #conta-painel h3,#habil-painel h3,#editor-camp h3,#cena-painel h3,#trama-painel h3,#trama-pergunta h3 { margin: 6px 0 0; color: var(--latao); font: 700 1.3rem "Cormorant Garamond", Georgia, serif; }
+  #conta-painel label,#habil-painel label,#editor-camp label,#cena-painel label,#trama-painel label,#trama-pergunta label { display: flex; flex-direction: column; gap: 3px; font-size: .88rem; color: var(--suave); }
   #editor-camp input,#editor-camp textarea,#cena-painel input:not([type=checkbox]), #cena-painel textarea,#trama-painel input:not([type=checkbox]), #trama-painel textarea,#trama-pergunta input:not([type=checkbox]), #trama-pergunta textarea { padding: 7px 9px; border-radius: 8px; border: 1px solid var(--borda); background: var(--fundo); color: var(--texto); font: inherit; resize: vertical; }
   #cena-painel .cena-npcs { display: flex; flex-wrap: wrap; gap: 6px; }
   #cena-painel .cena-npc, #cena-painel .cena-esc { flex-direction: row; align-items: center; gap: 6px; color: var(--texto); }
   #cena-painel .cena-npc { border: 1px solid var(--borda); border-radius: 999px; padding: 4px 10px; }
   #cena-painel .cena-npc.aqui { border-color: var(--latao); }
-  #habil-painel .cena-bts,#editor-camp .cena-bts,#cena-painel .cena-bts,#trama-painel .cena-bts,#trama-pergunta .cena-bts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-  #habil-painel button,#editor-camp button,#cena-painel button,#trama-painel button,#trama-pergunta button { padding: 7px 14px; border-radius: 8px; border: 0; background: var(--latao); color: #2a2010; font: 700 .95rem "Alegreya Sans", sans-serif; cursor: pointer; }
-  #habil-painel button.secundario,#editor-camp button.secundario,#cena-painel button.secundario,#trama-painel button.secundario,#trama-pergunta button.secundario { background: var(--fundo); color: var(--texto); border: 1px solid var(--borda); }
-  #habil-painel button:disabled,#editor-camp button:disabled,#cena-painel button:disabled,#trama-painel button:disabled,#trama-pergunta button:disabled { opacity: .5; cursor: not-allowed; }
+  #conta-painel .cena-bts,#habil-painel .cena-bts,#editor-camp .cena-bts,#cena-painel .cena-bts,#trama-painel .cena-bts,#trama-pergunta .cena-bts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  #conta-painel button,#habil-painel button,#editor-camp button,#cena-painel button,#trama-painel button,#trama-pergunta button { padding: 7px 14px; border-radius: 8px; border: 0; background: var(--latao); color: #2a2010; font: 700 .95rem "Alegreya Sans", sans-serif; cursor: pointer; }
+  #conta-painel button.secundario,#habil-painel button.secundario,#editor-camp button.secundario,#cena-painel button.secundario,#trama-painel button.secundario,#trama-pergunta button.secundario { background: var(--fundo); color: var(--texto); border: 1px solid var(--borda); }
+  #conta-painel button:disabled,#habil-painel button:disabled,#editor-camp button:disabled,#cena-painel button:disabled,#trama-painel button:disabled,#trama-pergunta button:disabled { opacity: .5; cursor: not-allowed; }
   .npc-fala .npc-nome { display: block; font: 700 .85rem "Alegreya Sans", sans-serif; color: var(--latao); letter-spacing: .03em; }
   .opcoes.conversa-npc button[type=submit] { background: var(--latao); color: #2a2010; }
   .sistema { align-self: center; color: var(--suave); font-style: italic; font-size: .9rem; }
@@ -806,7 +808,7 @@
   <p>Como você quer participar?</p>
   <button id="papel-jogador">🎲 Quero jogar</button>
   <button id="papel-mestre">📖 Quero mestrar</button>
-  <button id="nuvem-btn" type="button" hidden>☁ Entrar com Google</button>
+  <button id="nuvem-btn" type="button" hidden>☁ Entrar / Criar conta</button>
   <p id="nuvem-status" class="dica"></p>
   <button id="abrir-chaves" class="secundario">🔑 Chaves de IA</button>
   <button id="mundo-abrir" class="secundario">🌍 Mundo</button>
@@ -9457,7 +9459,7 @@ const NUVEM = (() => {
     if (sb) return sb; if (!configurado()) return null;
     if (!carregando) carregando = import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm").then(m => {
       sb = m.createClient(cfg().url, cfg().anon, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: "rpg-nuvem-sessao" } });
-      sb.auth.onAuthStateChange((ev, s) => { const antes = sessao?.user?.id; sessao = s; botao(); if (s && s.user.id !== antes) aoEntrar(); });
+      sb.auth.onAuthStateChange((ev, s) => { const antes = sessao?.user?.id; sessao = s; botao(); if (ev === "PASSWORD_RECOVERY") setTimeout(novaSenha, 300); if (s && s.user.id !== antes) aoEntrar(); });
       return sb;
     });
     return carregando;
@@ -9467,15 +9469,58 @@ const NUVEM = (() => {
   function botao() {
     const b = $("nuvem-btn"); if (!b) return;
     b.hidden = !configurado();
-    b.textContent = logado() ? `☁ ${email().split("@")[0]} · sincronizado` : "☁ Entrar com Google";
-    b.title = logado() ? `Conta ${email()}: personagens e chaves salvos na nuvem. Toque para sair.` : "Entre com a sua conta Google para salvar tudo na nuvem e jogar em qualquer aparelho.";
+    b.textContent = logado() ? `☁ ${email().split("@")[0]} · sincronizado` : "☁ Entrar / Criar conta";
+    b.title = logado() ? `Conta ${email()}: personagens e chaves salvos na nuvem. Toque para sair.` : "Entre com e-mail e senha (ou Google) para salvar tudo na nuvem e jogar em qualquer aparelho.";
   }
-  async function entrar() {
+  async function entrar() {                                // login padrão de jogo: e-mail e senha (ou Google)
     const c = await cliente(); if (!c) return alert("A nuvem ainda não foi configurada neste jogo.");
     if (logado()) { if (confirm(`Sair da conta ${email()}? Os personagens continuam salvos na nuvem e neste aparelho.`)) { await c.auth.signOut(); sessao = null; botao(); status("Você saiu da conta."); } return; }
-    status("Abrindo o login do Google…");
-    const { error } = await c.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } });
-    if (error) status("Não deu para entrar: " + error.message);
+    let o = $("conta-painel"); if (o) o.remove();
+    o = document.createElement("div"); o.id = "conta-painel"; o.setAttribute("role", "dialog"); o.setAttribute("aria-modal", "true");
+    o.innerHTML = `<form class="cena-caixa" autocomplete="on">
+      <h3>☁ Sua conta</h3>
+      <p class="dica">Entre para salvar personagens e chaves na nuvem e jogar em qualquer aparelho.</p>
+      <label>E-mail<input type="email" id="ct-email" autocomplete="username" required maxlength="120"></label>
+      <label>Senha<input type="password" id="ct-senha" autocomplete="current-password" required minlength="6" maxlength="72"></label>
+      <p id="ct-msg" class="dica" role="status"></p>
+      <div class="cena-bts"><button type="submit" id="ct-entrar">Entrar</button><button type="button" id="ct-criar" class="secundario">Criar conta</button></div>
+      <div class="cena-bts" style="justify-content:space-between"><button type="button" id="ct-esqueci" class="secundario">Esqueci a senha</button><button type="button" id="ct-google" class="secundario">Entrar com Google</button></div>
+      <div class="cena-bts"><button type="button" id="ct-fechar" class="secundario">Fechar</button></div></form>`;
+    document.body.append(o);
+    const v = id => o.querySelector("#" + id), msg = t => { v("ct-msg").textContent = t; };
+    const dados = () => ({ email: v("ct-email").value.trim(), password: v("ct-senha").value });
+    const ocupado = b => o.querySelectorAll("button").forEach(x => x.disabled = b);
+    const traduz = e => { const m = String(e?.message || e || ""); return /invalid login/i.test(m) ? "E-mail ou senha incorretos." : /already registered|already exists/i.test(m) ? "Esse e-mail já tem conta: use Entrar." : /at least 6|password should/i.test(m) ? "A senha precisa ter pelo menos 6 caracteres." : /not confirmed/i.test(m) ? "Confirme o e-mail pelo link que enviamos e depois entre." : /rate limit|too many/i.test(m) ? "Muitas tentativas. Espere um pouco e tente de novo." : /valid email|invalid email/i.test(m) ? "Digite um e-mail válido." : m; };
+    v("ct-fechar").onclick = () => o.remove();
+    o.addEventListener("click", e => { if (e.target === o) o.remove(); });
+    o.querySelector("form").onsubmit = async ev => {
+      ev.preventDefault(); const d = dados(); if (!d.email || !d.password) return msg("Preencha e-mail e senha.");
+      ocupado(true); msg("Entrando…");
+      const { error } = await c.auth.signInWithPassword(d); ocupado(false);
+      if (error) return msg(traduz(error)); o.remove();
+    };
+    v("ct-criar").onclick = async () => {
+      const d = dados(); if (!d.email || d.password.length < 6) return msg("Digite o e-mail e uma senha de pelo menos 6 caracteres.");
+      ocupado(true); msg("Criando a conta…");
+      const { data, error } = await c.auth.signUp({ ...d, options: { emailRedirectTo: location.origin + location.pathname } }); ocupado(false);
+      if (error) return msg(traduz(error));
+      if (data?.session) { o.remove(); return; }
+      msg("Conta criada! Abra o link que enviamos para o seu e-mail e depois toque em Entrar.");
+    };
+    v("ct-esqueci").onclick = async () => {
+      const em = v("ct-email").value.trim(); if (!em) return msg("Digite o seu e-mail acima e toque de novo em Esqueci a senha.");
+      ocupado(true); const { error } = await c.auth.resetPasswordForEmail(em, { redirectTo: location.origin + location.pathname }); ocupado(false);
+      msg(error ? traduz(error) : "Se esse e-mail tiver conta, enviamos um link para criar uma senha nova.");
+    };
+    v("ct-google").onclick = async () => { msg("Abrindo o login do Google…"); const { error } = await c.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } }); if (error) msg(traduz(error)); };
+    v("ct-email").focus();
+  }
+  async function novaSenha() {                            // veio do link de "Esqueci a senha"
+    const c = await cliente(); let o = $("conta-painel"); if (o) o.remove();
+    o = document.createElement("div"); o.id = "conta-painel"; o.setAttribute("role", "dialog"); o.setAttribute("aria-modal", "true");
+    o.innerHTML = `<form class="cena-caixa"><h3>☁ Criar senha nova</h3><label>Senha nova<input type="password" id="ct-nova" autocomplete="new-password" required minlength="6" maxlength="72"></label><p id="ct-msg" class="dica"></p><div class="cena-bts"><button type="submit">Salvar senha</button></div></form>`;
+    document.body.append(o); o.querySelector("#ct-nova").focus();
+    o.querySelector("form").onsubmit = async ev => { ev.preventDefault(); const { error } = await c.auth.updateUser({ password: o.querySelector("#ct-nova").value }); if (error) o.querySelector("#ct-msg").textContent = error.message; else { o.remove(); status("☁ Senha nova salva. Você está conectado."); } };
   }
 
   // ---------- o que vai para a nuvem ----------
