@@ -3,6 +3,7 @@
 // Só o DONO usa as chaves do servidor (no solo dele e nas mesas em que ele é o Mestre/anfitrião: os pedidos saem do navegador dele).
 //   GET  ?info=1               -> { provedores: { groq: [modelos], ... }, limite, dono }   (provedores só para o dono)
 //   POST ?p=groq               -> corpo no formato OpenAI (chat/completions); devolve a resposta do provedor
+//   POST ?p=gemini&nativo=1&modelo=gemini-2.5-flash -> corpo no formato NATIVO do Gemini (generateContent): as chaves novas "AQ." só funcionam assim
 //   POST ?salvar_chaves=1      -> só o dono: { chaves: { gemini_key: "...", ... } }
 //   GET  ?banco=1              -> o que o jogador emprestou ao banco: { provs: [...], aceitou }
 //   POST ?banco=emprestar      -> { chaves: { groq_key: "..." }, aceito: true }  (aceitar os termos é obrigatório)
@@ -106,17 +107,25 @@ Deno.serve(async (req) => {
   if (Number(n) > LIMITE_DIA) return json({ error: { code: 429, message: `Limite diário da IA do jogo atingido (${LIMITE_DIA} pedidos).` } }, 429);
 
   const corpo = await lerCorpo(req); if (!corpo) return json({ error: { code: 400, message: "Pedido inválido." } }, 400);
-  if (!pv.modelos.includes(String(corpo.model))) corpo.model = pv.modelos[0];        // só os modelos liberados
-  corpo.max_tokens = Math.min(Number(corpo.max_tokens) || 1300, 1800);
-  delete corpo.stream;
+  const nativo = p === "gemini" && !!url.searchParams.get("nativo");
+  let destino = pv.url;
+  if (nativo) {                                                         // Gemini nativo: o modelo vai no endereço
+    const m = String(url.searchParams.get("modelo") || ""), modelo = pv.modelos.includes(m) ? m : pv.modelos[0];
+    destino = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
+    corpo.generationConfig = { ...(corpo.generationConfig || {}), maxOutputTokens: Math.min(Number(corpo.generationConfig?.maxOutputTokens) || 1300, 1800) };
+  } else {
+    if (!pv.modelos.includes(String(corpo.model))) corpo.model = pv.modelos[0];        // só os modelos liberados
+    corpo.max_tokens = Math.min(Number(corpo.max_tokens) || 1300, 1800);
+    delete corpo.stream;
+  }
 
   // a 1ª chave do dono sempre primeiro; as do banco em rodízio; chave sem cota ou recusada: tenta a próxima (até 4)
   const ordem = [lista[0], ...lista.slice(1).map((_, i, a) => a[(i + giro) % a.length])].slice(0, 4); giro++;
   let r: Response | null = null;
   for (const chave of ordem) {
-    const cab: Record<string, string> = { "Content-Type": "application/json", Authorization: "Bearer " + chave };
+    const cab: Record<string, string> = nativo ? { "Content-Type": "application/json", "x-goog-api-key": chave } : { "Content-Type": "application/json", Authorization: "Bearer " + chave };
     if (p === "openrouter") cab["X-Title"] = "RPG Mestre IA";
-    r = await fetch(pv.url, { method: "POST", headers: cab, body: JSON.stringify(corpo) });
+    r = await fetch(destino, { method: "POST", headers: cab, body: JSON.stringify(corpo) });
     if (![401, 402, 403, 429].includes(r.status)) break;
   }
   return new Response(await r!.text(), { status: r!.status, headers: { ...CORS, "Content-Type": "application/json", ...(r!.headers.get("retry-after") ? { "retry-after": r!.headers.get("retry-after")! } : {}) } });
