@@ -972,7 +972,7 @@ const MAX_TOKENS = 1800;   // o OpenRouter reserva crédito pelo máximo pedido:
 // Provedores extras (opcionais): se houver chave salva, entram NA FRENTE do OpenRouter. Mesmo formato de chamada do OpenAI.
 const PROVEDORES = [
   { id: "gemini", nome: "Gemini (Google)", url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", ls: "gemini_key", onde: "aistudio.google.com/apikey",
-    modelos: ["gemini-2.5-flash", "gemini-2.5-flash-lite"], prefixo: /^AIza/, abrir: "https://aistudio.google.com/apikey",
+    modelos: ["gemini-2.5-flash", "gemini-2.5-flash-lite"], prefixo: /^(AIza|AQ\.)/, nativo: true, abrir: "https://aistudio.google.com/apikey",
     guia: ["Abra o Google AI Studio e entre com a sua conta Google.", "Clique em <b>Create API key</b> (Criar chave de API).", "Copie a chave (começa com <code>AIza</code>) e cole abaixo."], dica: "Chave do Google AI Studio (tem faixa grátis; no plano pago cobra por uso). Entra na frente dos outros." },
   { id: "groq", nome: "Groq", url: "https://api.groq.com/openai/v1/chat/completions", ls: "groq_key", onde: "console.groq.com/keys", prefixo: /^gsk_/, abrir: "https://console.groq.com/keys",
     guia: ["Abra o console do Groq e entre (Google funciona).", "Clique em <b>Create API Key</b>.", "Copie a chave (começa com <code>gsk_</code>) e cole abaixo."],
@@ -1037,10 +1037,10 @@ async function descobrirModelos(pv, forcar) {
   if (!forcar && Date.now() - (ultimaBusca[pv.id] || 0) < 600000) return;      // no máximo uma busca a cada 10 min
   ultimaBusca[pv.id] = Date.now();
   try {
-    const r = await fetch(pv.url.replace("/chat/completions", "/models"), { headers: { Authorization: "Bearer " + chave } });
+    const r = pv.nativo ? await fetch(GEMINI_NATIVO.BASE + "/models?pageSize=100", { headers: { "x-goog-api-key": chave } }) : await fetch(pv.url.replace("/chat/completions", "/models"), { headers: { Authorization: "Bearer " + chave } });
     if (!r.ok) return;
     const j = await r.json();
-    const ids = (j.data || []).map(m => m.id).filter(id => typeof id === "string" && !EXCLUIDOS.test(id) && (!pv.so || pv.so.test(id)));
+    const ids = (pv.nativo ? (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent")).map(m => String(m.name).replace(/^models\//, "")) : (j.data || []).map(m => m.id)).filter(id => typeof id === "string" && !EXCLUIDOS.test(id) && (!pv.so || pv.so.test(id)));
     if (!ids.length) return;
     const nota = id => { const i = PREFERIDOS.findIndex(re => re.test(id)); return i < 0 ? 99 : i; };
     ids.sort((a, b) => nota(a) - nota(b) || (/gemini/.test(a) ? b.localeCompare(a) : a.localeCompare(b)));   // Gemini: versões mais novas primeiro
@@ -2420,6 +2420,43 @@ function achatarFuncoes(corpo) {                         // funções e resultad
 }
 let SEM_IA_MESA = false;
 const avisouChave = {};                                   // o Mestre humano escolheu jogar sem IA
+// Gemini pelo endereço NATIVO (generateContent). As chaves novas do Google AI Studio ("AQ.") não funcionam no endereço
+// compatível com OpenAI; no nativo funcionam (e as antigas "AIza" também). O jogo já guarda o histórico no formato do Gemini.
+const GEMINI_NATIVO = {
+  BASE: "https://generativelanguage.googleapis.com/v1beta",
+  url: m => `${GEMINI_NATIVO.BASE}/models/${encodeURIComponent(String(m).replace(/^models\//, ""))}:generateContent`,
+  pedido(corpo, modelo, max) {
+    const g3 = /gemini-(3|[4-9])/i.test(modelo);
+    const parte = p => {
+      if (p.functionCall) return { functionCall: { name: p.functionCall.name, args: p.functionCall.args || {} }, ...(g3 ? { thoughtSignature: p.thoughtSignature || "skip_thought_signature_validator" } : {}) };
+      if (p.functionResponse) { const r = p.functionResponse.response; return { functionResponse: { name: p.functionResponse.name, response: r && typeof r === "object" && !Array.isArray(r) ? r : { resultado: r ?? null } } }; }
+      if (typeof p.text === "string" && p.text.trim()) return { text: p.text };
+      return null;
+    };
+    const contents = [];
+    for (const c of corpo.contents || []) {
+      const parts = (c.parts || []).map(parte).filter(Boolean); if (!parts.length) continue;
+      const role = c.role === "model" ? "model" : "user", u = contents[contents.length - 1];
+      if (u && u.role === role) u.parts.push(...parts); else contents.push({ role, parts });
+    }
+    if (!contents.length || contents[0].role !== "user") contents.unshift({ role: "user", parts: [{ text: "Comece." }] });
+    const body = { contents, generationConfig: { maxOutputTokens: max || 1300 } };
+    const sys = (corpo.systemInstruction?.parts || []).map(p => p.text).filter(Boolean).join("\n"); if (sys) body.systemInstruction = { parts: [{ text: sys }] };
+    const decls = (corpo.tools || []).flatMap(t => t.functionDeclarations || []); if (decls.length) body.tools = [{ functionDeclarations: decls }];
+    if (/gemini-2\.5-flash(?!-lite)/i.test(modelo)) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };   // sem "pensar": resposta rápida
+    else if (g3) body.generationConfig.thinkingConfig = { thinkingLevel: "low" };
+    return body;
+  },
+  resposta(dados) {
+    const c = dados?.candidates?.[0], parts = [];
+    for (const p of c?.content?.parts || []) {
+      if (p.thought) continue;
+      if (p.functionCall) parts.push({ functionCall: { id: "call_" + Math.random().toString(36).slice(2, 10), name: p.functionCall.name, args: p.functionCall.args || {} }, ...(p.thoughtSignature ? { thoughtSignature: p.thoughtSignature } : {}) });
+      else if (p.text) { let t = limparSaida(p.text); if (t && c.finishReason === "MAX_TOKENS") t = fecharFrase(t); if (t) parts.push({ text: t }); }
+    }
+    return { candidates: parts.length ? [{ content: { role: "model", parts } }] : [] };
+  }
+};
 async function chamarAPI(corpo, container) {
   if (SEM_IA_MESA && MESTRE_HUMANO) throw Object.assign(new Error("Mesa sem IA: o Mestre responde."), { semIA: true, cancelado: true });
   let fila = montarFila();
@@ -2462,19 +2499,23 @@ async function chamarAPI(corpo, container) {
     try {
       const cab = { "Content-Type": "application/json", "Authorization": "Bearer " + x.chave };
       if (x.orc) cab["X-Title"] = "RPG Mestre IA";
-      const req = ajustarProvedor(x, paraOpenAI(corpoX, modelo, !!x.orc)), claude = x.prov === "anthropic";
+      const req = ajustarProvedor(x, paraOpenAI(corpoX, modelo, !!x.orc)), claude = x.prov === "anthropic", gem = x.prov === "gemini" || x.prov === "srv_gemini";
       if (modeloMinimo.has(x.id) && req.max_tokens > 800) req.max_tokens = 800;   // pedido mínimo: resposta máxima menor também
-      const resp = await fetch(x.url, { method: "POST", headers: claude ? CLAUDE.cab(x.chave) : cab, signal: ac.signal, body: JSON.stringify(claude ? CLAUDE.pedido(req) : req) });
+      const corpoEnvio = claude ? CLAUDE.pedido(req) : gem ? GEMINI_NATIVO.pedido(corpoX, modelo, req.max_tokens) : req;
+      const urlEnvio = !gem ? x.url : x.srv ? `${x.url}&nativo=1&modelo=${encodeURIComponent(modelo)}` : GEMINI_NATIVO.url(modelo);
+      const cabEnvio = claude ? CLAUDE.cab(x.chave) : gem && !x.srv ? { "Content-Type": "application/json", "x-goog-api-key": x.chave } : cab;
+      const resp = await fetch(urlEnvio, { method: "POST", headers: cabEnvio, signal: ac.signal, body: JSON.stringify(corpoEnvio) });
       let dados = await resp.json().catch(() => ({}));
+      if (Array.isArray(dados)) dados = dados[0] || {};      // o Gemini nativo às vezes devolve o erro dentro de uma lista
       if (claude) dados = CLAUDE.resposta(dados);
       clearTimeout(limite); clearTimeout(aviso);
       DIAG.add(x, resp.ok && !dados.error, resp.ok && !dados.error ? "ok" : `${dados.error?.code || resp.status} ${dados.error?.message || ""}`, Date.now() - t0, ped);
       if (resp.ok && !dados.error) {
         provOk.add(x.prov || (x.orc ? "orc" : x.id));
-        const r = deOpenAI(dados);
+        const r = gem ? GEMINI_NATIVO.resposta(dados) : deOpenAI(dados);
         if (!r.candidates.length) {                       // resposta vazia (comum em modelos gratuitos): pausa breve e tenta o próximo
           bloqueados.set(x.id, Date.now() + 45000);
-          throw Object.assign(new Error(`${modelo}: resposta vazia (${dados.choices?.[0]?.finish_reason || "sem motivo"})`), { vazio: true });
+          throw Object.assign(new Error(`${modelo}: resposta vazia (${dados.choices?.[0]?.finish_reason || dados.candidates?.[0]?.finishReason || dados.promptFeedback?.blockReason || "sem motivo"})`), { vazio: true });
         }
         if (modeloAtual !== x.id && (modeloAtual || x.local)) try { addMsg(x.local ? "🖥 As IAs grátis estão no limite: a IA do seu computador continua a história de onde parou." : "🔄 Reconectado ao Mestre.", "sistema"); } catch (e) {}
         modeloAtual = x.id; r._reserva = reserva;
@@ -2821,6 +2862,7 @@ async function testarChave(tipo, chave) {                // confirma com o próp
     const pv = PROVEDORES.find(p => p.id === tipo);
     const r = tipo === "orc" ? await fetch("https://openrouter.ai/api/v1/auth/key", { headers: { Authorization: "Bearer " + chave } })
             : tipo === "anthropic" ? await fetch("https://api.anthropic.com/v1/models", { headers: CLAUDE.cab(chave) })
+            : pv?.nativo ? await fetch(GEMINI_NATIVO.BASE + "/models?pageSize=100", { headers: { "x-goog-api-key": chave } })
                              : await fetch(pv.url.replace("/chat/completions", "/models"), { headers: { Authorization: "Bearer " + chave } });
     if (r.ok) return { ok: true };
     return { ok: false, msg: r.status === 401 || r.status === 403 ? "O provedor recusou essa chave. Confira se copiou inteira." : `Erro ${r.status} ao testar a chave.` };
