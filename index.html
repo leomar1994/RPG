@@ -19,6 +19,11 @@
   #rd-barra { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 6px 14px; background: var(--painel); border-bottom: 1px solid var(--latao); font-size: .9rem; }
   #rd-barra .rd-t { font-weight: 700; color: var(--latao); } #rd-barra .rd-j.eu { color: var(--latao); font-weight: 700; } #rd-barra .rd-tempo { font-weight: 700; font-variant-numeric: tabular-nums; }
   #rd-barra button { padding: 3px 10px; border-radius: 6px; border: 1px solid var(--borda); background: var(--fundo, #1b1826); color: var(--texto); cursor: pointer; font: inherit; }
+  #npc-retrato { display: flex; align-items: center; gap: 10px; padding: 6px 14px; background: var(--fundo); border-bottom: 1px solid var(--borda); }
+  #npc-retrato[hidden] { display: none; }
+  #npc-retrato img { width: 72px; height: 72px; image-rendering: pixelated; border-radius: 8px; border: 2px solid var(--borda); background: #2a2238; }
+  #npc-retrato .npc-nome { font-weight: 600; }
+  #npc-retrato small { display: block; opacity: .7; }
   #chat { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
   .opcoes { display: flex; flex-wrap: wrap; gap: 8px; max-width: 88%; }
   .opcoes button { padding: 6px 12px; border: 1px solid var(--latao); border-radius: 999px; background: transparent; color: var(--texto); font: inherit; cursor: pointer; }
@@ -490,6 +495,7 @@
   </div>
 </header>
 <div id="rd-barra" hidden></div>
+<div id="npc-retrato" hidden><img alt=""><div><span class="npc-nome"></span><small></small></div></div>
 <main id="chat" aria-live="polite"></main>
 <div id="aguarda-mestre" hidden>⏳ Aguardando o Mestre analisar e responder ao que você pediu… <button type="button" id="aguarda-cancela" class="secundario">Cancelar espera</button></div>
 <form id="barra" onsubmit="return false">
@@ -2264,7 +2270,7 @@ function addMsg(texto, tipo) {
   if (tipo === "mestre") {
     const ex = extrairOpcoes(texto);
     if (ex) { opcoes = ex.opcoes; texto = ex.texto; }
-    if (!restaurando) { contMestre++; try { if (ficha) ficha.desdeDescanso = (ficha.desdeDescanso || 0) + 1; } catch (e) {} try { CENAS_SALVAS.capturar(texto); FALAS_NPC.capturar(texto); } catch (e) {} try { CENA.aposNarracao(); } catch (e) {} try { setTimeout(() => CODEX.compilarAuto(), 1500); } catch (e) {} if (observando) { observando = false; obsCache = { local: ficha?.localAtual || "", texto, n: contMestre }; } }
+    if (!restaurando) { contMestre++; try { if (ficha) ficha.desdeDescanso = (ficha.desdeDescanso || 0) + 1; } catch (e) {} try { CENAS_SALVAS.capturar(texto); FALAS_NPC.capturar(texto); } catch (e) {} try { RETRATO_NPC.aposNarracao(texto); } catch (e) {} try { CENA.aposNarracao(); } catch (e) {} try { setTimeout(() => CODEX.compilarAuto(), 1500); } catch (e) {} if (observando) { observando = false; obsCache = { local: ficha?.localAtual || "", texto, n: contMestre }; } }
   }
   if (!restaurando && (tipo === "mestre" || tipo === "jogador")) registrarLinha(tipo, texto);
   if (!restaurando && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE) && (tipo === "mestre" || tipo === "jogador")) try { CODEX.log(tipo === "mestre" ? "narracao" : "acao", texto); if (opcoes.length) CODEX.log("opcoes", opcoes.join(" | "), { opcoes }); } catch (e) {}   // guarda as últimas linhas da campanha
@@ -6984,6 +6990,66 @@ async function executarCombate({ inimigos, mapa, ambiente }) {
   try { if (C3.ok && C3.S?.on) C3.ligar(false); } catch (e) {}   // tabuleiro sempre em 2D (imagens PNG)
   return new Promise(resolve => { cb.resolve = resolve; });
 }
+/* ---------- Retratos de NPC no diálogo: imagens no Supabase (bucket rpg-retratos), expressão escolhida pelo app; NPC sem retrato = nada aparece ---------- */
+const RETRATO_NPC = (() => {
+  let indice = null, tentou = 0, carregando = null;
+  const base = () => NUVEM_CFG.url + "/storage/v1/object/public/rpg-retratos/";
+  const EXPR = [["Aggression", /\b(ameac\w*|rosna\w*|grita\w*|furios\w*|raiva|enfurec\w*|bate (?:na|o)\w* mesa|punho\w*|hostil|hostis|esbraveja\w*|ordena\w*|cala a boca|fora daqui|saia)\b/],
+    ["Sadness", /\b(suspira\w*|triste\w*|lament\w*|chora\w*|infelizmente|luto|perdeu|perdi|morreu|saudade|desculp\w*|cabisbaix\w*|abatid\w*)\b/],
+    ["Smile", /\b(sorri\w*|ri |riu|gargalh\w*|alegre\w*|feliz\w*|obrigad\w*|bem-vind\w*|amig\w*|cordial\w*|animad\w*|satisfeit\w*|elogi\w*)\b/],
+    ["Special", /\b(sussurra\w*|misterios\w*|segredo\w*|pisca\w*|malicios\w*|de lado|conspir\w*|baixa a voz|enigmatic\w*|olhar astuto)\b/],
+    ["Talk", /\b(diz|disse|fala|falou|responde\w*|pergunta\w*|explica\w*|conta|conta-\w+|afirma\w*|comenta\w*|avisa\w*|menciona\w*)\b|["“”«»]/]];
+  async function carregar() {
+    if (indice) return indice;
+    if (carregando) return carregando;
+    if (Date.now() - tentou < 60000) return [];
+    tentou = Date.now();
+    return carregando = (async () => {
+      try {
+        const sb = await NUVEM.cliente(); if (!sb) return [];
+        const { data, error } = await sb.from("rpg_retratos_npc").select("id,nome,papeis"); if (error) return [];
+        indice = (data || []).map(r => { const pp = String(r.papeis || "").split("|").map(x => norm(x).trim().replace(/[^a-z0-9 ]/g, "")).filter(Boolean).join("|"); return { id: r.id, nome: r.nome, pp, re: new RegExp("\\b(?:" + pp + ")\\b") }; }).filter(r => r.pp);
+        return indice;
+      } catch (e) { return []; } finally { carregando = null; }
+    })();
+  }
+  const frases = t => String(t).split(/(?<=[.!?…])\s+|\n+/);
+  function achar(texto, idx) {
+    const n = norm(texto);
+    let melhor = null;                                           // 1) NPC registrado no mundo, citado pelo nome (vale o papel dele)
+    try {
+      for (const e of Mundo.listaVis("npc")) {
+        const nm = norm(e.nome || ""); if (nm.length < 3) continue;
+        const p = n.indexOf(nm); if (p < 0) continue;
+        const r = idx.find(x => x.re.test(norm((e.papel || "") + " " + (e.subtipo || ""))));
+        if (r && (!melhor || p < melhor.p)) melhor = { r, p, nome: e.nome, papel: e.papel || "" };
+      }
+    } catch (e) {}
+    if (melhor) return melhor;
+    for (const r of idx) {                                       // 2) só o ofício, com artigo ("o ferreiro", "a alquimista")
+      const m = new RegExp("\\b(?:o|a|um|uma|ao|do|da|pelo|pela)\\s+(" + r.pp + ")\\b").exec(n);
+      if (m && (!melhor || m.index < melhor.p)) melhor = { r, p: m.index, nome: "", papel: m[1] };
+    }
+    return melhor;
+  }
+  function expressao(texto, f) {
+    const alvo = norm(f.nome || f.papel); const fr = frases(texto).map(norm), i = fr.findIndex(x => alvo && x.includes(alvo));
+    const trecho = (i >= 0 ? fr.slice(i, i + 2) : fr.slice(0, 2)).join(" ");
+    for (const [nome, re] of EXPR) if (re.test(trecho)) return nome;
+    return "Calm";
+  }
+  async function aposNarracao(texto) {
+    const box = $("npc-retrato"); if (!box || !texto || restaurando) return;
+    const idx = await carregar(); const f = idx.length ? achar(texto, idx) : null;
+    if (!f) { box.hidden = true; return; }
+    const img = box.querySelector("img"), url = `${base()}${encodeURIComponent(f.r.id)}/${expressao(texto, f)}.png`;
+    img.onload = () => { box.hidden = false; }; img.onerror = () => { box.hidden = true; };   // sem arquivo no Supabase: não mostra
+    box.querySelector(".npc-nome").textContent = f.nome || f.papel.replace(/^./, c => c.toUpperCase());
+    box.querySelector("small").textContent = f.nome && f.papel ? f.papel : "";
+    img.alt = f.nome || f.papel; img.src = url;
+  }
+  return { aposNarracao, achar, expressao, carregar, _setIndice: v => { indice = v; } };
+})();
 /* ---------- Combate automático: o APP percebe na narração que criaturas atacam e abre o tabuleiro (a IA só narra) ---------- */
 const COMBATE_AUTO = (() => {
   const NUM = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, varios: 3, varias: 3, alguns: 3, algumas: 3, bando: 3, grupo: 3, horda: 4, matilha: 3, par: 2, dupla: 2 };
