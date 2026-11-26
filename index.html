@@ -483,7 +483,7 @@
   <img id="av-topo" class="av-topo" alt="Avatar (abre a ficha)" hidden>
   <h1 id="nome-personagem"></h1>
   <div id="resumo-ficha"></div>
-  <button id="voltar-menu" type="button" title="Salva e volta ao menu inicial">🏠 Menu</button> <button id="abrir-ficha" type="button">📜 Ficha</button> <button id="abrir-codex" type="button">📖 Codex</button> <button id="abrir-cena" type="button" title="Estado da cena e conversa entre NPCs">🎬 Cena</button> <button id="abrir-habil" type="button" title="Habilidades da sua classe (D&D 5e)">⚔ Habilidades</button> <button id="abrir-corpos" type="button" hidden title="Corpos de aventureiros mortos por aqui">☠ Corpos</button> <button id="abrir-bolsa" type="button">🎒 Bolsa</button> <button id="abrir-salvar" type="button" title="Salva o jogo (personagem, campanha e mundo) em um arquivo">💾 Salvar</button> <button id="abrir-resumo" type="button" title="Salva o resumo da campanha em arquivo .txt">📄 Resumo</button> <button id="abrir-equip" type="button">⚔ Equip.</button> <button id="abrir-loja" type="button" hidden>🛒 Loja</button> <button id="abrir-magias" type="button" hidden>✨ Magias</button> <button id="abrir-oficio" type="button" hidden>⚒ Ofício</button> <button id="abrir-taverna" type="button" title="Ir à taverna: comer, beber, descansar e pegar missões">🍺 Taverna</button> <button id="abrir-mundomapa" type="button">🌍 Mapa</button>
+  <button id="voltar-menu" type="button" title="Salva e volta ao menu inicial">🏠 Menu</button> <button id="abrir-ficha" type="button">📜 Ficha</button> <button id="abrir-codex" type="button">📖 Codex</button> <button id="abrir-cena" type="button" title="Estado da cena e conversa entre NPCs">🎬 Cena</button> <button id="abrir-habil" type="button" title="Habilidades da sua classe (D&D 5e)">⚔ Habilidades</button> <button id="abrir-corpos" type="button" hidden title="Corpos de aventureiros mortos por aqui">☠ Corpos</button> <button id="abrir-bolsa" type="button">🎒 Bolsa</button> <button id="abrir-salvar" type="button" title="O jogo salva sozinho a cada jogada. Toque para ver onde está salvo.">💾 Salvo automático</button> <button id="abrir-resumo" type="button" title="Salva o resumo da campanha em arquivo .txt">📄 Resumo</button> <button id="abrir-equip" type="button">⚔ Equip.</button> <button id="abrir-loja" type="button" hidden>🛒 Loja</button> <button id="abrir-magias" type="button" hidden>✨ Magias</button> <button id="abrir-oficio" type="button" hidden>⚒ Ofício</button> <button id="abrir-taverna" type="button" title="Ir à taverna: comer, beber, descansar e pegar missões">🍺 Taverna</button> <button id="abrir-mundomapa" type="button">🌍 Mapa</button>
   <div id="xp-barra"><div id="xp-preenchimento"></div></div>
   <div id="barras">
     <div class="barra"><span>Vida</span><div class="trilho"><div id="b-vida" class="fill vida"></div></div><b id="n-vida"></b></div>
@@ -9534,7 +9534,7 @@ const regOk = r => {                                   // registros antigos, imp
 const lerSaves = () => { try { const a = JSON.parse(localStorage.getItem(CHAVE_SAVES)); return (Array.isArray(a) ? a : []).map(regOk).filter(Boolean); } catch { return []; } };
 let avisouCheio = false;
 const gravarSaves = lista => {
-  try { localStorage.setItem(CHAVE_SAVES, JSON.stringify(lista)); if (lista.length) localStorage.setItem("rpg-mesa:ja-salvou", "1"); agendarArquivo(); try { NUVEM.enviar(); } catch (e) {} return true; } catch (e) { console.warn("Não foi possível salvar:", e); }
+  try { localStorage.setItem(CHAVE_SAVES, JSON.stringify(lista)); if (lista.length) localStorage.setItem("rpg-mesa:ja-salvou", "1"); try { marcarSalvo(); } catch (e) {} agendarArquivo(); try { NUVEM.enviar(); } catch (e) {} return true; } catch (e) { console.warn("Não foi possível salvar:", e); }
   try {                                                // cota cheia: o avatar é automático (raça/subraça/classe), então não precisa ocupar espaço
     const leve = lista.map(r => ({ ...r, ficha: { ...r.ficha, avatar: retratoExato(r.ficha.raca, r.ficha.classe, r.ficha.subraca) ? "" : r.ficha.avatar } }));
     localStorage.setItem(CHAVE_SAVES, JSON.stringify(leve)); return true;
@@ -9899,26 +9899,26 @@ async function verificarArmazenamento() {
   if (window.showDirectoryPicker) { try { pastaH = await idb("readonly", st => st.get("pasta")) || null; if (pastaH && (await pastaPermissao(pastaH, false))) await lerPasta(pastaH); } catch {} atualizarBotoesPasta(); }
   if (window.showSaveFilePicker) { try { arqHandle = await idb("readonly", st => st.get("arq")) || null; if (arqHandle && !lerSaves().length) toastStorage("📁 Há um arquivo de auto-salvar. Toque em “Carregar jogo salvo” para recuperar os personagens dele."); } catch {} }
 }
-async function salvarJogo() {                          // só existe dentro do jogo: grava no aparelho e em arquivo
+let ultSalvo = 0;
+function marcarSalvo() {                               // mostra no botão a hora do último salvamento automático
+  ultSalvo = Date.now(); const b = $("abrir-salvar"); if (!b) return;
+  b.textContent = `💾 Salvo ${new Date(ultSalvo).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+}
+setInterval(() => { try { if (ficha.id && !ficha.morto && !document.hidden) salvarPersonagem(); } catch (e) {} }, 30000);   // além de salvar a cada jogada, grava a cada 30 s
+async function salvarJogo() {                          // o jogo já salva sozinho; aqui o jogador só vê onde e, uma vez, escolhe a pasta
   if (!ficha.id) return;
   try { salvarPersonagem(); } catch {}
+  const onde = ["neste navegador"]; if (NUVEM.logado()) onde.push("na sua conta ☁");
   try {
-    if (window.showDirectoryPicker) {
-      if (!pastaH) { pastaH = await showDirectoryPicker({ mode: "readwrite", id: "rpg-saves" }); await idb("readwrite", st => st.put(pastaH, "pasta")); atualizarBotoesPasta(); }
-      if (await escreverPasta()) { addMsg(`💾 Jogo salvo na pasta “${pastaH.name}”. Na próxima vez, abra essa pasta em “Escolher pasta de saves”: os personagens aparecem na lista.`, "sistema"); return; }
-    }
-  } catch (e) { if (e.name !== "AbortError") console.warn(e); }
-  try {
-    if (window.showSaveFilePicker && !window.showDirectoryPicker) {
-      if (!arqHandle) await escolherArquivoAuto();
-      if (arqHandle) {
-        const w = await arqHandle.createWritable(); await w.write(JSON.stringify(montarBackup())); await w.close();
-        addMsg("💾 Jogo salvo no aparelho e no arquivo escolhido. Os próximos saves também vão para esse arquivo.", "sistema"); return;
+    if (window.showDirectoryPicker && !pastaH && lerLS("pasta_oferecida") !== "sim") {      // uma única vez: pasta no computador para o auto-salvar também gravar lá
+      try { localStorage.setItem("pasta_oferecida", "sim"); } catch (e) {}
+      if (confirm("O jogo já salva sozinho a cada jogada. Quer também guardar uma cópia numa pasta do seu computador? (Escolha uma vez; depois o jogo grava lá sozinho.)")) {
+        pastaH = await showDirectoryPicker({ mode: "readwrite", id: "rpg-saves" }); await idb("readwrite", st => st.put(pastaH, "pasta")); atualizarBotoesPasta();
       }
     }
-  } catch (e) { console.warn(e); }
-  baixarJSON(`rpg-jogo-${norm(ficha.nome || "jogo").replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.json`, montarBackup());
-  addMsg("💾 Jogo salvo no aparelho e baixado como arquivo (pasta Downloads). Para continuar depois, use “Carregar jogo salvo”.", "sistema");
+    if (pastaH && await escreverPasta()) onde.push(`na pasta “${pastaH.name}”`);
+  } catch (e) { if (e.name !== "AbortError") console.warn(e); }
+  addMsg(`💾 Salvo automaticamente ${onde.join(", ")}. Você não precisa salvar à mão.`, "sistema");
 }
 $("abrir-salvar").addEventListener("click", salvarJogo);
 for (const id of ["pasta-abrir", "pasta-abrir2"]) $(id).addEventListener("click", () => abrirPasta(false));
