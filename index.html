@@ -812,7 +812,7 @@
   <div class="painel-lista">
     <button type="button" class="voltar-btn" id="voltar-personagens">↩ Voltar</button>
     <h2>Seus personagens</h2>
-    <p class="dica">Escolha um personagem para continuar a história dele de onde parou, ou crie um novo: a campanha do personagem novo é escolhida depois de criá-lo.</p>
+    <p class="dica">Escolha um personagem para continuar a história dele de onde parou, ou crie um novo. Aqui só aparecem os personagens da campanha escolhida.</p>
     <div id="lista-personagens"></div>
     <div class="acoes-topo">
       <button id="novo-personagem">➕ Novo personagem</button>
@@ -4991,6 +4991,14 @@ function contextoAventura() {
   const m = e.mundos[a.mundo], c = m?.c[a.camp]; if (!c) return "";
   return `\n\nAVENTURA: ${e.n}. ESTILO DA EDIÇÃO: ${e.estilo} MUNDO: ${m.n} — ${m.d} CAMPANHA: ${c.t}. PREMISSA: ${c.r} SEGREDOS E ATOS (só para você: revele aos poucos, pela história e pelas ações do jogador, nunca de uma vez): ${c.s} Conduza a campanha por esses atos ao longo de várias sessões.${REGRA_ROTA}${rotaTxt(a)}`;
 }
+let avAntes = false;
+// cada personagem fica preso à campanha dele: mesma campanha pronta, ou o mesmo texto do jogador
+function mesmaAventura(a, b) {
+  if (!a || !b) return false;
+  if (a.custom || b.custom) return !!a.custom && !!b.custom && a.custom.trim() === b.custom.trim();
+  if (a.auto || b.auto) return false;                        // "a IA cria" é sempre uma campanha nova
+  return a.era === b.era && Number(a.mundo) === Number(b.mundo) && Number(a.camp) === Number(b.camp);
+}
 let aventuraPendente = null;                                 // campanha escolhida em "Quero jogar", usada ao começar o personagem
 function escolherAventura(jog = [], pre = false) {
   if (!pre && aventuraPendente && jog.length < 2) { const a = aventuraPendente; aventuraPendente = null; aventuraSolo = a; Mundo.sincronizar(a); if (Mundo.ativoNoModo()) Mundo.setMeta({ aventura: a }); $("aventura-solo").hidden = true; salvarPersonagem(); abrirMundo(jog); return; }
@@ -5005,8 +5013,8 @@ function escolherAventura(jog = [], pre = false) {
   const previa = () => { const e = ERAS[era.value], m = e.mundos[mundo.value], c = m.c[camp.value]; $("av-previa").textContent = `${e.estilo}\n\n🌍 ${m.n}: ${m.d}\n\n📖 ${c.t}: ${c.r}`; };
   era.onchange = () => { mundos(); camps(); previa(); }; mundo.onchange = () => { camps(); previa(); }; camp.onchange = previa;
   mundos(); camps(); previa();
-  $("av-pular").hidden = !pre; $("av-pular").onclick = () => { $("aventura-solo").hidden = true; mostrarLista(); };
-  const iniciar = a => { if (pre) { aventuraPendente = a; $("aventura-solo").hidden = true; const pr = $("av-pendente"); if (pr) { pr.hidden = false; pr.textContent = "🌍 Campanha escolhida: " + (a.custom ? (a.mundo || "a sua") + " (texto seu)" : a.auto ? "criada pela IA" : (ERAS.find(e => e.id === a.era)?.mundos[a.mundo]?.n || "") + " — " + (ERAS.find(e => e.id === a.era)?.mundos[a.mundo]?.c[a.camp]?.t || "")) + ". Vale para o próximo personagem que começar."; } mostrarLista(); return; }
+  avAntes = pre; $("av-pular").hidden = true; $("av-pular").onclick = () => { $("aventura-solo").hidden = true; mostrarLista(); };
+  const iniciar = a => { if (pre) { aventuraPendente = a; $("aventura-solo").hidden = true; const pr = $("av-pendente"); if (pr) { pr.hidden = false; pr.textContent = "🌍 Campanha escolhida: " + (a.custom ? (a.mundo || "a sua") + " (texto seu)" : a.auto ? "criada pela IA" : (ERAS.find(e => e.id === a.era)?.mundos[a.mundo]?.n || "") + " — " + (ERAS.find(e => e.id === a.era)?.mundos[a.mundo]?.c[a.camp]?.t || "")) + ". Só aparecem os personagens desta campanha."; const tr = Object.assign(document.createElement("button"), { type: "button", className: "secundario", textContent: "🔁 Trocar campanha", style: "margin-left:8px" }); tr.onclick = () => { $("criacao").hidden = true; $("personagens").hidden = true; escolherAventura([], true); }; pr.append(tr); } $("criacao").hidden = false; mostrarLista(); window.scrollTo(0, 0); return; }
     aventuraSolo = a; Mundo.sincronizar(a); if (a && Mundo.ativoNoModo()) Mundo.setMeta({ aventura: a }); $("aventura-solo").hidden = true; salvarPersonagem(); abrirMundo(jog); };
   $("av-ok").onclick = () => iniciar({ era: ERAS[era.value].id, mundo: Number(mundo.value), camp: Number(camp.value) });
   $("av-sorte").onclick = () => { const e = Math.floor(Math.random() * ERAS.length), m = Math.floor(Math.random() * ERAS[e].mundos.length), c = Math.floor(Math.random() * ERAS[e].mundos[m].c.length); iniciar({ era: ERAS[e].id, mundo: m, camp: c }); };
@@ -9666,7 +9674,9 @@ let campAnterior = null;
 // ----- Escolha de papel -----
 $("papel-jogador").addEventListener("click", () => {          // 1º o personagem: salvo = volta direto à história dele; novo = cria e só depois escolhe a campanha
   $("papel").hidden = true; aventuraPendente = null; const pr = $("av-pendente"); if (pr) pr.hidden = true;
-  $("criacao").hidden = false; mostrarLista(); window.scrollTo(0, 0);
+  const st = Rede.estado;
+  if (st.online && !st.anfitriao) { $("criacao").hidden = false; mostrarLista(); window.scrollTo(0, 0); return; }   // entrou na sala de outro: a campanha é a de quem conduz
+  escolherAventura([], true);                                   // 1º a campanha; depois só os personagens dela (ou um novo)
 });
 $("papel-mestre").addEventListener("click", () => {
   $("papel").hidden = true; $("criacao").hidden = true; $("mesa-mestre").hidden = false;
@@ -10322,7 +10332,8 @@ function cartaoPersonagem(reg) {
 function excluirMorto(id) { try { gravarSaves(lerSaves().filter(r => r.id !== id)); } catch (e) {} try { apagarDaPasta(id)?.catch?.(() => {}); } catch (e) {} }
 function mostrarLista() {
   try { const todos = lerSaves(), mortos = todos.filter(r => r.ficha?.morto); if (mortos.length) { gravarSaves(todos.filter(r => !r.ficha?.morto)); mortos.forEach(r => { try { apagarDaPasta(r.id)?.catch?.(() => {}); } catch (e) {} }); } } catch (e) {}
-  const saves = lerSaves().sort((a, b) => b.atualizadoEm - a.atualizadoEm);
+  let saves = lerSaves().sort((a, b) => b.atualizadoEm - a.atualizadoEm);
+  if (aventuraPendente) saves = saves.filter(r => !r.mestreHumano && (r.aventura ? mesmaAventura(r.aventura, aventuraPendente) : !(r.campanha?.length)));   // outra campanha: não aparece (não sobrescreve)
   $("personagens").hidden = saves.length === 0;
   $("lista-personagens").replaceChildren(...saves.map(cartaoPersonagem));
 }
@@ -10335,9 +10346,9 @@ function voltarAoMenu(perguntar) {                       // salva e recarrega: v
 }
 $("voltar-menu").addEventListener("click", () => voltarAoMenu(true));
 $("voltar-personagens").addEventListener("click", () => { $("personagens").hidden = true; $("papel").hidden = false; });
-$("voltar-criacao").addEventListener("click", () => { if (lerSaves().length) mostrarLista(); else $("papel").hidden = false; window.scrollTo(0, 0); });
+$("voltar-criacao").addEventListener("click", () => { mostrarLista(); if ($("personagens").hidden) { if (aventuraPendente) { $("criacao").hidden = true; escolherAventura([], true); } else $("papel").hidden = false; } window.scrollTo(0, 0); });
 $("voltar-aventura").addEventListener("click", () => {
-  if (!$("av-pular").hidden) { $("aventura-solo").hidden = true; $("papel").hidden = false; return; }   // veio de "Quero jogar": volta à tela inicial
+  if (avAntes) { avAntes = false; aventuraPendente = null; $("aventura-solo").hidden = true; $("criacao").hidden = true; $("personagens").hidden = true; $("papel").hidden = false; return; }   // veio de "Quero jogar": volta à tela inicial
   voltarAoMenu(true);
 });
 $("voltar-espera").addEventListener("click", () => voltarAoMenu(true));
