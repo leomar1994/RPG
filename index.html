@@ -482,7 +482,7 @@
   <img id="av-topo" class="av-topo" alt="Avatar (abre a ficha)" hidden>
   <h1 id="nome-personagem"></h1>
   <div id="resumo-ficha"></div>
-  <button id="voltar-menu" type="button" title="Salva e volta ao menu inicial">🏠 Menu</button> <button id="abrir-ficha" type="button">📜 Ficha</button> <button id="abrir-codex" type="button">📖 Codex</button> <button id="abrir-cena" type="button" title="Estado da cena e conversa entre NPCs">🎬 Cena</button> <button id="abrir-trama" type="button" title="Pontos de trama e traços do personagem">✨ Trama</button> <button id="abrir-habil" type="button" title="Habilidades da sua classe (D&D 5e)">⚔ Habilidades</button> <button id="abrir-corpos" type="button" hidden title="Corpos de aventureiros mortos por aqui">☠ Corpos</button> <button id="abrir-bolsa" type="button">🎒 Bolsa</button> <button id="abrir-salvar" type="button" title="Salva o jogo (personagem, campanha e mundo) em um arquivo">💾 Salvar</button> <button id="abrir-resumo" type="button" title="Salva o resumo da campanha em arquivo .txt">📄 Resumo</button> <button id="abrir-equip" type="button">⚔ Equip.</button> <button id="abrir-loja" type="button" hidden>🛒 Loja</button> <button id="abrir-magias" type="button" hidden>✨ Magias</button> <button id="abrir-oficio" type="button" hidden>⚒ Ofício</button> <button id="abrir-taverna" type="button" title="Ir à taverna: comer, beber, descansar e pegar missões">🍺 Taverna</button> <button id="abrir-mundomapa" type="button">🌍 Mapa</button>
+  <button id="voltar-menu" type="button" title="Salva e volta ao menu inicial">🏠 Menu</button> <button id="abrir-ficha" type="button">📜 Ficha</button> <button id="abrir-codex" type="button">📖 Codex</button> <button id="abrir-cena" type="button" title="Estado da cena e conversa entre NPCs">🎬 Cena</button> <button id="abrir-habil" type="button" title="Habilidades da sua classe (D&D 5e)">⚔ Habilidades</button> <button id="abrir-corpos" type="button" hidden title="Corpos de aventureiros mortos por aqui">☠ Corpos</button> <button id="abrir-bolsa" type="button">🎒 Bolsa</button> <button id="abrir-salvar" type="button" title="Salva o jogo (personagem, campanha e mundo) em um arquivo">💾 Salvar</button> <button id="abrir-resumo" type="button" title="Salva o resumo da campanha em arquivo .txt">📄 Resumo</button> <button id="abrir-equip" type="button">⚔ Equip.</button> <button id="abrir-loja" type="button" hidden>🛒 Loja</button> <button id="abrir-magias" type="button" hidden>✨ Magias</button> <button id="abrir-oficio" type="button" hidden>⚒ Ofício</button> <button id="abrir-taverna" type="button" title="Ir à taverna: comer, beber, descansar e pegar missões">🍺 Taverna</button> <button id="abrir-mundomapa" type="button">🌍 Mapa</button>
   <div id="xp-barra"><div id="xp-preenchimento"></div></div>
   <div id="barras">
     <div class="barra"><span>Vida</span><div class="trilho"><div id="b-vida" class="fill vida"></div></div><b id="n-vida"></b></div>
@@ -1114,7 +1114,7 @@ REGRAS ABSOLUTAS SOBRE DADOS:
 - Narração de teste resolvido: no máximo 2 parágrafos curtos, só a consequência do veredito, e termine com OPÇÕES.
 - Não peça teste para ações triviais ou sem risco; apenas narre.
 - Nunca contradiga o resultado recebido nem peça nova rolagem para a mesma ação.
-- Se o resultado trouxer sucesso_excepcional (total 50% acima da CD), revele UMA dica extra útil e concreta, sem números nem a palavra "bônus": o aplicativo já aplica um bônus oculto na próxima jogada do jogador.
+- Se o resultado trouxer sucesso_excepcional (total 10 ou mais acima da CD), revele UMA dica extra útil e concreta, sem números nem a palavra "bônus": o aplicativo já aplica um bônus oculto na próxima jogada do jogador.
 
 CONDUÇÃO:
 - Termine cada narração com uma situação aberta que convide o jogador a agir. Nunca decida ações, falas ou pensamentos do personagem do jogador.
@@ -1158,9 +1158,9 @@ VIDA:
 
 // Versão curta do prompt para as IAs reservas (limites pequenos, seguem pior um texto longo): respostas diretas, opções e funções sempre.
 const SYSTEM_ENXUTO = `Você é o Mestre de D&D 5e (português do Brasil, segunda pessoa). MODO ENXUTO: seja DIRETO, seja o MAIS RESUMIDO possível, ordenando por importância: diga primeiro o que muda a situação (perigo, pista, resultado da ação, quem fala e o que quer) e omita o resto. Nunca corte informação necessária para ele decidir. TAMANHO: no máximo 4 frases curtas (cerca de 70 palavras) por narração, mais as opções. Vá direto ao ponto, sem preâmbulo nem floreio, e SEMPRE termine a última frase: se faltar espaço, corte detalhes do começo ou do meio, nunca deixe uma frase pela metade.
-OBRIGATÓRIO: toda resposta que não chame função termina com uma linha só "OPÇÕES:" e, abaixo, 3 a 4 linhas "1) ação curta" (até 8 palavras cada), com a perícia e a CD entre parênteses quando a ação pedir teste, ex.: "1) Seguir os rastros (Sobrevivência CD 12)". Se a mensagem do jogador trouxer "[TESTE JÁ ROLADO PELO APLICATIVO", NÃO peça teste: narre o resultado.
+OBRIGATÓRIO: toda resposta que não chame função termina com uma linha só "OPÇÕES:" e, abaixo, 3 a 4 linhas "1) ação curta" (até 8 palavras cada), com a perícia e a CD entre parênteses quando a ação pedir teste, ex.: "1) Seguir os rastros (Sobrevivência CD 13)". A perícia tem de combinar com a ação (força bruta, quebrar, empurrar = Atletismo; esconder-se = Furtividade; abrir fechadura = Prestidigitação). CDs: 12 fácil, 15 média, 18 difícil, 20+ muito difícil; nunca abaixo de 12 (o aplicativo sobe CDs menores). Se a mensagem do jogador trouxer "[TESTE JÁ ROLADO PELO APLICATIVO", NÃO peça teste: narre o resultado.
 FUNÇÕES (use sempre; nunca narre o resultado no lugar delas):
-- solicitar_teste_dado: ação arriscada ou incerta e armadilhas (pericia_atributo, cd 10/15/20, motivo). Um teste por vez, no máximo 1 frase antes, sem narrar o desfecho e sem rolar dados.
+- solicitar_teste_dado: ação arriscada ou incerta e armadilhas (pericia_atributo, cd 12/15/18/20, motivo). Um teste por vez, no máximo 1 frase antes, sem narrar o desfecho e sem rolar dados.
 - alterar_vida: SEMPRE que o personagem sofrer dano (armadilha, queda, golpe, veneno) ou se curar. variacao negativa para dano (1d6 a 2d6 nos níveis 1 a 5, ex.: -4) e motivo. Se a narração diz que ele se feriu, a função DEVE ser chamada.
 - conceder_xp: ao fim de combate, enigma ou missão. atualizar_inventario: item ganho, perdido ou consumido. iniciar_combate: quando uma luta começar (sem narrar a luta). registrar_mapa_local: ao apresentar vila ou cidade. mudar_local: sempre que o personagem chegar a um lugar (nome estável; saidas = lugares ligados). registrar_fato: mudança permanente. alterar_morto: corpo do MUNDO que mudou. saquear_morto: o jogador pega item de um corpo. Obedeça o bloco MUNDO PERSISTENTE.
 Depois de um teste, narre exatamente o VEREDITO recebido em no máximo 2 parágrafos curtos (sucesso com complicação = consegue mas a complicação acontece; falha com avanço = não consegue mas ganha o que foi indicado; falha = custo ou dano); se vier sucesso_excepcional, acrescente UMA dica extra concreta, sem citar números nem bônus. Nunca decida ações do jogador nem invente números de vida. Vida 0 = caído: 1 frase, sem opções (o app decide entre poção e morte definitiva); se o app avisar que morreu, narre a morte em 2 frases.`;
@@ -1642,7 +1642,7 @@ const contextoGrupo = () =>
    ===================================================================== */
 // Dano = variação negativa, cura = positiva. A vida fica sempre entre 0 e a Vida Máxima.
 function aplicarVida({ variacao, motivo }) {
-  try { if (/descanso longo|dorm[ei]u? a noite|noite de sono|8 horas/i.test(String(motivo || ""))) { TRAMA.recarregar(); HABIL.descanso("longo"); } else if (/descanso curto/i.test(String(motivo || ""))) HABIL.descanso("curto"); } catch (e) {}
+  try { if (/descanso longo|dorm[ei]u? a noite|noite de sono|8 horas/i.test(String(motivo || ""))) { HABIL.descanso("longo"); } else if (/descanso curto/i.test(String(motivo || ""))) HABIL.descanso("curto"); } catch (e) {}
   const v = Math.round(Number(variacao)) || 0, antes = ficha.vidaAtual;
   ficha.vidaAtual = Math.min(ficha.vidaMaxima, Math.max(0, antes + v));
   const delta = ficha.vidaAtual - antes;
@@ -2163,7 +2163,7 @@ function extrairOpcoes(texto) {
     .replace(/(^|[^\d])(?<!CD\s{0,2})([1-6])[ \t]*\)[ \t]*/g, "$1\n$2) ");   // "boatos4) Falar" → nova linha antes de cada "N)"
   const opcoes = resto.split("\n").map(l => (l.match(/^\s*\**\s*(?:\d+|[-•*])[\).:\-]?\s+(.+?)\s*$/) || [])[1])
     .filter(Boolean).map(o => o.replace(/\*+/g, "").trim()).filter(Boolean).slice(0, 4);
-  if (!antes || opcoes.length < 2) return null;
+  if (!antes || opcoes.length < 1) return null;
   return { texto: antes, opcoes };
 }
 function addMsg(texto, tipo) {
@@ -2182,6 +2182,8 @@ function addMsg(texto, tipo) {
   const caixaAtual = tipo === "sistema" ? $("chat").querySelector(".opcoes:last-child") : null;   // avisos do app (vida, XP, itens) não apagam as opções
   if (!caixaAtual) document.querySelectorAll(".opcoes").forEach(e => e.remove());   // só as opções da última narração ficam ativas
   if (caixaAtual) $("chat").insertBefore(d, caixaAtual); else $("chat").appendChild(d);
+  if (tipo === "mestre" && opcoes.length && opcoes.length < 3 && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE) && !salaAguardando())
+    for (const p of ["🔍 Observar o ambiente", "➡ Seguir adiante com cautela", "🛡 Ficar em guarda e esperar"]) if (opcoes.length < 3) opcoes.push(p);   // a IA mandou poucas opções: completa
   if (tipo === "mestre" && !opcoes.length && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE) && !salaAguardando()) { opcoes = ["🔍 Observar o ambiente", "🗣 Falar com quem estiver por perto", "➡ Seguir adiante com cautela", "🛡 Ficar em guarda e esperar"]; padrao = true; }   // sem chat livre: nunca fica sem ação
   if (opcoes.length) {
     const caixa = document.createElement("div");
@@ -2706,12 +2708,11 @@ function irTaverna(direto) {
 }
 $("abrir-taverna").addEventListener("click", () => irTaverna(false));
 $("abrir-cena").addEventListener("click", () => CENA.painel());
-$("abrir-trama").addEventListener("click", () => TRAMA.painel());
 $("abrir-habil").addEventListener("click", () => HABIL.painel());
 $("cb-habil").addEventListener("click", () => { if (cb?.mesa) return logCb("⚔ Na mesa em grupo, use as habilidades pelo painel fora do tabuleiro; no tabuleiro elas valem no combate solo."); HABIL.painel(); });
 $("av-m-editor").addEventListener("click", () => EDITOR_CAMP.abrir("av-m-texto"));
 $("m-camp-editor").addEventListener("click", () => EDITOR_CAMP.abrir("m-camp"));
-setInterval(() => { try { TRAMA.botao(); HABIL.botao(); } catch (e) {} }, 4000);
+setInterval(() => { try { HABIL.botao(); } catch (e) {} }, 4000);
 $("abrir-mundomapa").addEventListener("click", () => { $("mm-info").hidden = true; mundoMapaDesenhar(); $("mundomapa-dlg").hidden = false; $("mundomapa-dlg").scrollTop = 0; });
 $("mm-fechar").addEventListener("click", () => { $("mundomapa-dlg").hidden = true; });
 $("mm-svg").addEventListener("click", e => { const n = e.target.closest(".no"); if (n) mundoMapaInfo(n.dataset.no); });
@@ -3085,7 +3086,7 @@ async function chamarIAInterna() {
   iaDesde = Date.now();
   try {
     const dados = await chamarAPI({ principal: true,
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT + "\n\n" + (CENA.contexto() ? CENA.contexto() + "\n\n" : "") + (TRAMA.contexto() ? TRAMA.contexto() + "\n\n" : "") + (HABIL.contexto() ? HABIL.contexto() + "\n\n" : "") + contextoGrupo() + (resumoCampanha ? "\n\nRESUMO DA CAMPANHA (fatos principais até agora; mantenha a coerência com eles):\n" + resumoCampanha : "") + resumoRetomada + contextoAventura() + contextoCemiterio() + Mundo.contexto() + CODEX.contexto() + avisoHomonimo() }] },
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT + "\n\n" + (CENA.contexto() ? CENA.contexto() + "\n\n" : "") + (HABIL.contexto() ? HABIL.contexto() + "\n\n" : "") + contextoGrupo() + (resumoCampanha ? "\n\nRESUMO DA CAMPANHA (fatos principais até agora; mantenha a coerência com eles):\n" + resumoCampanha : "") + resumoRetomada + contextoAventura() + contextoCemiterio() + Mundo.contexto() + CODEX.contexto() + avisoHomonimo() }] },
       tools: FERRAMENTAS,
       contents: recorteDeHistorico(historico)
     }, $("chat"));
@@ -3210,7 +3211,7 @@ async function enviarJogador(texto, nota = null) {
   if (typeof RODADA !== "undefined" && RODADA.ativo) return RODADA.enviar(texto + (nota?.curta ? " " + nota.curta : ""));
   document.querySelectorAll(".reenviar").forEach(b => b.remove());
   travarChat(true);
-  addMsg(texto, "jogador");
+  if (!nota?.jaMostrado) addMsg(texto, "jogador");
   const ataca = /\b(ataco|atacar|atiro|atirar|disparo|disparar|arremes{1,2}o|arremessar|lan[cç]o (?:o|a|um|uma|meu|minha)|golpeio|acerto|investo|parto pra cima|parto para cima|saco (?:a|o|minha|meu)? ?(?:espada|arma|machado|arco|adaga))\b/i.test(texto) && !cb?.ativo;
   const notas = notasParaIA.splice(0);                     // o que o app resolveu sozinho (poção, descanso…) desde a última jogada
   if (nota?.ia) notas.push(nota.ia);
@@ -4255,115 +4256,6 @@ const HABIL = (() => {
   }
   return { pendentes, escolhasNivel, botao, somaMod, golpeDesarmado, lista, tem, painel, contexto, descanso, bonusTeste, aposFalha, nAtaques, podeAtacar, consumirAtaque, inicioTurno, ajustarAtaque, aposAtaque, danoRecebido, modoInimigo, modoJogadorExtra, acoes, est, DADOS, furiaAtiva, formaAtiva };
 })();
-/* ---------- PONTOS DE TRAMA e TRAÇOS (ideias do Cortex, sem sair do D&D 5e) ----------
-   Pontos de trama (0 a 3, começa com 1): ganha 1 a cada falha ou falha crítica num teste.
-     Gastar 1 ponto: +1d6 num teste que falhou (depois de ver o dado), ou criar um detalhe a seu favor na cena.
-   Traços (até 3): frases que definem o personagem ("Ex-soldado"), cada uma ligada a até 2 perícias.
-     Num teste dessas perícias, o jogador pode usar o traço para rolar com VANTAGEM (2d20, fica o maior).
-     Cada traço vale 1 vez por descanso longo. Tudo é resolvido pelo código: a IA só recebe o resultado. */
-const TRAMA = (() => {
-  const MAX = 3;
-  const PERICIAS = ["Acrobacia", "Adestrar Animais", "Arcanismo", "Atletismo", "Atuação", "Enganação", "Furtividade", "História", "Intimidação", "Intuição", "Investigação", "Medicina", "Natureza", "Percepção", "Persuasão", "Prestidigitação", "Religião", "Sobrevivência"];
-  const st = () => {
-    if (!ficha.trama || typeof ficha.trama !== "object") ficha.trama = { pontos: 1, tracos: [] };
-    const t = ficha.trama; t.pontos = Math.max(0, Math.min(MAX, Math.round(Number(t.pontos)) || 0)); t.tracos = Array.isArray(t.tracos) ? t.tracos.slice(0, 3) : []; return t;
-  };
-  const ativo = () => { try { return !!ficha?.id && !ficha.morto && !MESTRE_HUMANO && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE); } catch (e) { return false; } };
-  const grava = () => { try { salvarPersonagem(); } catch (e) {} botao(); };
-  const DETALHES = [                                     // detalhes prontos (sem texto livre: ninguém escreve "eu sou um deus" para enganar a IA)
-    ["🤝 Conheço alguém aqui de outros tempos", "{nome} já conhece uma das pessoas desta cena de outros tempos: um contato que lhe é favorável"],
-    ["🎒 Tenho a ferramenta certa na bolsa", "{nome} carrega uma ferramenta simples e comum (corda, pé de cabra, tocha, giz ou similar) que serve para a situação atual"],
-    ["👂 Já ouvi um boato sobre este lugar", "{nome} se lembra de um boato verdadeiro e útil sobre este lugar ou sobre quem está aqui"],
-    ["🚪 Há uma saída ou esconderijo por perto", "existe perto de {nome} uma saída, atalho ou esconderijo que ainda não tinha sido notado"],
-    ["🎯 O inimigo tem um ponto fraco", "{nome} sabe de um ponto fraco ou hábito do adversário atual que pode ser explorado"],
-    ["💰 Alguém aqui me deve um favor", "alguém nesta cena deve um favor a {nome} e está disposto a pagá-lo agora"]
-  ];
-  function botao() { try { const b = $("abrir-trama"); if (b) b.textContent = `✨ Trama ${ficha?.id ? "●".repeat(st().pontos) + "○".repeat(MAX - st().pontos) : ""}`.trim(); } catch (e) {} }
-
-  // pergunta rápida por cima do dado (o overlay do dado fica aberto atrás)
-  function perguntar(titulo, texto, botoes) {
-    return new Promise(res => {
-      const o = document.createElement("div"); o.id = "trama-pergunta"; o.setAttribute("role", "dialog"); o.setAttribute("aria-modal", "true");
-      o.innerHTML = `<div class="cena-caixa"><h3>${esc(titulo)}</h3><p>${esc(texto)}</p><div class="cena-bts"></div></div>`;
-      botoes.forEach((b, i) => { const e = document.createElement("button"); e.type = "button"; e.textContent = b; if (i === botoes.length - 1) e.className = "secundario"; e.onclick = () => { o.remove(); res(i); }; o.querySelector(".cena-bts").append(e); });
-      document.body.append(o); o.querySelector("button").focus();
-    });
-  }
-  async function antesDoTeste(pericia) {                 // traço que combina com a perícia e ainda não foi usado hoje → oferece vantagem
-    if (!ativo()) return null;
-    const k = norm(pericia), l = st().tracos.filter(t => !t.usado && (t.pericias || []).some(p => norm(p) === k));
-    if (!l.length) return null;
-    const i = await perguntar("✨ Usar um traço?", `${pericia}: um traço seu ajuda aqui. Usar dá VANTAGEM (rola 2 dados e fica o maior). Cada traço vale 1 vez por descanso longo.`, [...l.map(t => `Usar “${t.nome}”`), "Guardar para depois"]);
-    if (i >= l.length) return null;
-    l[i].usado = true; grava(); return l[i].nome;
-  }
-  async function depoisDoTeste(total, cd) {              // falhou e tem ponto: +1d6
-    if (!ativo() || st().pontos < 1) return 0;
-    const falta = cd - total;
-    const i = await perguntar("✨ Ponto de trama", `Você tirou ${total} contra CD ${cd} (faltam ${falta}). Gastar 1 ponto de trama para somar +1d6? Você tem ${st().pontos}.`, ["Gastar 1 ponto (+1d6)", "Aceitar o resultado"]);
-    if (i !== 0) return 0;
-    st().pontos--; grava();
-    return (await rolarD(6, "Ponto de trama: +1d6"))[0];
-  }
-  function ganhar(motivo) {
-    if (!ativo()) return; const t = st(); if (t.pontos >= MAX) return;
-    t.pontos++; grava(); addMsg(`✨ +1 ponto de trama (${motivo}). Agora você tem ${t.pontos}/${MAX}.`, "sistema");
-  }
-  function recarregar() {
-    if (!ficha?.id) return; const t = st(); if (!t.tracos.some(x => x.usado)) return;
-    t.tracos.forEach(x => x.usado = false); grava(); try { addMsg("✨ Seus traços estão disponíveis de novo.", "sistema"); } catch (e) {}
-  }
-  function contexto() {
-    if (!ficha?.id) return ""; const t = st();
-    if (!t.tracos.length) return "";
-    return "TRAÇOS DO PERSONAGEM (parte de quem ele é: use na narração e nas reações dos NPCs; vantagem nos testes é aplicada pelo aplicativo): " + t.tracos.map(x => `${x.nome}${x.pericias?.length ? " (" + x.pericias.join(", ") + ")" : ""}`).join("; ") + ".";
-  }
-  function criarDetalhe(texto) {
-    const t = st(), d = String(texto || "").replace(/\s+/g, " ").trim().slice(0, 160);
-    if (!d || t.pontos < 1) return false;
-    t.pontos--; grava();
-    try { CENA.fato(`${ficha.nome || "O aventureiro"} usou um ponto de trama: ${d}`); } catch (e) {}
-    notasParaIA.push(`[APLICATIVO — PONTO DE TRAMA: ${ficha.nome || "o jogador"} gastou 1 ponto de trama para tornar verdade um detalhe a seu favor: "${d}". Incorpore isso à cena como fato já existente, de forma natural e plausível no mundo (se for impossível, dê o efeito mais próximo que faça sentido). Não peça teste para isso.]`);
-    addMsg(`✨ Ponto de trama gasto: “${d}”. O Mestre vai incorporar isso na próxima jogada.`, "sistema");
-    return true;
-  }
-  function painel() {
-    if (!ficha?.id) return;
-    if (!ativo()) return addMsg("Pontos de trama e traços funcionam com o Mestre IA.", "sistema");
-    let o = $("trama-painel"); if (o) o.remove();
-    const t = st();
-    o = document.createElement("div"); o.id = "trama-painel"; o.className = "painel-cena"; o.setAttribute("role", "dialog"); o.setAttribute("aria-modal", "true");
-    const linha = (x, i) => `<div class="trama-traco" data-i="${i}"><input class="tr-nome" maxlength="40" placeholder="Ex.: ${["Ex-soldado da guarda real", "Cresceu nas ruas do porto", "Devoto de Pelor"][i]}" value="${esc(x?.nome || "")}">
-      <select class="tr-p1"><option value="">— perícia —</option>${PERICIAS.map(p => `<option${x?.pericias?.[0] === p ? " selected" : ""}>${p}</option>`).join("")}</select>
-      <select class="tr-p2"><option value="">— perícia —</option>${PERICIAS.map(p => `<option${x?.pericias?.[1] === p ? " selected" : ""}>${p}</option>`).join("")}</select>
-      ${x?.usado ? `<small class="dica">usado hoje</small>` : ""}</div>`;
-    o.innerHTML = `<div class="cena-caixa">
-      <h3>✨ Pontos de trama: ${"●".repeat(t.pontos)}${"○".repeat(MAX - t.pontos)} (${t.pontos}/${MAX})</h3>
-      <p class="dica">Você ganha 1 ponto sempre que falha num teste. Gaste 1 ponto para somar +1d6 num teste que falhou (o jogo pergunta na hora) ou para criar um detalhe a seu favor na cena.</p>
-      <label>Criar um detalhe a seu favor<select id="tr-detalhe">${DETALHES.map((d, i) => `<option value="${i}">${esc(d[0])}</option>`).join("")}</select></label>
-      <div class="cena-bts"><button type="button" id="tr-gastar"${t.pontos < 1 ? " disabled" : ""}>✨ Gastar 1 ponto</button></div>
-      <h3>🎭 Traços</h3>
-      <p class="dica">Até 3 frases que dizem quem o seu personagem é, cada uma ligada a até 2 perícias. Num teste dessas perícias você pode usar o traço para rolar com vantagem (2 dados, fica o maior). Cada traço vale 1 vez por descanso longo.</p>
-      ${[0, 1, 2].map(i => linha(t.tracos[i], i)).join("")}
-      <div class="cena-bts"><button type="button" id="tr-salvar">💾 Salvar traços</button><button type="button" id="tr-fechar" class="secundario">Fechar</button></div></div>`;
-    document.body.append(o);
-    const fechar = () => o.remove();
-    o.addEventListener("click", e => { if (e.target === o) fechar(); });
-    o.querySelector("#tr-fechar").onclick = fechar;
-    o.querySelector("#tr-gastar").onclick = () => { const d = DETALHES[Number(o.querySelector("#tr-detalhe").value)]; if (d && criarDetalhe(d[1].replace("{nome}", ficha.nome || "o aventureiro"))) fechar(); };
-    o.querySelector("#tr-salvar").onclick = () => {
-      const antigos = st().tracos;
-      st().tracos = [...o.querySelectorAll(".trama-traco")].map(d => {
-        const nome = d.querySelector(".tr-nome").value.replace(/\s+/g, " ").trim().slice(0, 40); if (!nome) return null;
-        const pericias = [...new Set([d.querySelector(".tr-p1").value, d.querySelector(".tr-p2").value].filter(Boolean))];
-        const ant = antigos.find(a => norm(a.nome) === norm(nome));
-        return { nome, pericias, usado: !!ant?.usado };
-      }).filter(Boolean);
-      grava(); fechar(); addMsg(st().tracos.length ? `🎭 Traços: ${st().tracos.map(x => x.nome).join(", ")}.` : "🎭 Nenhum traço definido.", "sistema");
-    };
-  }
-  return { antesDoTeste, depoisDoTeste, ganhar, recarregar, contexto, criarDetalhe, painel, botao, estado: st };
-})();
 /* ---------- MOTOR DE REGRAS (zero IA) ----------
    classificar: reconhece pelo texto ações arriscadas (escalar, esgueirar, convencer, arrombar…) e devolve perícia e CD,
    para o app rolar o dado SEM uma chamada extra de IA (antes a IA era chamada só para pedir o teste).
@@ -4489,9 +4381,10 @@ async function escolherOpcao(o) {
   observando = observar;
   const t = testeDaOpcao(o) || (MESTRE_HUMANO ? null : MOTOR.classificar(o));   // sem "(Perícia CD)": o código reconhece ações arriscadas e rola sem pedir à IA
   if (!t || cb?.ativo || ficha?.morto) return enviarJogador(o);
+  addMsg(o, "jogador");                                   // mostra a escolha antes do dado
   const r = await executarTeste(t);
   const res = `${t.pericia_atributo} ${r.total} contra CD ${r.cd}: ${r.grau.replace(/_/g, " ")}${r.critico !== "nenhum" ? " (" + r.critico.replace("_", " ") + ")" : ""}`;
-  return enviarJogador(o, { curta: `(🎲 ${res})`, ia: MOTOR.notaVeredito(t, r) });
+  return enviarJogador(o, { curta: `(🎲 ${res})`, ia: MOTOR.notaVeredito(t, r), jaMostrado: true });
 }
 
 /* =====================================================================
@@ -4516,12 +4409,28 @@ async function rolarD(lados, motivo, qtd = 1) {          // mostra o dado 3D, es
 }
 const reduzirMov = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const fecharDado = () => { $("overlay").classList.remove("ativo"); $("dado").className = ""; };
+// CD mínima do Mestre IA: a IA tende a pedir CD 8–10, fácil demais com os bônus da ficha.
+// Piso = 10 + bônus de proficiência (12 no nível 1, 13 no 5, 14 no 9…). Não vale para resistências nem para Mestre humano.
+const pisoCD = () => 10 + (ficha?.bonusProficiencia || 2);
+function ajustarCD(cd, pericia, resist) {
+  cd = Math.round(Number(cd)) || 12;
+  if (resist || (typeof MESTRE_HUMANO !== "undefined" && MESTRE_HUMANO)) return cd;
+  return Math.min(30, Math.max(pisoCD(), cd));
+}
+// A IA às vezes junta ação de força bruta com a perícia errada (ex.: "Esmagar a caixa (Furtividade)")
+function periciaCoerente(pericia, motivo) {
+  const k = norm(pericia), m = norm(motivo || "");
+  if (/\b(esmag|quebr|destroc|despedac|arrebent|derrub|chut|arromb|empurr|levant)\w*/.test(m) && !/atletismo|forca/.test(k) && !/fechadura|gazua|cadeado/.test(m)) return "Atletismo";
+  return pericia;
+}
 async function executarTeste({ pericia_atributo, cd, motivo }) {
   travarChat(true);
-  // Cálculo: dado + bônus da ficha, comparado com a CD enviada pela IA
+  // Cálculo: dado + bônus da ficha, comparado com a CD enviada pela IA (com piso, ver ajustarCD)
+  if (!(typeof MESTRE_HUMANO !== "undefined" && MESTRE_HUMANO)) pericia_atributo = periciaCoerente(pericia_atributo, motivo);
   const base = calcularBonus(pericia_atributo), rotulo = base.rotulo, conhecido = base.conhecido;
   const resist = /^(resist|salvaguarda)/.test(norm(rotulo)) || /^(resist|salvaguarda)/.test(norm(pericia_atributo));
-  let traco = null; try { if (!resist) traco = await TRAMA.antesDoTeste(pericia_atributo); } catch (e) {}   // traço do personagem: vantagem
+  cd = ajustarCD(cd, pericia_atributo, resist);
+  const traco = null;
   const hb = (() => { try { return HABIL.bonusTeste(pericia_atributo, resist); } catch (e) { return { bonus: 0, notas: [] }; } })();   // habilidades de classe
   const vant = !!traco || hb.modo === "vant";
   let dado = (await rolarD(20, `${motivo} (${pericia_atributo}, CD ${cd})${hb.notas?.length ? " · " + hb.notas.join(", ") : ""}`))[0];
@@ -4537,11 +4446,10 @@ async function executarTeste({ pericia_atributo, cd, motivo }) {
     else if (af.extra) { bonus += af.extra; total += af.extra; addMsg(`🎵 ${af.txt} no teste.`, "sistema"); }
     else if (af.sucesso) { bonus += cd - total; total = cd; addMsg("🍀 Golpe de Sorte: a falha vira sucesso.", "sistema"); }
   } catch (e) {}
-  if (total < cd && dado !== 1 && !resist) try { const d6 = await TRAMA.depoisDoTeste(total, cd); if (d6) { bonus += d6; total += d6; addMsg(`✨ Ponto de trama: +${d6} no teste.`, "sistema"); } } catch (e) {}
   const sucesso = total >= cd;
-  const excepcional = sucesso && total >= Math.floor(cd * 1.5);                   // 50% acima da CD: dica extra e bônus oculto na próxima jogada
+  const excepcional = sucesso && dado !== 20 && total - extraOculto >= cd + 10;     // passou a CD por 10 ou mais (sem contar o bônus oculto): dica extra
   const g = MOTOR.grau(dado, total, cd, pericia_atributo, rotulo, excepcional);    // graus de sucesso decididos pelo código (a IA só narra)
-  if (excepcional) ficha.bonusOculto = { valor: 2 };
+  if (excepcional && !extraOculto) ficha.bonusOculto = { valor: 2 };               // só se este teste não usou um bônus oculto (não vira bola de neve)
   const sinal = bonus >= 0 ? "+" : "−";
   const critico = dado === 20 ? "20 natural!" : dado === 1 ? "1 natural!" : "";
 
@@ -4551,8 +4459,6 @@ async function executarTeste({ pericia_atributo, cd, motivo }) {
   fecharDado();
   addMsg(`🎲 ${pericia_atributo}: ${dado} ${sinal} ${Math.abs(bonus)} = ${total} contra CD ${cd} — ${g.rotulo}${g.extra ? ` (${g.extra})` : ""}`, "sistema");
   try { CODEX.log("teste", `${pericia_atributo} CD ${cd}: ${total} — ${sucesso ? "sucesso" : "falha"} (${motivo || ""})`, { pericia: pericia_atributo, cd, sucesso }); } catch (e) {}
-  if (excepcional) addMsg("✨ Sucesso excepcional! Você percebe mais do que o esperado.", "sistema");
-  if (!resist && (g.grau === "falha" || g.grau === "falha_critica")) try { TRAMA.ganhar("você falhou, mas a história lhe deve uma") } catch (e) {}
 
   // Dados brutos devolvidos à IA (o envio é feito em chamarIA)
   return {
@@ -4561,7 +4467,7 @@ async function executarTeste({ pericia_atributo, cd, motivo }) {
     critico: dado === 20 ? "sucesso_critico" : dado === 1 ? "falha_critica" : "nenhum",
     grau: g.grau, ...(g.complicacao ? { complicacao: g.complicacao } : {}), ...(g.avanco ? { avanco: g.avanco } : {}),
     veredito: g.veredito,
-    ...(excepcional ? { sucesso_excepcional: true, instrucao: "SUCESSO EXCEPCIONAL (50% acima da CD): na narração, revele UMA dica extra útil e concreta sobre o que o jogador investiga ou enfrenta (o que há, onde, como lidar), sem citar números nem a palavra 'bônus'. O aplicativo já deu ao jogador um bônus oculto de +2 na próxima jogada dele; não o mencione." } : {}),
+    ...(excepcional ? { sucesso_excepcional: true, instrucao: "SUCESSO EXCEPCIONAL (10 ou mais acima da CD): na narração, revele UMA dica extra útil e concreta sobre o que o jogador investiga ou enfrenta (o que há, onde, como lidar), sem citar números nem a palavra 'bônus'. O aplicativo já deu ao jogador um bônus oculto de +2 na próxima jogada dele; não o mencione." } : {}),
     aviso: conhecido ? "" : "Perícia não encontrada na ficha; bônus 0 aplicado."
   };
 }
@@ -6308,7 +6214,7 @@ function novaMissaoTaverna() {
 let estalagemAtual = "";
 function abrirEstalagem(nome) { estalagemAtual = nome || "Estalagem"; abrirRegras(estalagemHtml(estalagemAtual)); }
 function descansoLongoPago(motivo) {                     // aplica as regras do descanso longo (vida, magias) sem chamar a IA
-  try { MAGIA.descansoLongo(); } catch (e) {} try { TRAMA.recarregar(); } catch (e) {} try { HABIL.descanso("longo"); } catch (e) {}
+  try { MAGIA.descansoLongo(); } catch (e) {} try { HABIL.descanso("longo"); } catch (e) {}
   const cura = ficha.vidaMaxima - ficha.vidaAtual; if (cura > 0) aplicarVida({ variacao: cura, motivo });
   ficha.desdeDescanso = 0; ficha.curtosHoje = 0; try { mostrarFicha(); } catch (e) {}
 }
@@ -9210,7 +9116,7 @@ async function rodarFilaIA() {
 function resultadoParaIA(m) {                                // a IA continua a cena depois de um teste que ela mesma pediu
   if (!$("m-cumplice").checked || testesDaIA <= 0 || !m.r) return; testesDaIA--;
   const r = m.r;
-  enfileirarIA({ quem: nomeJ(m), rotulo: `resultado de ${m.args?.pericia_atributo}`, alvo: m.id, usuario: `Resultado do teste de ${nomeJ(m)} (${m.args?.pericia_atributo}): ${r.total} contra CD ${r.cd} — ${String(r.resultado).toUpperCase()}${r.critico && r.critico !== "nenhum" ? " (" + String(r.critico).replace("_", " ") + ")" : ""}.${r.sucesso_excepcional ? " SUCESSO EXCEPCIONAL (50% acima da CD): inclua UMA dica extra útil e concreta, sem números nem a palavra bônus; o jogador já recebeu +2 oculto na próxima jogada." : ""} Narre o desfecho.` });
+  enfileirarIA({ quem: nomeJ(m), rotulo: `resultado de ${m.args?.pericia_atributo}`, alvo: m.id, usuario: `Resultado do teste de ${nomeJ(m)} (${m.args?.pericia_atributo}): ${r.total} contra CD ${r.cd} — ${String(r.resultado).toUpperCase()}${r.critico && r.critico !== "nenhum" ? " (" + String(r.critico).replace("_", " ") + ")" : ""}.${r.sucesso_excepcional ? " SUCESSO EXCEPCIONAL (10 ou mais acima da CD): inclua UMA dica extra útil e concreta, sem números nem a palavra bônus; o jogador já recebeu +2 oculto na próxima jogada." : ""} Narre o desfecho.` });
 }
 async function responderComIA(it) {
   if (!it.reaproveitar) historicoNarrador.push({ role: "user", parts: [{ text: it.usuario }] });
