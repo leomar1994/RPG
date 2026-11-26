@@ -483,7 +483,7 @@
   <img id="av-topo" class="av-topo" alt="Avatar (abre a ficha)" hidden>
   <h1 id="nome-personagem"></h1>
   <div id="resumo-ficha"></div>
-  <button id="voltar-menu" type="button" title="Salva e volta ao menu inicial">🏠 Menu</button> <button id="abrir-ficha" type="button">📜 Ficha</button> <button id="abrir-codex" type="button">📖 Codex</button> <button id="abrir-cena" type="button" title="Estado da cena e conversa entre NPCs">🎬 Cena</button> <button id="abrir-habil" type="button" title="Habilidades da sua classe (D&D 5e)">⚔ Habilidades</button> <button id="abrir-corpos" type="button" hidden title="Corpos de aventureiros mortos por aqui">☠ Corpos</button> <button id="abrir-bolsa" type="button">🎒 Bolsa</button> <button id="abrir-salvar" type="button" title="O jogo salva sozinho a cada jogada. Toque para ver onde está salvo.">💾 Salvo automático</button> <button id="abrir-resumo" type="button" title="Salva o resumo da campanha em arquivo .txt">📄 Resumo</button> <button id="abrir-equip" type="button">⚔ Equip.</button> <button id="abrir-loja" type="button" hidden>🛒 Loja</button> <button id="abrir-magias" type="button" hidden>✨ Magias</button> <button id="abrir-oficio" type="button" hidden>⚒ Ofício</button> <button id="abrir-taverna" type="button" title="Ir à taverna: comer, beber, descansar e pegar missões">🍺 Taverna</button> <button id="abrir-mundomapa" type="button">🌍 Mapa</button>
+  <button id="voltar-menu" type="button" title="Salva e volta ao menu inicial">🏠 Menu</button> <button id="abrir-ficha" type="button">📜 Ficha</button> <button id="abrir-codex" type="button">📖 Codex</button> <button id="abrir-cena" type="button" title="Estado da cena e conversa entre NPCs">🎬 Cena</button> <button id="abrir-habil" type="button" title="Habilidades da sua classe (D&D 5e)">⚔ Habilidades</button> <button id="abrir-corpos" type="button" hidden title="Corpos de aventureiros mortos por aqui">☠ Corpos</button> <button id="abrir-bolsa" type="button">🎒 Bolsa</button> <button id="abrir-pergaminho" type="button" title="Pergaminho de Viagem: leva a tavernas conhecidas, ao local da missão ou de volta ao ponto onde você estava">🧭 Pergaminho</button> <button id="abrir-salvar" type="button" title="O jogo salva sozinho a cada jogada. Toque para ver onde está salvo.">💾 Salvo automático</button> <button id="abrir-resumo" type="button" title="Salva o resumo da campanha em arquivo .txt">📄 Resumo</button> <button id="abrir-equip" type="button">⚔ Equip.</button> <button id="abrir-loja" type="button" hidden>🛒 Loja</button> <button id="abrir-magias" type="button" hidden>✨ Magias</button> <button id="abrir-oficio" type="button" hidden>⚒ Ofício</button> <button id="abrir-taverna" type="button" title="Ir à taverna: comer, beber, descansar e pegar missões">🍺 Taverna</button> <button id="abrir-mundomapa" type="button">🌍 Mapa</button>
   <div id="xp-barra"><div id="xp-preenchimento"></div></div>
   <div id="barras">
     <div class="barra"><span>Vida</span><div class="trilho"><div id="b-vida" class="fill vida"></div></div><b id="n-vida"></b></div>
@@ -544,7 +544,7 @@
     <label>Nível inicial <select id="f-nivel"></select></label>
     <fieldset>
       <legend>Atributos</legend>
-      <p class="dica">Clique no dado 🎲 ao lado de cada atributo: rola 4d6 e descarta o menor valor (regra do D&amp;D 5e). Cada atributo só pode ser rolado uma vez. Depois de rolar, use ⇄ para trocar o valor de um atributo com outro.</p>
+      <p class="dica">Clique no dado 🎲 ao lado de cada atributo: rola 4d6 e descarta o menor valor (regra do D&amp;D 5e). Cada atributo tem <b>3 tentativas</b>: o valor fica com o <b>maior</b> resultado e trava na 3ª rolagem (🔒). Depois de travar, use ⇄ para trocar o valor de um atributo com outro.</p>
       <div id="f-atributos"></div>
       <p id="f-aumentos" class="dica" hidden></p>
     </fieldset>
@@ -1160,6 +1160,7 @@ VIDA:
 - NPCs: chame registrar_npc só na PRIMEIRA vez que um NPC com nome aparece (nome, papel, lugar, persona curta); não repita para NPCs já listados e não envie falas (o aplicativo guarda o diálogo sozinho). Mantenha o jeito de cada NPC.
 - ECONOMIA: registre apenas o essencial — lugares novos (mudar_local, uma vez por lugar), mapa de local (registrar_mapa_local, só uma vez), NPCs novos e missões/rota (atualizar_campanha). Use registrar_fato só para mudanças duradouras importantes. Faça todas as chamadas de registro JUNTAS na mesma resposta em que narra, sem repetir e sem narrar nada extra por causa delas. Respostas curtas e diretas.
 - MAPA DO LOCAL: ao apresentar uma vila, cidade ou local com vários pontos de interesse, chame registrar_mapa_local (nome do local e a lista de lugares com tipo) em vez de narrar cada ponto; descreva só a chegada em poucas frases e diga que o mapa está na bolsa. O jogador escolhe o destino no mapa e você narra apenas o trajeto e a cena de lá. Se o local já consta em MAPAS DO JOGADOR, não registre de novo, só acrescente lugares realmente novos.
+- PERGAMINHO DE VIAGEM: todo personagem tem na bolsa um Pergaminho de Viagem (reutilizável, nunca o remova nem o gaste). Quem o usa vai, num instante, a uma taverna que já conheceu, ao local da missão ativa ou de volta ao ponto de onde partiu; o APLICATIVO faz a viagem e avisa você com [APLICATIVO: ...]: não chame mudar_local por isso e narre só a chegada. Sem o pergaminho não existe viagem instantânea: o resto é a pé, a cavalo ou de carroça, com tempo passando.
 - O personagem tem uma bolsa (inventário) controlada pelo aplicativo; o jogador NÃO pode adicionar itens por conta própria, só consumi-los: itens novos só entram quando a história os dá (achados, compras, presentes) e você chama atualizar_inventario. Sempre que ele ganhar, comprar, encontrar, perder ou consumir um item, chame atualizar_inventario (quantidade positiva adiciona, negativa remove) com o peso_kg de uma unidade segundo o D&D 5e. Ao usar um consumível (poção, tocha, flecha), remova uma unidade. Só deixe o jogador usar itens que estão na BOLSA DO JOGADOR. Respeite a carga: acima do limite leve o deslocamento cai 3 m; muito sobrecarregado cai 6 m e há desvantagem em ataques e testes de Força, Destreza e Constituição; acima da capacidade máxima ele não consegue se mover.
 - O personagem tem uma barra de Vida controlada pelo aplicativo. Sempre que ele sofrer dano ou receber cura (poções, magias, descanso), chame alterar_vida com variacao (negativa para dano, positiva para cura) e motivo.
 - Nunca invente valores de vida: use os valores devolvidos (vida_atual e vida_maxima) e a "Vida atual" do contexto. O dano dos inimigos deve ser proporcional ao nível (referência: 1d6 a 2d10 por ataque nos níveis 1 a 5); no modo grupo, aplique o multiplicador de dificuldade ao dano.
@@ -1251,7 +1252,7 @@ const INFO_CLASSE = {
   "Patrulheiro": { salv: ["forca", "destreza"], n: 3, lista: ["adestrar animais", "atletismo", "furtividade", "intuicao", "investigacao", "natureza", "percepcao", "sobrevivencia"] }
 };
 // Equipamento inicial (simplificado a partir do livro). [nome, quantidade, peso de UMA unidade em kg]
-const KIT_BASE = [["Mochila", 1, 2.5], ["Ração de viagem (1 dia)", 3, 0.9], ["Cantil", 1, 2.3], ["Tocha", 2, 0.5], ["Pederneira", 1, 0.5], ["Moeda de ouro", 15, 0.01]];
+const KIT_BASE = [["Mochila", 1, 2.5], ["Ração de viagem (1 dia)", 3, 0.9], ["Cantil", 1, 2.3], ["Tocha", 2, 0.5], ["Pederneira", 1, 0.5], ["Pergaminho de Viagem", 1, 0.01], ["Moeda de ouro", 15, 0.01]];
 const KIT_CLASSE = {
   "Bárbaro": [["Machado grande", 1, 3.2], ["Machadinha", 2, 0.9], ["Azagaia", 4, 0.9]],
   "Bardo": [["Rapieira", 1, 1.4], ["Adaga", 1, 0.5], ["Armadura de couro", 1, 4.5], ["Alaúde", 1, 1.4]],
@@ -1370,6 +1371,8 @@ function completarFicha(f) {   // preenche campos que personagens antigos não t
   f.salvaguardas = INFO_CLASSE[f.classe]?.salv || [];
   if (f.aumentosUsados == null) f.aumentosUsados = aumentosDevidos(f.classe, f.nivel);
   f.modificadores = Object.fromEntries(ATR.map(k => [k, Math.floor((f.atributos[k] - 10) / 2)]));
+  if (!f.pergaminhoV) { f.pergaminhoV = true; if (!f.inventario.some(i => /pergaminho de viagem/i.test(i.nome)) && f.inventario.length < 100) f.inventario.push({ nome: "Pergaminho de Viagem", qtd: 1, peso: 0.01, nota: "" }); }   // personagens antigos ganham o pergaminho
+  f.retorno = f.retorno && f.retorno.id ? { id: String(f.retorno.id).slice(0, 60), nome: String(f.retorno.nome || "").slice(0, 60) } : null;
   return f;
 }
 
@@ -1644,7 +1647,7 @@ const contextoGrupo = () =>
   `Multiplicador de dificuldade: ${multiplicadorDificuldade()}x (aplique apenas ao número de inimigos e ao dano). ` +
   `Teto de XP total do grupo: ${tetoXp()} por combate, enigma ou missão; ${tetoXp("narrativa")} por saída narrativa. O aplicativo divide o XP entre os jogadores. ` +
   `Vida atual: ${ficha.vidaAtual}/${ficha.vidaMaxima}.` +
-  (ficha.missao ? ` MISSÃO ATIVA (aceita na taverna): "${ficha.missao.titulo}" — ${ficha.missao.desc} Recompensa: ${ficha.missao.xp} XP e ${po(ficha.missao.ouro)}; ao concluir, chame conceder_xp com tipo_resolucao "missao" (o app paga a recompensa combinada).` : "") +
+  (ficha.missao ? ` MISSÃO ATIVA (aceita no quadro de missões da vila): "${ficha.missao.titulo}" — ${ficha.missao.desc} Recompensa: ${ficha.missao.xp} XP e ${po(ficha.missao.ouro)}; ao concluir, chame conceder_xp com tipo_resolucao "missao" (o app paga a recompensa combinada).` : "") +
   `\nBESTIÁRIO (campo bestiario de iniciar_combate; escolha criaturas coerentes com o local e o nível, e monte grupos usando a SINERGIA: quem costuma andar junto): ${CAT_MONSTROS.map(m => `${m.nome} [${m.encontros}; ${String(m.habitat).split(",")[0]}; sinergia: ${String(m.sinergia).replace(/\.$/, "").slice(0, 70)}]`).join("; ")}. Para o nível do grupo, prefira criaturas de ND até o nível do personagem +1; chefes podem ter ND maior com capangas.` +
   (todosMapas().length ? `\nMAPAS DE COMBATE (use o id no campo mapa de iniciar_combate, escolhendo o que combina com o cenário): ${todosMapas().map(m => `${m.id}=${m.desc || m.nome}${CENAS[m.id] ? " [" + String(CENAS[m.id].enc).split(":")[0].slice(0, 40) + "]" : ""}`).join("; ")}. RETRATOS DE CRIATURAS (campo retrato, opcional): ${RETRATOS.map(r => `${r.id}=${r.desc}`).join("; ")}.` : "") +
   ((ficha.mapasLocais || []).length ? `\nMAPAS DO JOGADOR: ${ficha.mapasLocais.map(m => `${m.nome} [${m.lugares.map(l => l.nome).join(", ")}]`).join("; ")}.` : "") +
@@ -2765,8 +2768,20 @@ function mundoMapaInfo(id) {
     (mp ? `<img src="${mp.img}" alt="Mapa de ${esc(l.nome)}">` : "") + viagemHtml(l);
 }
 // Viagem rápida: para lugares já visitados, fora de combate e de perigo. O app muda o lugar; a IA só descreve a chegada.
+const temPergaminho = () => (ficha?.inventario || []).some(i => /pergaminho de viagem/.test(norm(i.nome)) && i.qtd > 0);
+function destinosPergaminho() {                           // só: ponto de retorno, local da missão ativa e tavernas (vilas) já conhecidas
+  const out = [], add = (l, tipo) => { if (l && !out.some(d => d.l.id === l.id)) out.push({ l, tipo }); };
+  let vis = []; try { vis = Mundo.listaVis("local"); } catch (e) {}
+  try { if (ficha.retorno?.id) add(Mundo.obter(ficha.retorno.id) || vis.find(x => norm(x.nome) === norm(ficha.retorno.nome)), "retorno"); } catch (e) {}
+  const m = ficha.missao;
+  if (m) add(vis.find(x => (m.ondeId && x.id === m.ondeId) || (m.onde && norm(x.nome).length >= 3 && norm(m.onde).includes(norm(x.nome)))), "missao");
+  vis.filter(l => l.estado !== "citado" && ehPovoadoLocal(l)).forEach(l => add(l, "taverna"));
+  return out;
+}
 function motivoSemViagem(l) {
-  if (!l || l.estado === "citado") return "Só dá para viajar rápido para lugares que você já visitou.";
+  if (!l) return "Destino desconhecido.";
+  if (!temPergaminho()) return "Você precisa do Pergaminho de Viagem na bolsa.";
+  if (!destinosPergaminho().some(d => d.l.id === l.id)) return "O pergaminho só leva a tavernas que você já conheceu, ao local da missão ativa ou ao ponto de onde partiu.";
   if (l.id === ficha.localAtual) return "Você já está aqui.";
   if (ficha.morto || ficha.vidaAtual <= 0) return "Você está caído: não dá para viajar.";
   if (cb?.ativo || mc?.ativo) return "Você está em combate: termine a luta primeiro.";
@@ -2786,14 +2801,17 @@ function viagemHtml(l) {
 }
 function viajarRapido(id, taverna) {
   const l = Mundo.obter(id), nao = motivoSemViagem(l); if (nao) { alert(nao); return; }
-  const de = Mundo.obter(ficha.localAtual)?.nome || "onde estava";
+  const atual = Mundo.obter(ficha.localAtual), de = atual?.nome || "onde estava";
+  const voltando = ficha.retorno?.id === l.id;
+  if (voltando) ficha.retorno = null;                    // voltou ao ponto de onde saiu
+  else if (atual && (!ehPovoadoLocal(atual) || !ficha.retorno)) ficha.retorno = { id: atual.id, nome: atual.nome };   // guarda de onde saiu (não sobrescreve se já está numa vila)
   try { if (Mundo.ativoNoModo()) Mundo.mudarLocal({ nome: l.nome }); else ficha.localAtual = l.id; } catch (e) { ficha.localAtual = l.id; }
   try { CENA.chegou(l.nome); } catch (e) {}
   try { fecharLoja(); } catch (e) {}
   $("mundomapa-dlg").hidden = true;
   try { if (ilustraLugar(l.nome)) { ultimaCena = norm(l.nome); mostrarCenaLugar(l.nome); } } catch (e) {}
   try { salvarPersonagem(); } catch (e) {}
-  enviarJogador(`🧭 Viagem rápida: de ${de} para ${l.nome}${taverna ? ", direto para a taverna" : ""}.`, { forcarIA: true, ia: `[APLICATIVO: VIAGEM RÁPIDA — o app já levou o personagem de ${de} até ${l.nome} (lugar já conhecido) e já registrou a chegada; NÃO chame mudar_local. A viagem foi tranquila, sem encontros. ${taverna ? "Ele foi direto para a taverna, que o app atende (comida, bebida, quarto e missões): descreva só a chegada à taverna em 2 frases, sem cobrar nada." : `Descreva a chegada em 2 ou 3 frases (como o lugar está agora${l.desc ? `; antes era: ${l.desc}` : ""}) e dê as opções.`}]` });
+  enviarJogador(`🧭 Pergaminho de Viagem: de ${de} para ${l.nome}${taverna ? ", direto para a taverna" : voltando ? " (de volta ao ponto onde estava)" : ""}.`, { forcarIA: true, ia: `[APLICATIVO: VIAGEM POR PERGAMINHO (instantânea, mas o tempo do mundo passa: ao menos algumas horas) — ${voltando ? "o personagem VOLTOU ao ponto onde estava antes de ir descansar; " : ""}o app já levou o personagem de ${de} até ${l.nome} (lugar já conhecido) e já registrou a chegada; NÃO chame mudar_local. A viagem foi tranquila, sem encontros. ${taverna ? "Ele foi direto para a taverna, que o app atende (comida, bebida, quarto e missões): descreva só a chegada à taverna em 2 frases, sem cobrar nada." : `Descreva a chegada em 2 ou 3 frases (como o lugar está agora${l.desc ? `; antes era: ${l.desc}` : ""}) e dê as opções.`}]` });
   if (taverna) setTimeout(() => irTaverna(true), 300);
 }
 // ---- Taverna: atalho no topo e no mapa do mundo ----
@@ -2813,10 +2831,22 @@ function irTaverna(direto) {
     abrirEstalagem(nome); return;
   }
   const vilas = (() => { try { return Mundo.listaVis("local").filter(l => l.estado !== "citado" && ehPovoadoLocal(l)); } catch (e) { return []; } })();
-  abrirRegras(`<div class="caixa-rg"><h2>🍺 Ir à taverna</h2><div class="fx-tracos">Você não está numa vila ou cidade. ${vilas.length ? "Viaje rápido até uma que você já conhece e vá direto para a taverna:" : "Visite uma vila ou cidade primeiro: as que você conhecer aparecem aqui."}</div>
+  abrirRegras(`<div class="caixa-rg"><h2>🍺 Ir à taverna</h2><div class="fx-tracos">Você não está numa vila ou cidade. ${vilas.length ? "Use o Pergaminho de Viagem para ir a uma que você já conhece e vá direto para a taverna:" : "Visite uma vila ou cidade primeiro: as que você conhecer aparecem aqui."}</div>
     <div class="fx-itens">${vilas.map(l => { const nao = motivoSemViagem(l); return `<div class="fx-item"><div><b>🏘 ${esc(l.nome)}</b>${nao ? `<br><small>${esc(nao)}</small>` : ""}</div><div class="fx-itbtn"><button data-tav-ir="${esc(l.id)}" ${nao ? "disabled" : ""}>🧭 Ir</button></div></div>`; }).join("")}</div>
     <button class="acao" data-tav="fechar">Fechar</button></div>`);
 }
+function pergaminhoHtml() {
+  const ds = destinosPergaminho(), rot = { retorno: "↩ Voltar ao ponto onde estava", missao: "📜 Local da missão", taverna: "🍺 Taverna" };
+  const lin = ds.map(({ l, tipo }) => { const nao = motivoSemViagem(l); return `<div class="fx-item"><div><b>${rot[tipo]}: ${esc(l.nome)}</b>${nao ? `<br><small>${esc(nao)}</small>` : ""}</div><div class="fx-itbtn"><button data-perg-ir="${esc(l.id)}" data-perg-t="${tipo === "taverna" ? 1 : 0}" ${nao ? "disabled" : ""}>🧭 Ir</button></div></div>`; }).join("");
+  return `<div class="caixa-rg"><h2>🧭 Pergaminho de Viagem</h2><div class="fx-tracos">Leva você num instante a uma <b>taverna que já conhece</b>, ao <b>local da missão ativa</b> ou de volta ao <b>ponto de onde partiu</b>. ${ficha.retorno ? `Ponto de retorno guardado: <b>${esc(ficha.retorno.nome)}</b>.` : "Ao partir, o pergaminho guarda o lugar onde você estava."} Não funciona em combate nem com perigo por perto.</div>
+    <div class="fx-itens">${lin || "<div class=\"fx-tracos\">Nenhum destino ainda: visite uma vila ou cidade primeiro.</div>"}</div><button class="acao" data-tav="fechar">Fechar</button></div>`;
+}
+function abrirPergaminho() {
+  if (!ficha?.id) return;
+  if (!temPergaminho()) { alert("Você não tem o Pergaminho de Viagem na bolsa."); return; }
+  abrirRegras(pergaminhoHtml());
+}
+$("abrir-pergaminho").addEventListener("click", abrirPergaminho);
 $("abrir-taverna").addEventListener("click", () => irTaverna(false));
 $("abrir-cena").addEventListener("click", () => CENA.painel());
 $("abrir-habil").addEventListener("click", () => HABIL.painel());
@@ -4682,18 +4712,24 @@ const fmtMod = v => (modDe(v) >= 0 ? "+" : "−") + Math.abs(modDe(v));
 // Clique no dado: rola 4d6, descarta o menor e soma os outros três
 async function rolarAtributo(k, linha) {
   const est = estadoAttr[k];
-  if (est.rolado) return;
-  est.rolado = true;
+  if (est.rolado || est.rolando) return;
+  est.rolando = true;
   const btn = linha.querySelector(".dado-attr"), campo = linha.querySelector(".attr-base");
   btn.disabled = true; campo.readOnly = true; btn.classList.add("rolando");
   for (let i = 0; i < 8; i++) { campo.value = 3 + Math.floor(Math.random() * 16); await esperar(50); }   // animação
   btn.classList.remove("rolando");
   const dados = Array.from({ length: 4 }, () => Math.floor(Math.random() * 6) + 1);
-  const menor = Math.min(...dados);
-  est.base = dados.reduce((a, b) => a + b, 0) - menor;
+  const menor = Math.min(...dados), total = dados.reduce((a, b) => a + b, 0) - menor;
+  (est.tentativas ||= []).push(total);                            // 3 tentativas por atributo; vale (e trava) o maior resultado
+  est.base = Math.max(...est.tentativas);
   est.aumento = Math.min(est.aumento, 20 - est.base);
   campo.value = est.base;
-  linha.querySelector(".attr-detalhe").textContent = `4d6: ${dados.join(", ")} → descarta o ${menor} = ${est.base}`;
+  est.rolando = false;
+  const feitas = est.tentativas.length;
+  if (feitas >= 3) est.rolado = true;                              // 3ª tentativa: trava no maior valor
+  linha.querySelector(".attr-detalhe").textContent = `4d6: ${dados.join(", ")} → descarta o ${menor} = ${total} · tentativas: ${est.tentativas.join(", ")} → ` + (est.rolado ? `travado no maior: ${est.base}` : `maior até agora: ${est.base} (restam ${3 - feitas})`);
+  if (!est.rolado) { btn.disabled = false; btn.title = `Rolar de novo (restam ${3 - feitas})`; }
+  btn.textContent = est.rolado ? "🔒" : `🎲${3 - feitas}`;
   atualizarAtributos();
 }
 
@@ -4734,7 +4770,7 @@ function atualizarAtributos() {
     linha.querySelector(".aumento-valor").textContent = "+" + est.aumento;
     linha.querySelector(".mais").disabled = restantes <= 0 || v >= 20;
     linha.querySelector(".menos").disabled = est.aumento <= 0;
-    linha.querySelector(".trocar").disabled = !est.rolado;               // só troca valores já rolados
+    linha.querySelector(".trocar").disabled = !est.rolado;               // só troca valores já travados (3 tentativas feitas)
     linha.classList.toggle("selecionado", trocaSelecionada === k);
   });
   $("f-aumentos").hidden = total === 0;
@@ -4815,7 +4851,7 @@ function montarCriacao() {
       </div>
       <div class="attr-detalhe"></div>
     </div>`).join("");
-  for (const k in NOMES_ATRIBUTOS) estadoAttr[k] = { base: 10, aumento: 0, rolado: false };
+  for (const k in NOMES_ATRIBUTOS) estadoAttr[k] = { base: 10, aumento: 0, rolado: false, tentativas: [] };
 
   $("f-atributos").addEventListener("click", e => {
     const linha = e.target.closest(".attr");
@@ -6263,7 +6299,9 @@ function garantirServicos(m) {                           // toda vila/cidade tem
   const falta = [[/taverna|estalagem|pousada/, { nome: "Estalagem", tipo: "taverna", nota: "comida e quarto para a noite" }],
     [/ferre|forja|armeiro/, { nome: "Ferraria", tipo: "ferreiro", nota: "armas e armaduras" }],
     [/boticar|alquimi|curand|herbo/, { nome: "Boticário", tipo: "boticario", nota: "poções e remédios" }],
-    [/comerci|mercado|loja|armazem|feira/, { nome: "Mercado", tipo: "comercio", nota: "equipamento de aventura" }]];
+    [/comerci|mercado|loja|armazem|feira/, { nome: "Mercado", tipo: "comercio", nota: "equipamento de aventura" }],
+    [/igreja|templo|capela|santuario/, { nome: "Templo", tipo: "igreja", nota: "sacerdote, bênçãos e missões" }],
+    [/estabul|cavalari/, { nome: "Estábulo", tipo: "estabulo", nota: "montarias e serviços de campo" }]];
   let n = 0;
   for (const [re, l] of falta) if (!tipos.some(t => re.test(t)) && m.lugares.length < 16) { m.lugares.push({ ...l }); n++; }
   return n;
@@ -6280,6 +6318,8 @@ function entrarServico(l, m) {
     abrirRegras(lojaHtml()); return true;
   }
   if (/taverna|estalagem|pousada/.test(t)) { abrirEstalagem(l.nome); return true; }
+  if (/igreja|templo|capela|santuario|catedral/.test(t)) { abrirServicoMissao(l.nome, "igreja"); return true; }
+  if (/estabul|cavalari/.test(t)) { abrirServicoMissao(l.nome, "estabulo"); return true; }
   return false;
 }
 const po = n => (Math.round(n * 100) / 100).toLocaleString("pt-BR") + " po";
@@ -6313,19 +6353,57 @@ const XP_ENCONTRO = [[50, 75, 100], [100, 150, 200], [150, 225, 400], [250, 375,
 const INIMIGOS_TIER = [["goblins", "lobos", "kobolds", "bandidos de estrada", "ratos gigantes", "esqueletos", "cultistas"], ["orcs", "gnolls", "um ogro", "carniçais", "hobgoblins", "aranhas gigantes", "mercenários renegados"],
   ["trolls", "uma mantícora", "um vampiro menor", "gigantes das colinas", "um basilisco", "uma bruxa da névoa"], ["um dragão jovem", "um lich menor", "gigantes de fogo", "um beholder", "uma horda de demônios"]];
 let TAV_OFERTA = null;
-function novaMissaoTaverna() {
+function novaMissaoTaverna(tipo = "taverna") {
   const n = Math.min(20, Math.max(1, ficha.nivel || 1)), tier = n <= 4 ? 0 : n <= 10 ? 1 : n <= 16 ? 2 : 3, sorte = a => a[Math.floor(Math.random() * a.length)];
-  const lugares = (() => { try { return Mundo.listaVis("local").filter(l => l.id !== ficha.localAtual && !RE_POVOADO.test(norm(l.nome + " " + (l.categoria || "")))).map(l => l.nome); } catch (e) { return []; } })();
-  const onde = lugares.length && Math.random() < .6 ? "em " + sorte(lugares) : sorte(["na floresta ao norte", "nas ruínas da colina", "na mina abandonada", "na estrada do leste", "no pântano ao sul", "na velha torre de vigia", "nas cavernas do rio"]);
+  const lugares = (() => { try { return Mundo.listaVis("local").filter(l => l.id !== ficha.localAtual && !RE_POVOADO.test(norm(l.nome + " " + (l.categoria || "")))); } catch (e) { return []; } })();
+  const lugarEsc = lugares.length && Math.random() < .6 ? sorte(lugares) : null;
+  const onde = lugarEsc ? "em " + lugarEsc.nome : sorte(["na floresta ao norte", "nas ruínas da colina", "na mina abandonada", "na estrada do leste", "no pântano ao sul", "na velha torre de vigia", "nas cavernas do rio"]);
   const ini = sorte(INIMIGOS_TIER[tier]), i = Math.random() < .25 ? 0 : Math.random() < .7 ? 1 : 2, dific = ["fácil", "média", "difícil"][i];
-  const T = sorte([
+  const T = tipo === "igreja" ? sorte([
+    [`Purificar ${onde}`, `O sacerdote teme que ${ini} estejam profanando o solo sagrado ${onde}. Expulse-os e abençoe o lugar.`],
+    [`Relíquia roubada`, `Uma relíquia do templo foi levada por ${ini}; dizem que está ${onde}. Recupere-a.`],
+    [`Escolta de peregrinos`, `Um grupo de peregrinos precisa atravessar a região (${onde}), onde há ${ini} à espreita. Leve-os em segurança.`],
+    [`Mortos inquietos`, `Os mortos não descansam ${onde}. Descubra a causa e acabe com ${ini} que perturbam o repouso deles.`],
+    [`Ervas para os doentes`, `Uma praga atinge a vila. As ervas curativas crescem ${onde}, guardadas por ${ini}. Traga-as.`]])
+  : tipo === "estabulo" ? sorte([
+    [`Cavalos desaparecidos`, `Os melhores cavalos do tratador foram levados por ${ini}; os rastros levam ${onde}. Traga-os de volta.`],
+    [`Fera nos pastos`, `Algo assusta os animais ${onde}; dizem ser ${ini}. Livre os pastos da ameaça.`],
+    [`Entrega urgente`, `Uma carga precisa chegar ao destino por um caminho que passa (${onde}), onde ${ini} costumam atacar. Entregue-a.`],
+    [`Escolta da caravana`, `O tratador cede montarias a uma caravana que segue pela região (${onde}). Proteja-a de ${ini}.`]])
+  : sorte([
     [`Caçada: ${ini}`, `Há ${ini} atacando quem passa ${onde}. Acabe com a ameaça.`],
     [`Resgate ${onde}`, `A filha do moleiro sumiu ${onde}. Dizem que foram ${ini}. Traga-a de volta viva.`],
     [`Carga roubada`, `Uma carroça de mercadorias foi saqueada por ${ini} ${onde}. Recupere os baús.`],
     [`Escolta da caravana`, `Um mercador precisa levar a mercadoria ao povoado vizinho passando ${onde}, onde há ${ini} à espreita.`],
     [`Investigação ${onde}`, `Luzes estranhas e gritos à noite ${onde}. Descubra o que está acontecendo (suspeitam de ${ini}).`],
     [`Relíquia perdida`, `O templo paga por uma relíquia escondida ${onde}, guardada por ${ini}.`]]);
-  return { titulo: T[0], desc: T[1], onde, inimigos: ini, dific, xp: XP_ENCONTRO[n - 1][i], ouro: Math.round(n * [5, 10, 20][i] * (0.8 + Math.random() * .4)) };
+  return { titulo: T[0], desc: T[1], onde, ondeId: lugarEsc?.id || "", inimigos: ini, dific, nivel: n, xp: XP_ENCONTRO[n - 1][i], ouro: Math.round(n * [5, 10, 20][i] * (0.8 + Math.random() * .4)) };
+}
+// Igreja/templo e estábulo: também têm quadro de missões do nível do personagem (XP pela tabela de encontros do D&D 5e)
+let SV = { nome: "", tipo: "", oferta: null };
+const SV_INFO = { igreja: { ic: "⛪", txt: "O sacerdote acena em meio ao cheiro de incenso e cera.", quem: "O sacerdote", quadro: "Pedidos ao templo" }, estabulo: { ic: "🐴", txt: "O tratador escova um cavalo entre fardos de feno.", quem: "O tratador", quadro: "Serviços do estábulo" } };
+function servicoHtml(aviso = "") {
+  const inf = SV_INFO[SV.tipo], m = ficha.missao;
+  const q = m ? `<div class="fx-item"><div><b>📜 ${esc(m.titulo)}</b> <span class="eq-tag">em andamento</span><br><small>${esc(m.desc)}<br>Recompensa: <b>${m.xp} XP</b> e <b>${po(m.ouro)}</b> · dificuldade ${m.dific}</small></div><div class="fx-itbtn"><button data-tav="sv-desistir">Desistir</button></div></div>`
+    : (() => { const p = SV.oferta || (SV.oferta = novaMissaoTaverna(SV.tipo)); return `<div class="fx-item"><div><b>📜 ${esc(p.titulo)}</b> <small>(nível ${p.nivel})</small><br><small>${esc(p.desc)}<br>Recompensa: <b>${p.xp} XP</b> e <b>${po(p.ouro)}</b> · dificuldade ${p.dific}</small></div><div class="fx-itbtn"><button data-tav="sv-aceitar">Aceitar</button><button data-tav="sv-outra">🔄 Outra</button></div></div>`; })();
+  return `<div class="caixa-rg"><h2>${inf.ic} ${esc(SV.nome)}</h2><div class="fx-tracos">${inf.txt} Vida <b>${ficha.vidaAtual}/${ficha.vidaMaxima}</b>.</div>${aviso ? `<div class="fx-tracos"><b>${aviso}</b></div>` : ""}
+    <h3>${inf.quadro}</h3><div class="fx-tracos">A recompensa é paga ao concluir. Serviços adequados ao seu nível (${ficha.nivel}).</div><div class="fx-itens">${q}</div><button class="acao" data-tav="sv-sair">Sair</button></div>`;
+}
+function abrirServicoMissao(nome, tipo) { SV = { nome, tipo, oferta: null }; abrirRegras(servicoHtml()); }
+function acaoServico(a) {
+  const inf = SV_INFO[SV.tipo], nome = SV.nome;
+  if (a === "sv-sair") { fecharRegras(); notasParaIA.push(`[APLICATIVO: o personagem saiu de ${nome}.]`); return; }
+  if (a === "sv-outra") { SV.oferta = novaMissaoTaverna(SV.tipo); return abrirRegras(servicoHtml(`${inf.quem} lembra de outro pedido.`)); }
+  if (a === "sv-desistir") { if (ficha.missao) { addMsg(`📜 Você desistiu da missão “${ficha.missao.titulo}”.`, "sistema"); notasParaIA.push(`[APLICATIVO: o personagem desistiu da missão "${ficha.missao.titulo}". Ela não vale mais recompensa.]`); ficha.missao = null; try { salvarPersonagem(); } catch (e) {} } return abrirRegras(servicoHtml()); }
+  if (a === "sv-aceitar") {
+    const m = SV.oferta || novaMissaoTaverna(SV.tipo); SV.oferta = null;
+    ficha.missao = { ...m, de: nome, quando: Date.now() }; try { salvarPersonagem(); } catch (e) {}
+    fecharRegras();
+    addMsg(`📜 Missão aceita: ${m.titulo}. Recompensa: ${m.xp} XP e ${po(m.ouro)} ao concluir.`, "sistema");
+    const nota = `[APLICATIVO: o personagem aceitou em ${nome} (${inf.quem.toLowerCase()}) a missão "${m.titulo}" (${m.dific}, nível ${m.nivel}): ${m.desc} Onde: ${m.onde}. Inimigos: ${m.inimigos}. Recompensa combinada: ${m.xp} XP e ${po(m.ouro)}, pagos pelo app quando você chamar conceder_xp com tipo_resolucao "missao". Faça ${inf.quem.toLowerCase()} explicar o pedido em 2 ou 3 frases e dê as opções para partir.]`;
+    if ($("entrada").disabled) { notasParaIA.push(nota); return; }
+    enviarJogador(`Aceito o pedido: ${m.titulo}.`, { forcarIA: true, ia: nota });
+  }
 }
 let estalagemAtual = "";
 function abrirEstalagem(nome) { estalagemAtual = nome || "Estalagem"; abrirRegras(estalagemHtml(estalagemAtual)); }
@@ -6346,6 +6424,7 @@ function descansoCurtoApp(onde) {                        // até 2 por dia: recu
   return "";
 }
 function acaoEstalagem(a) {
+  if (String(a).startsWith("sv-")) return acaoServico(a);
   const nome = estalagemAtual || "Estalagem";
   if (a === "sair") { fecharRegras(); notasParaIA.push(`[APLICATIVO: o personagem saiu da ${nome}.]`); return; }
   const c = CARDAPIO.find(x => x.k === a);
@@ -8064,6 +8143,7 @@ regrasDlg().addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.fecharRg != null) return fecharRegras();
   if (b.dataset.eq) { const it = ficha.inventario[Number(b.dataset.i)]; if (!it) return; if (b.dataset.eq === "tira") REGRAS.desequipar(it); else { const av = REGRAS.equipar(it); if (av && /não pode/.test(av)) { alert(av); } } return abrirRegras(equipHtml()); }
+  if (b.dataset.pergIr) { fecharRegras(); return viajarRapido(b.dataset.pergIr, b.dataset.pergT === "1"); }
   if (b.dataset.tavIr) { fecharRegras(); return viajarRapido(b.dataset.tavIr, true); }
   if (b.dataset.tav === "fechar") return fecharRegras();
   if (b.dataset.tav) return acaoEstalagem(b.dataset.tav);
