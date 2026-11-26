@@ -6360,23 +6360,23 @@ function novaMissaoTaverna(tipo = "taverna") {
   const onde = lugarEsc ? "em " + lugarEsc.nome : sorte(["na floresta ao norte", "nas ruínas da colina", "na mina abandonada", "na estrada do leste", "no pântano ao sul", "na velha torre de vigia", "nas cavernas do rio"]);
   const ini = sorte(INIMIGOS_TIER[tier]), i = Math.random() < .25 ? 0 : Math.random() < .7 ? 1 : 2, dific = ["fácil", "média", "difícil"][i];
   const T = tipo === "igreja" ? sorte([
-    [`Purificar ${onde}`, `O sacerdote teme que ${ini} estejam profanando o solo sagrado ${onde}. Expulse-os e abençoe o lugar.`],
+    [`Purificar solo sagrado`, `O sacerdote teme que ${ini} estejam profanando o solo sagrado (${onde}). Expulse-os e abençoe o lugar.`],
     [`Relíquia roubada`, `Uma relíquia do templo foi levada por ${ini}; dizem que está ${onde}. Recupere-a.`],
     [`Escolta de peregrinos`, `Um grupo de peregrinos precisa atravessar a região (${onde}), onde há ${ini} à espreita. Leve-os em segurança.`],
-    [`Mortos inquietos`, `Os mortos não descansam ${onde}. Descubra a causa e acabe com ${ini} que perturbam o repouso deles.`],
-    [`Ervas para os doentes`, `Uma praga atinge a vila. As ervas curativas crescem ${onde}, guardadas por ${ini}. Traga-as.`]])
+    [`Mortos inquietos`, `Os mortos não descansam (${onde}). Descubra a causa e acabe com ${ini} que perturbam o repouso deles.`],
+    [`Ervas para os doentes`, `Uma praga atinge a vila. As ervas curativas crescem (${onde}), guardadas por ${ini}. Traga-as.`]])
   : tipo === "estabulo" ? sorte([
     [`Cavalos desaparecidos`, `Os melhores cavalos do tratador foram levados por ${ini}; os rastros levam ${onde}. Traga-os de volta.`],
-    [`Fera nos pastos`, `Algo assusta os animais ${onde}; dizem ser ${ini}. Livre os pastos da ameaça.`],
+    [`Fera nos pastos`, `Algo assusta os animais (${onde}); dizem ser ${ini}. Livre os pastos da ameaça.`],
     [`Entrega urgente`, `Uma carga precisa chegar ao destino por um caminho que passa (${onde}), onde ${ini} costumam atacar. Entregue-a.`],
     [`Escolta da caravana`, `O tratador cede montarias a uma caravana que segue pela região (${onde}). Proteja-a de ${ini}.`]])
   : sorte([
-    [`Caçada: ${ini}`, `Há ${ini} atacando quem passa ${onde}. Acabe com a ameaça.`],
-    [`Resgate ${onde}`, `A filha do moleiro sumiu ${onde}. Dizem que foram ${ini}. Traga-a de volta viva.`],
-    [`Carga roubada`, `Uma carroça de mercadorias foi saqueada por ${ini} ${onde}. Recupere os baús.`],
-    [`Escolta da caravana`, `Um mercador precisa levar a mercadoria ao povoado vizinho passando ${onde}, onde há ${ini} à espreita.`],
-    [`Investigação ${onde}`, `Luzes estranhas e gritos à noite ${onde}. Descubra o que está acontecendo (suspeitam de ${ini}).`],
-    [`Relíquia perdida`, `O templo paga por uma relíquia escondida ${onde}, guardada por ${ini}.`]]);
+    [`Caçada: ${ini}`, `Há ${ini} atacando quem passa pela região (${onde}). Acabe com a ameaça.`],
+    [`Resgate da filha do moleiro`, `A filha do moleiro sumiu e há rastros que levam ${onde}. Dizem que foram ${ini}. Traga-a de volta viva.`],
+    [`Carga roubada`, `Uma carroça de mercadorias foi saqueada por ${ini}; os rastros levam ${onde}. Recupere os baús.`],
+    [`Escolta da caravana`, `Um mercador precisa levar a mercadoria ao povoado vizinho por um caminho que passa (${onde}), onde há ${ini} à espreita.`],
+    [`Luzes estranhas`, `Luzes estranhas e gritos à noite (${onde}). Descubra o que está acontecendo (suspeitam de ${ini}).`],
+    [`Relíquia perdida`, `O templo paga por uma relíquia escondida (${onde}), guardada por ${ini}.`]]);
   return { titulo: T[0], desc: T[1], onde, ondeId: lugarEsc?.id || "", inimigos: ini, dific, nivel: n, xp: XP_ENCONTRO[n - 1][i], ouro: Math.round(n * [5, 10, 20][i] * (0.8 + Math.random() * .4)) };
 }
 // Igreja/templo e estábulo: também têm quadro de missões do nível do personagem (XP pela tabela de encontros do D&D 5e)
