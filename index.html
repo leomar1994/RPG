@@ -722,20 +722,23 @@
     <div class="linha-botoes"><button type="button" id="of-fechar">Fechar</button></div></div>
 </div>
 
-<div id="mundo-dlg" role="dialog" aria-modal="true" aria-label="Mundo persistente" hidden>
-  <div class="caixa-sala"><h2>🌍 Mundo persistente</h2>
-    <p class="dica">O mundo guarda lugares, caminhos, fatos e os corpos de quem morreu, e só a IA o expande, conforme vocês jogam. Fica neste aparelho ou num servidor, compartilhado com amigos (aberto a todos ou com senha).</p>
+<div id="mundo-dlg" role="dialog" aria-modal="true" aria-label="Mundo compartilhado" hidden>
+  <div class="caixa-sala"><h2>🌍 Mundo compartilhado</h2>
+    <p class="dica">Cada campanha tem um mundo único no servidor, igual para todos os jogadores: os lugares, NPCs, caminhos, mortos e missões que a IA cria ficam salvos lá, e quem jogar depois encontra tudo. É automático: entre na conta (☁ no menu inicial) e escolha a campanha.</p>
     <p id="mundo-resumo" class="dica"></p>
-    <label><input type="radio" name="mundo-modo" id="mundo-m-local" value="local" checked> 🏠 Só neste aparelho</label>
-    <label><input type="radio" name="mundo-modo" id="mundo-m-online" value="online"> ☁ Servidor online (compartilhado)</label>
-    <div id="mundo-online" hidden>
-      <label class="ch-linha"><input id="mundo-srv" placeholder="Endereço do servidor, ex.: https://meu-mundo.workers.dev" autocomplete="off"></label>
-      <label class="ch-linha"><input id="mundo-id" placeholder="Código do mundo (letras e números, ex.: reino-sombrio)" autocomplete="off"></label>
-      <label class="ch-linha"><input id="mundo-nome" placeholder="Nome do mundo (só ao criar)" autocomplete="off"></label>
-      <label class="ch-linha"><input id="mundo-senha" type="password" placeholder="Senha (deixe vazio = mundo aberto a todos)" autocomplete="off"></label>
-      <div class="linha-botoes"><button type="button" id="mundo-criar">✨ Criar mundo novo</button><button type="button" id="mundo-entrar" class="secundario">🚪 Entrar em um mundo</button></div>
-    </div>
-    <div class="linha-botoes"><button type="button" id="mundo-usar-local" class="secundario">Usar o mundo deste aparelho</button><button type="button" id="mundo-novo-local" class="secundario">🗑 Começar outro (local)</button></div>
+    <label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="mundo-global" style="margin-top:4px"> <span><b>Usar o mundo compartilhado</b><br><span class="dica" id="mundo-global-info"></span></span></label>
+    <details><summary>⚙ Avançado: servidor próprio ou só neste aparelho</summary>
+      <label><input type="radio" name="mundo-modo" id="mundo-m-local" value="local" checked> 🏠 Só neste aparelho</label>
+      <label><input type="radio" name="mundo-modo" id="mundo-m-online" value="online"> ☁ Servidor próprio (endereço, código e senha)</label>
+      <div id="mundo-online" hidden>
+        <label class="ch-linha"><input id="mundo-srv" placeholder="Endereço do servidor, ex.: https://meu-mundo.workers.dev" autocomplete="off"></label>
+        <label class="ch-linha"><input id="mundo-id" placeholder="Código do mundo (letras e números, ex.: reino-sombrio)" autocomplete="off"></label>
+        <label class="ch-linha"><input id="mundo-nome" placeholder="Nome do mundo (só ao criar)" autocomplete="off"></label>
+        <label class="ch-linha"><input id="mundo-senha" type="password" placeholder="Senha (deixe vazio = mundo aberto a todos)" autocomplete="off"></label>
+        <div class="linha-botoes"><button type="button" id="mundo-criar">✨ Criar mundo novo</button><button type="button" id="mundo-entrar" class="secundario">🚪 Entrar em um mundo</button></div>
+      </div>
+      <div class="linha-botoes"><button type="button" id="mundo-usar-local" class="secundario">Usar o mundo deste aparelho</button><button type="button" id="mundo-novo-local" class="secundario">🗑 Começar outro (local)</button></div>
+    </details>
     <p id="mundo-status" class="dica"></p>
     <div class="linha-botoes"><button type="button" id="mundo-fechar">Fechar</button></div></div>
 </div>
@@ -1808,7 +1811,7 @@ const Mundo = (() => {
   const id8 = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()).replace(/-/g, "").slice(0, 10);
   let cfg = null, ents = new Map(), vSrv = 0, pend = new Set(), tPush = null, ultPull = 0, estado = "local";
   const lerJ = (k, pad) => { try { return JSON.parse(localStorage.getItem(k)) ?? pad; } catch { return pad; } };
-  const chave = () => "rpg-mesa:mundo:" + (cfg?.modo === "online" ? cfg.servidor + "|" + cfg.id : "local");
+  const chave = () => "rpg-mesa:mundo:" + (cfg?.modo === "online" ? cfg.servidor + "|" + cfg.id : cfg?.modo === "global" ? "global|" + cfg.id : "local");
   const salvarLocal = () => { try { localStorage.setItem(chave(), JSON.stringify({ ents: [...ents.values()], v: vSrv, pend: [...pend] })); } catch {} };
   const api = async (metodo, caminho, corpo, ms = 4500) => {
     const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms);
@@ -1818,7 +1821,43 @@ const Mundo = (() => {
     } finally { clearTimeout(t); }
   };
   const mesclar = lista => { for (const e of lista) { const a = ents.get(e.id); if (!a || (Number(a.ts) || 0) <= (Number(e.ts) || 0)) { const { _v, ...x } = e; ents.set(e.id, x); } } };
-  const online = () => cfg?.modo === "online" && cfg.servidor && cfg.id;
+  const glob = () => cfg?.modo === "global" && !!cfg.id;
+  const online = () => (cfg?.modo === "online" && cfg.servidor && cfg.id) || (glob() && NUVEM.logado());
+  let pendente = null;
+  const enxuto = e => (e.tipo === "npc" && (e.falas || []).length > 14) ? { ...e, falas: e.falas.slice(-14) } : e;
+  async function empurrarGlobal(ids) {                   // manda o que mudou para o mundo compartilhado (Supabase)
+    const sb = await NUVEM.cliente(); if (!sb) { estado = "erro"; return; }
+    const linhas = ids.map(i => ents.get(i)).filter(Boolean).map(enxuto).map(e => ({ mundo: cfg.id, id: String(e.id).slice(0, 80), tipo: String(e.tipo || ""), dados: e, ts: Number(e.ts) || 0 }));
+    ids.forEach(i => { if (!ents.get(i)) pend.delete(i); });
+    if (!linhas.length) { salvarLocal(); return; }
+    const { error } = await sb.from("rpg_mundo_ents").upsert(linhas, { onConflict: "mundo,id" });
+    if (error) {                                         // tenta uma a uma: uma entidade ruim não trava as outras
+      let falhou = 0;
+      for (const l of linhas) { const r = await sb.from("rpg_mundo_ents").upsert(l, { onConflict: "mundo,id" }); if (r.error) { falhou++; if (r.error.code === "23514") pend.delete(l.id); } else pend.delete(l.id); }
+      estado = falhou ? "erro" : "online"; salvarLocal(); return;
+    }
+    ids.forEach(i => pend.delete(i)); estado = "online"; salvarLocal(); if (pend.size) empurrar();
+  }
+  async function puxarGlobal() {                         // traz o que os outros jogadores criaram
+    const sb = await NUVEM.cliente(); if (!sb) { estado = "erro"; return; }
+    for (let k = 0; k < 10; k++) {
+      const { data, error } = await sb.from("rpg_mundo_ents").select("dados,v").eq("mundo", cfg.id).gt("v", vSrv).order("v", { ascending: true }).limit(500);
+      if (error) { estado = "erro"; return; }
+      mesclar((data || []).map(r => r.dados).filter(Boolean)); if (data?.length) vSrv = Number(data[data.length - 1].v) || vSrv;
+      if (!data || data.length < 500) break;
+    }
+    estado = "online"; salvarLocal(); if (pend.size) empurrar();
+  }
+  const chaveMundo = a => (a && !a.custom && !a.auto && a.era != null && a.mundo != null) ? `${a.era}:${a.mundo}` : "";
+  function sincronizar(a) {                              // escolhe sozinho o mundo compartilhado da campanha (se o jogador está na conta)
+    if (cfg?.modo === "online") return pendente;         // servidor próprio escolhido à mão: não mexe
+    const key = chaveMundo(a), quer = lerLS("mundo_global") !== "nao" && NUVEM.logado() && key;
+    if (quer) {
+      const semear = () => { if (!ents.get("meta")?.nome) { const w = (typeof ERAS !== "undefined" ? ERAS.find(e => e.id === a.era)?.mundos?.[a.mundo]?.n : "") || key; Mundo.setMeta({ nome: "🌍 " + w }); } };
+      pendente = (cfg?.modo === "global" && cfg.id === key ? puxar(true) : configurar({ modo: "global", id: key })).then(semear).catch(() => {});
+    } else if (cfg?.modo === "global") pendente = configurar({ modo: "local" }).catch(() => {});
+    return pendente;
+  }
   const lista = tipo => [...ents.values()].filter(e => e.tipo === tipo);
   const achaLocal = nome => lista("local").find(l => norm(l.nome) === norm(nome));
   const up = e => { e.ts = Date.now(); ents.set(e.id, e); pend.add(e.id); salvarLocal(); empurrar(); return e; };
@@ -1828,6 +1867,7 @@ const Mundo = (() => {
     tPush = setTimeout(async () => {
       const ids = [...pend].slice(0, 50); if (!ids.length) return;
       try {
+        if (glob()) { await empurrarGlobal(ids); return; }
         const r = await api("POST", `/mundos/${cfg.id}/ents`, { ents: ids.map(i => ents.get(i)).filter(Boolean) });
         if (r.ok) { ids.forEach(i => pend.delete(i)); estado = "online"; salvarLocal(); if (pend.size) empurrar(); } else estado = r.status === 401 ? "senha" : "erro";
       } catch { estado = "offline"; }
@@ -1837,6 +1877,7 @@ const Mundo = (() => {
     if (!online() || (!forca && Date.now() - ultPull < 8000)) return;
     ultPull = Date.now();
     try {
+      if (glob()) { await puxarGlobal(); return; }
       const r = await api("GET", `/mundos/${cfg.id}/ents?desde=${vSrv}`);
       if (r.ok) { mesclar(r.j.ents || []); vSrv = r.j.v || vSrv; estado = "online"; salvarLocal(); if (pend.size) empurrar(); } else estado = r.status === 401 ? "senha" : "erro";
     } catch { estado = "offline"; }
@@ -1856,14 +1897,14 @@ const Mundo = (() => {
   const corposEm = lid => lista("morto").filter(m => m.localId === lid);
   const dias = m => Math.max(0, Math.floor((Date.now() - (m.desde || Date.now())) / 86400000));
   return {
-    carregar, configurar, puxar, lista, up,
+    carregar, configurar, puxar, lista, up, sincronizar, aguardar: () => pendente || Promise.resolve(),
     cfgAtual: () => cfg, estadoRede: () => estado, online,
     ativoNoModo: () => !MESTRE_HUMANO,
-    nome: () => ents.get("meta")?.nome || (online() ? cfg.id : "Mundo deste aparelho"),
+    nome: () => ents.get("meta")?.nome || (glob() ? "Mundo compartilhado" : online() ? cfg.id : "Mundo deste aparelho"),
     meta: () => ents.get("meta") || null,
-    setMeta(o) { const m = ents.get("meta") || { id: "meta", tipo: "meta" }; return up({ ...m, ...o }); },
+    setMeta(o) { if (glob()) { o = { ...o }; delete o.aventura; } const m = ents.get("meta") || { id: "meta", tipo: "meta" }; return up({ ...m, ...o }); },
     temConteudo: () => lista("local").length > 0 || lista("morto").length > 0,
-    resumoTxt: () => `${lista("local").length} lugares · ${lista("morto").length} mortos · ${lista("fato").length} fatos` + (cfg?.modo === "online" ? ` · ☁ ${{ online: "conectado", offline: "sem conexão (guardado aqui e enviado depois)", senha: "senha incorreta", erro: "erro no servidor", local: "…" }[estado]}` : " · 🏠 só neste aparelho"),
+    resumoTxt: () => `${lista("local").length} lugares · ${lista("morto").length} mortos · ${lista("fato").length} fatos` + (cfg?.modo === "online" ? ` · ☁ ${{ online: "conectado", offline: "sem conexão (guardado aqui e enviado depois)", senha: "senha incorreta", erro: "erro no servidor", local: "…" }[estado]}` : glob() ? ` · 🌍 compartilhado${online() ? " — " + ({ online: "conectado", offline: "sem conexão", erro: "erro no servidor", local: "…" }[estado] || "…") : " (entre na conta ☁ para sincronizar)"}` : " · 🏠 só neste aparelho"),
     async criarOnline({ servidor, id, nome, senha }) {
       const antes = cfg; cfg = { modo: "online", servidor, id: id || "", senha: senha || "" };
       let r; try { r = await api("POST", "/mundos", { id: id || undefined, nome, senha }); } catch (e) { cfg = antes; throw e; }
@@ -2621,19 +2662,21 @@ function montarChaves() {
 function mundoUI() {
   const c = Mundo.cfgAtual() || { modo: "local" };
   $("mundo-resumo").textContent = `🌍 ${Mundo.nome()} — ${Mundo.resumoTxt()}`;
+  try { const lg = NUVEM.logado(); $("mundo-global").checked = lerLS("mundo_global") !== "nao"; $("mundo-global").disabled = !lg; $("mundo-global-info").textContent = lg ? "Ligado por padrão: a IA grava e lê o mundo da campanha no servidor." : "Entre na conta (☁ no menu inicial) para jogar no mundo compartilhado."; } catch (e) {}
   $("mundo-online").hidden = $("mundo-m-online").checked === false;
   if (c.servidor && !$("mundo-srv").value) $("mundo-srv").value = c.servidor;
   if (c.id && !$("mundo-id").value) $("mundo-id").value = c.id;
 }
 $("mundo-abrir").addEventListener("click", () => { const c = Mundo.cfgAtual() || {}; $("mundo-m-online").checked = c.modo === "online"; $("mundo-m-local").checked = c.modo !== "online"; $("mundo-status").textContent = ""; mundoUI(); $("mundo-dlg").hidden = false; $("mundo-dlg").scrollTop = 0; });
 $("mundo-fechar").addEventListener("click", () => { $("mundo-dlg").hidden = true; });
+$("mundo-global").addEventListener("change", async () => { try { localStorage.setItem("mundo_global", $("mundo-global").checked ? "sim" : "nao"); } catch (e) {} $("mundo-status").textContent = "Conectando…"; try { await Mundo.sincronizar(aventuraSolo); $("mundo-status").textContent = $("mundo-global").checked ? "✅ Mundo compartilhado ligado." : "✅ Usando o mundo deste aparelho."; } catch (e) { $("mundo-status").textContent = "❌ " + e.message; } mundoUI(); });
 document.querySelectorAll('input[name="mundo-modo"]').forEach(r => r.addEventListener("change", mundoUI));
 const lerCampos = () => ({ servidor: $("mundo-srv").value.trim(), id: $("mundo-id").value.trim().replace(/\s+/g, "-"), senha: $("mundo-senha").value, nome: $("mundo-nome").value.trim() });
 async function acaoMundo(fn, ok) {
   const st = $("mundo-status"); st.textContent = "Conectando…";
   try { await fn(); st.textContent = ok; mundoUI(); setTimeout(() => { $("mundo-dlg").hidden = true; }, 1400); } catch (e) { st.textContent = "❌ " + (e.name === "AbortError" ? "O servidor não respondeu a tempo." : e.message === "Failed to fetch" ? "Não consegui falar com o servidor. Confira o endereço (https://…) e se ele está no ar." : e.message); }
 }
-$("mundo-usar-local").addEventListener("click", () => acaoMundo(() => Mundo.configurar({ modo: "local" }), "✅ Usando o mundo deste aparelho."));
+$("mundo-usar-local").addEventListener("click", () => { try { localStorage.setItem("mundo_global", "nao"); } catch (e) {} acaoMundo(() => Mundo.configurar({ modo: "local" }), "✅ Usando o mundo deste aparelho."); });
 $("mundo-criar").addEventListener("click", () => { const c = lerCampos(); if (!c.servidor) { $("mundo-status").textContent = "Informe o endereço do servidor."; return; } acaoMundo(() => Mundo.criarOnline(c), "✅ Mundo criado! Passe o código" + (c.senha ? " e a senha" : " (aberto a todos)") + " aos amigos."); });
 $("mundo-entrar").addEventListener("click", () => { const c = lerCampos(); if (!c.servidor || !c.id) { $("mundo-status").textContent = "Informe o servidor e o código do mundo."; return; } acaoMundo(() => Mundo.entrar(c), "✅ Entrou no mundo."); });
 $("mundo-novo-local").addEventListener("click", () => { if (confirm("Apagar o mundo deste aparelho (lugares, mortos e fatos) e começar outro do zero?")) acaoMundo(() => Mundo.novoLocal(), "✅ Mundo novo e vazio."); });
@@ -3115,7 +3158,7 @@ function podeRefazer() {                                  // "Reenviar a última
 }
 setInterval(() => { try { $("refazer").hidden = !podeRefazer(); } catch (e) {} }, 3000);
 try { if (lerLS("local_url") && !LOCAL.modelos().length) descobrirLocal().catch(() => {}); } catch (e) {}
-async function chamarIA() { iaAtiva++; try { if (Mundo.online()) await Mundo.puxar(); return await chamarIAInterna(); } finally { iaAtiva--; } }
+async function chamarIA() { iaAtiva++; try { await Mundo.aguardar(); if (Mundo.online()) await Mundo.puxar(); return await chamarIAInterna(); } finally { iaAtiva--; } }
                                           // cada chamada tem um número: se o jogador mandar refazer, a antiga é ignorada
 async function chamarIAInterna() {
   const minha = ++gerIA;
@@ -4854,8 +4897,8 @@ function contextoAventura() {
 }
 let aventuraPendente = null;                                 // campanha escolhida em "Quero jogar", usada ao começar o personagem
 function escolherAventura(jog = [], pre = false) {
-  if (!pre && aventuraPendente && jog.length < 2) { const a = aventuraPendente; aventuraPendente = null; aventuraSolo = a; if (Mundo.ativoNoModo()) Mundo.setMeta({ aventura: a }); $("aventura-solo").hidden = true; salvarPersonagem(); abrirMundo(jog); return; }
-  if (!pre && Mundo.ativoNoModo() && Mundo.online() && Mundo.meta()?.aventura && Mundo.temConteudo()) {   // mundo compartilhado já existe: o novo aventureiro entra nele
+  if (!pre && aventuraPendente && jog.length < 2) { const a = aventuraPendente; aventuraPendente = null; aventuraSolo = a; Mundo.sincronizar(a); if (Mundo.ativoNoModo()) Mundo.setMeta({ aventura: a }); $("aventura-solo").hidden = true; salvarPersonagem(); abrirMundo(jog); return; }
+  if (!pre && Mundo.ativoNoModo() && Mundo.online() && Mundo.cfgAtual()?.modo !== "global" && Mundo.meta()?.aventura && Mundo.temConteudo()) {   // mundo compartilhado já existe: o novo aventureiro entra nele
     herdando = true; aventuraSolo = Mundo.meta().aventura; salvarPersonagem(); abrirMundo(jog); return;
   }
   const era = $("av-era"), mundo = $("av-mundo"), camp = $("av-camp");
@@ -4868,7 +4911,7 @@ function escolherAventura(jog = [], pre = false) {
   mundos(); camps(); previa();
   $("av-pular").hidden = !pre; $("av-pular").onclick = () => { $("aventura-solo").hidden = true; mostrarLista(); };
   const iniciar = a => { if (pre) { aventuraPendente = a; $("aventura-solo").hidden = true; const pr = $("av-pendente"); if (pr) { pr.hidden = false; pr.textContent = "🌍 Campanha escolhida: " + (a.custom ? (a.mundo || "a sua") + " (texto seu)" : a.auto ? "criada pela IA" : (ERAS.find(e => e.id === a.era)?.mundos[a.mundo]?.n || "") + " — " + (ERAS.find(e => e.id === a.era)?.mundos[a.mundo]?.c[a.camp]?.t || "")) + ". Vale para o próximo personagem que começar."; } mostrarLista(); return; }
-    aventuraSolo = a; if (a && Mundo.ativoNoModo()) Mundo.setMeta({ aventura: a }); $("aventura-solo").hidden = true; salvarPersonagem(); abrirMundo(jog); };
+    aventuraSolo = a; Mundo.sincronizar(a); if (a && Mundo.ativoNoModo()) Mundo.setMeta({ aventura: a }); $("aventura-solo").hidden = true; salvarPersonagem(); abrirMundo(jog); };
   $("av-ok").onclick = () => iniciar({ era: ERAS[era.value].id, mundo: Number(mundo.value), camp: Number(camp.value) });
   $("av-sorte").onclick = () => { const e = Math.floor(Math.random() * ERAS.length), m = Math.floor(Math.random() * ERAS[e].mundos.length), c = Math.floor(Math.random() * ERAS[e].mundos[m].c.length); iniciar({ era: ERAS[e].id, mundo: m, camp: c }); };
   $("av-ia").onclick = () => iniciar({ era: ERAS[era.value].id, auto: true });
@@ -9642,6 +9685,7 @@ const NUVEM = (() => {
       try { if (!$("criacao").hidden && !ficha?.id) mostrarLista(); } catch (e) {}
       status(`☁ Conectado como ${email()}.${n ? ` ${n} personagem(ns) atualizado(s) da nuvem.` : ""}${kn ? ` ${kn} chave(s) de IA restaurada(s).` : ""}`);
       try { infoServidor(true); } catch (e) {}
+      try { Mundo.sincronizar(aventuraSolo); } catch (e) {}
       enviar(true);                                       // junta o que este aparelho tem e manda de volta
     } catch (e) { status("☁ Não deu para baixar da nuvem: " + (e.message || e)); }
   }
@@ -9747,7 +9791,7 @@ const NUVEM = (() => {
     return out;
   }
   const pronto = cliente().catch(e => { console.warn("nuvem:", e); });   // na abertura: se já havia sessão, entra sozinho
-  return { bancoStatus, bancoEmprestar, bancoRetirar, chavesParaServidor, removerChave, entrar, enviar, logado, email, filaServidor, infoServidor, configurado, botao, pronto, aplicar, pacote };
+  return { cliente, bancoStatus, bancoEmprestar, bancoRetirar, chavesParaServidor, removerChave, entrar, enviar, logado, email, filaServidor, infoServidor, configurado, botao, pronto, aplicar, pacote };
 })();
 $("nuvem-btn").addEventListener("click", () => NUVEM.entrar());
 $("ch-banco-emprestar").addEventListener("click", () => NUVEM.bancoEmprestar(false));
@@ -9936,7 +9980,7 @@ function continuarPersonagem(reg) {
   campanha = reg.campanha || [];
   if (reg.rodada) Object.assign(RODADA.cfg, reg.rodada); else if (reg.grupo?.jogadores < 2 || reg.mestreHumano) RODADA.cfg.modo = "off";
   RODADA.E.laco = reg.laco || ""; RODADA.E.local = reg.local || ""; retomadaTs = reg.atualizadoEm || 0;
-  resumoCampanha = reg.resumo || ""; pendentesResumo = []; aventuraSolo = reg.aventura || null; ECO.aoContinuar(reg);
+  resumoCampanha = reg.resumo || ""; pendentesResumo = []; aventuraSolo = reg.aventura || null; Mundo.sincronizar(aventuraSolo); ECO.aoContinuar(reg);
   historico.length = 0;                                // a IA começa limpa: só recebe as últimas linhas
   resumoRetomada = campanha.length
     ? "\n\nRETOMADA DA CAMPANHA: o jogador voltou ao jogo. Últimas linhas salvas, da mais antiga para a mais recente:\n" +
@@ -10615,6 +10659,7 @@ Responda SOMENTE com JSON válido, sem comentários:
     for (const e of Object.values(cx.e)) mcodex[e.id] = { id: e.id, nome: e.nome, tipo: e.tipo, subtipo: e.subtipo, descricao: e.descricao, afeicao: e.inicial ?? e.afeicao ?? 0, notas: [...(e.notas || [])], img: await imagem(e.id) };
     const mod = { id: "mod_" + Date.now().toString(36), versao: 1, titulo: titulo || `A jornada de ${ficha.nome}`, sinopse: sinopse || "", criado: Date.now(), origem: { nome: ficha.nome, classe: ficha.classe, raca: ficha.raca, nivel: ficha.nivel }, inicio, ordem, cenas, codex: mcodex };
     await put("mod", mod.id, mod);
+    try { if (NUVEM.logado()) OFFLINE.publicar(mod); } catch (e) {}
     if (btn) btn.disabled = false;
     st(`✅ Campanha "${mod.titulo}" compilada: ${ordem.length} cenas${viaIA < blocos.length ? ` (${blocos.length - viaIA} bloco(s) pela compilação simples, sem IA)` : ""}. Abra em 📦 Campanhas offline.`);
     return mod;
@@ -10665,14 +10710,28 @@ const OFFLINE = (() => {
   const fechar = () => { const d = $("offline"); if (d) { d.hidden = true; d.innerHTML = ""; } };
 
   // ---------- lista de módulos ----------
+  async function listaServidor() {
+    try { const sb = await NUVEM.cliente(); if (!sb) return null; const { data, error } = await sb.from("rpg_campanhas_off").select("id,titulo,autor,criado,origem:dados->origem").order("criado", { ascending: false }).limit(100); return error ? null : data; } catch (e) { return null; }
+  }
+  async function publicar(m) {                         // coloca a campanha na biblioteca do servidor, para todos jogarem sem IA
+    try { if (!m) return "campanha não encontrada"; if (!NUVEM.logado()) return "login"; const sb = await NUVEM.cliente();
+      const { error } = await sb.from("rpg_campanhas_off").upsert({ id: m.id, titulo: String(m.titulo || "Campanha").slice(0, 120), dados: m, atualizado: new Date().toISOString() }, { onConflict: "id" });
+      return error ? error.message : ""; } catch (e) { return e.message || "erro"; }
+  }
   async function abrir() {
     const d = tela(), mods = (await CODEX.tudo("mod")).sort((a, b) => (b.atualizado || b.criado) - (a.atualizado || a.criado));
+    const srv = await listaServidor(), srvIds = new Set((srv || []).map(x => x.id)); let meuId = ""; try { meuId = (await (await NUVEM.cliente())?.auth.getUser())?.data?.user?.id || ""; } catch (e) {}
+    const srvHtml = srv === null ? `<p class="dica">☁ Biblioteca do servidor indisponível agora.</p>` : `<h3>☁ Biblioteca do servidor</h3><p class="dica">Campanhas compartilhadas por todos os jogadores. Toque em Jogar: não precisa de arquivo nem de IA.</p>` + (srv.length ? srv.map(x => `<div class="off-mod"><div><b>${esc(x.titulo)}</b><div class="dica">gravada com ${esc(x.origem?.nome || "?")} (${esc(x.origem?.classe || "")}) · ${new Date(x.criado).toLocaleDateString("pt-BR")}</div></div><div class="linha-botoes"><button type="button" data-srv-jogar="${esc(x.id)}">▶ Jogar</button>${meuId && x.autor === meuId ? `<button type="button" class="secundario" data-srv-del="${esc(x.id)}">🗑 Remover</button>` : ""}</div></div>`).join("") : `<p class="dica">Ainda não há campanhas no servidor. Envie uma das suas com ☁ Enviar.</p>`);
     d.innerHTML = `<div class="off-caixa"><div class="off-topo"><h2>📦 Campanhas offline</h2><button type="button" class="voltar-btn" id="off-sair">↩ Voltar</button></div>
       <p class="dica">Campanhas compiladas das suas sessões com a IA. Jogue de novo, sem IA, com outro personagem: os testes usam os atributos dele e a afeição dos NPCs segue as regras. Se você perguntar ou tentar algo que a campanha não cobre, o jogo pausa e manda para o Mestre humano (ele abre o jogo em "📖 Quero mestrar", em outra aba ou na mesma sala online).</p>
       ${mods.length ? mods.map(m => `<div class="off-mod"><div><b>${esc(m.titulo)}</b><div class="dica">${Object.keys(m.cenas || {}).length} cenas · gravada com ${esc(m.origem?.nome || "?")} (${esc(m.origem?.classe || "")}) · ${new Date(m.criado).toLocaleDateString("pt-BR")}</div>${m.sinopse ? `<div class="dica">${esc(m.sinopse.replace(/\{nome\}/g, "o herói"))}</div>` : ""}</div>
-        <div class="linha-botoes"><button type="button" data-off-jogar="${m.id}">▶ Jogar</button><button type="button" class="secundario" data-off-exp="${m.id}">⬇ Exportar</button><button type="button" class="secundario" data-off-del="${m.id}">🗑</button></div></div>`).join("") : `<p class="dica">Nenhuma campanha ainda. Jogue com a IA e use 📖 Codex → 🧩 Compilar a sessão.</p>`}
+        <div class="linha-botoes"><button type="button" data-off-jogar="${m.id}">▶ Jogar</button>${srvIds.has(m.id) ? "" : `<button type="button" class="secundario" data-off-pub="${m.id}">☁ Enviar ao servidor</button>`}<button type="button" class="secundario" data-off-exp="${m.id}">⬇ Exportar</button><button type="button" class="secundario" data-off-del="${m.id}">🗑</button></div></div>`).join("") : `<p class="dica">Nenhuma campanha ainda. Jogue com a IA e use 📖 Codex → 🧩 Compilar a sessão.</p>`}
+      ${srvHtml}
       <label class="secundario off-imp">📥 Importar campanha (.json)<input type="file" id="off-imp" accept=".json,application/json" hidden></label></div>`;
     $("off-sair").onclick = () => { fechar(); if (salvoFicha) location.reload(); };
+    d.querySelectorAll("[data-off-pub]").forEach(b => b.onclick = async () => { b.disabled = true; b.textContent = "Enviando…"; const m = await CODEX.get("mod", b.dataset.offPub), e = await publicar(m); if (e) { alert(e === "login" ? "Entre na conta (☁ no menu inicial) para enviar ao servidor." : "Não consegui enviar: " + e); } abrir(); });
+    d.querySelectorAll("[data-srv-jogar]").forEach(b => b.onclick = async () => { b.disabled = true; b.textContent = "Baixando…"; try { const sb = await NUVEM.cliente(), { data, error } = await sb.from("rpg_campanhas_off").select("dados").eq("id", b.dataset.srvJogar).single(); if (error || !data?.dados) throw new Error(error?.message || "campanha não encontrada"); const m = data.dados; m.id = b.dataset.srvJogar; await CODEX.put("mod", m.id, m); escolherHeroi(m.id); } catch (e) { alert("Não consegui baixar a campanha: " + e.message); abrir(); } });
+    d.querySelectorAll("[data-srv-del]").forEach(b => b.onclick = async () => { if (!confirm("Remover esta campanha do servidor para todos os jogadores?")) return; try { const sb = await NUVEM.cliente(); const { error } = await sb.from("rpg_campanhas_off").delete().eq("id", b.dataset.srvDel); if (error) throw new Error(error.message); } catch (e) { alert("Não consegui remover: " + e.message); } abrir(); });
     d.querySelectorAll("[data-off-jogar]").forEach(b => b.onclick = () => escolherHeroi(b.dataset.offJogar));
     d.querySelectorAll("[data-off-exp]").forEach(b => b.onclick = async () => { const m = await CODEX.get("mod", b.dataset.offExp); const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(m)], { type: "application/json" })); a.download = `campanha-${CODEX.slug(m.titulo) || m.id}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); });
     d.querySelectorAll("[data-off-del]").forEach(b => b.onclick = async () => { if (!confirm("Excluir esta campanha offline deste aparelho?")) return; await CODEX.del("mod", b.dataset.offDel); abrir(); });
@@ -10818,7 +10877,7 @@ const OFFLINE = (() => {
     abrirRegras(`<div class="caixa-rg cx-painel"><h2>📖 Codex — ${esc(mod.titulo)}</h2>${l.length ? l.map(e => `<div class="cx-ent">${e.img ? `<img src="${e.img}" alt="" class="${e.tipo}">` : `<div class="cx-sem">${e.tipo === "npc" ? "🧑" : "🏞"}</div>`}<div><b>${esc(e.nome)}</b> <small>· ${esc(e.subtipo || "")}</small>${e.tipo === "npc" ? CODEX.barra(st.afe[e.id] ?? 0) : ""}<div class="dica">${esc(e.descricao || "")}</div>${(e.notas || []).slice(-5).map(n => `<div class="cx-nota">📝 ${esc(vars(n))}</div>`).join("")}</div></div>`).join("") : `<p class="dica">Vazio.</p>`}
       ${st.notas.length ? `<h3>🧙 Respostas do Mestre nesta partida</h3>${st.notas.slice(-10).map(n => `<p class="dica"><b>“${esc(n.pergunta)}”</b> — ${esc(n.resposta)}</p>`).join("")}` : ""}<button type="button" class="secundario" data-fechar-rg>Fechar</button></div>`);
   }
-  return { abrir, render, ativo: () => !!st && !$("offline")?.hidden };
+  return { abrir, render, publicar, ativo: () => !!st && !$("offline")?.hidden };
 })();
 $("off-abrir")?.addEventListener("click", () => OFFLINE.abrir());
 $("abrir-codex")?.addEventListener("click", () => CODEX.abrirPainel());
