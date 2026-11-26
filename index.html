@@ -393,6 +393,8 @@
   /* ---------- regras do livro: equipamento, magias e painel do combate ---------- */
   #regras-dlg { position: fixed; inset: 0; z-index: 260; overflow-y: auto; background: var(--fundo); padding: 20px 16px; }
   .caixa-rg { max-width: 560px; margin: 0 auto; display: grid; gap: 12px; }
+  .rg-cab { display: flex; align-items: center; gap: 12px; }
+  .rg-npc { width: 84px; height: 84px; image-rendering: pixelated; border-radius: 8px; border: 2px solid var(--borda); background: #2a2238; flex: none; }
   .caixa-rg h2 { margin: 0; font: 700 2rem "Cormorant Garamond", Georgia, serif; color: var(--latao); }
   .caixa-rg h3 { margin: 6px 0 0; } .caixa-rg details { border: 1px solid var(--borda); border-radius: 8px; padding: 8px 10px; } .caixa-rg summary { cursor: pointer; }
   .rg-mg { display: block; padding: 7px 0; border-bottom: 1px dotted var(--borda); } .rg-mg input { margin-right: 6px; }
@@ -6345,7 +6347,7 @@ function estalagemHtml(nome, aviso = "") {
   const cura = c => `${c[0]}d${c[1]}${c[2] ? "+" + c[2] : ""}`;
   const quadro = m ? `<div class="fx-item"><div><b>📜 ${esc(m.titulo)}</b> <span class="eq-tag">em andamento</span><br><small>${esc(m.desc)}<br>Recompensa: <b>${m.xp} XP</b> e <b>${po(m.ouro)}</b> · dificuldade ${m.dific}</small></div><div class="fx-itbtn"><button data-tav="desistir">Desistir</button></div></div>`
     : (() => { const p = (estalagemAtual === nome && TAV_OFERTA) || (TAV_OFERTA = novaMissaoTaverna()); return `<div class="fx-item"><div><b>📜 ${esc(p.titulo)}</b><br><small>${esc(p.desc)}<br>Recompensa: <b>${p.xp} XP</b> e <b>${po(p.ouro)}</b> · dificuldade ${p.dific}</small></div><div class="fx-itbtn"><button data-tav="aceitar">Aceitar</button><button data-tav="outra" title="Pedir outro serviço">🔄 Outra</button></div></div>`; })();
-  return `<div class="caixa-rg"><h2>🍺 ${esc(nome)}</h2><div class="fx-tracos">Cheiro de ensopado e lenha. Você tem <b>${po(ouro)}</b> · vida <b>${ficha.vidaAtual}/${ficha.vidaMaxima}</b>.</div>
+  return `<div class="caixa-rg"><div class="rg-cab">${RETRATO_NPC.tag("taverneiro")}<h2>🍺 ${esc(nome)}</h2></div><div class="fx-tracos">Cheiro de ensopado e lenha. Você tem <b>${po(ouro)}</b> · vida <b>${ficha.vidaAtual}/${ficha.vidaMaxima}</b>.</div>
     ${aviso ? `<div class="fx-tracos"><b>${aviso}</b></div>` : ""}
     <h3>Comer e beber</h3><div class="fx-itens">${CARDAPIO.map(c => `<div class="fx-item"><div><b>${c.ic} ${c.nome}</b> <small>recupera ${cura(c.cura)} de vida</small></div><div class="fx-itbtn"><button data-tav="${c.k}" ${ouro < c.preco ? "disabled" : ""}>${po(c.preco)}</button></div></div>`).join("")}</div>
     <h3>Descansar</h3><div class="fx-itens">
@@ -6397,7 +6399,7 @@ function servicoHtml(aviso = "") {
   const inf = SV_INFO[SV.tipo], m = ficha.missao;
   const q = m ? `<div class="fx-item"><div><b>📜 ${esc(m.titulo)}</b> <span class="eq-tag">em andamento</span><br><small>${esc(m.desc)}<br>Recompensa: <b>${m.xp} XP</b> e <b>${po(m.ouro)}</b> · dificuldade ${m.dific}</small></div><div class="fx-itbtn"><button data-tav="sv-desistir">Desistir</button></div></div>`
     : (() => { const p = SV.oferta || (SV.oferta = novaMissaoTaverna(SV.tipo)); return `<div class="fx-item"><div><b>📜 ${esc(p.titulo)}</b> <small>(nível ${p.nivel})</small><br><small>${esc(p.desc)}<br>Recompensa: <b>${p.xp} XP</b> e <b>${po(p.ouro)}</b> · dificuldade ${p.dific}</small></div><div class="fx-itbtn"><button data-tav="sv-aceitar">Aceitar</button><button data-tav="sv-outra">🔄 Outra</button></div></div>`; })();
-  return `<div class="caixa-rg"><h2>${inf.ic} ${esc(SV.nome)}</h2><div class="fx-tracos">${inf.txt} Vida <b>${ficha.vidaAtual}/${ficha.vidaMaxima}</b>.</div>${aviso ? `<div class="fx-tracos"><b>${aviso}</b></div>` : ""}
+  return `<div class="caixa-rg"><div class="rg-cab">${SV.tipo === "igreja" ? RETRATO_NPC.tag("sacerdote") : ""}<h2>${inf.ic} ${esc(SV.nome)}</h2></div><div class="fx-tracos">${inf.txt} Vida <b>${ficha.vidaAtual}/${ficha.vidaMaxima}</b>.</div>${aviso ? `<div class="fx-tracos"><b>${aviso}</b></div>` : ""}
     <h3>${inf.quadro}</h3><div class="fx-tracos">A recompensa é paga ao concluir. Serviços adequados ao seu nível (${ficha.nivel}).</div><div class="fx-itens">${q}</div><button class="acao" data-tav="sv-sair">Sair</button></div>`;
 }
 function abrirServicoMissao(nome, tipo) { SV = { nome, tipo, oferta: null }; abrirRegras(servicoHtml()); }
@@ -7048,8 +7050,14 @@ const RETRATO_NPC = (() => {
     box.querySelector("small").textContent = f.nome && f.papel ? f.papel : "";
     img.alt = f.nome || f.papel; img.src = url;
   }
-  return { aposNarracao, achar, expressao, carregar, _setIndice: v => { indice = v; } };
+  function tag(papel, expr = "Smile") {                          // <img> do retrato para um ofício (loja, taverna...); vazio se não houver
+    if (!indice) { carregar(); return ""; }
+    const n = norm(papel || ""), r = indice.find(x => x.re.test(n)); if (!r) return "";
+    return `<img class="rg-npc" src="${base()}${encodeURIComponent(r.id)}/${expr}.png" alt="" onerror="this.remove()">`;
+  }
+  return { tag, aposNarracao, achar, expressao, carregar, _setIndice: v => { indice = v; } };
 })();
+setTimeout(() => { try { RETRATO_NPC.carregar(); } catch (e) {} }, 2500);   // índice pronto antes de abrir loja ou taverna
 /* ---------- Combate automático: o APP percebe na narração que criaturas atacam e abre o tabuleiro (a IA só narra) ---------- */
 const COMBATE_AUTO = (() => {
   const NUM = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, varios: 3, varias: 3, alguns: 3, algumas: 3, bando: 3, grupo: 3, horda: 4, matilha: 3, par: 2, dupla: 2 };
@@ -8227,7 +8235,7 @@ function lojaHtml() {
     const arm = (lista, tipo) => lista.map(x => `<div class="fx-item"><div>${tipo === "arma" ? REGRAS.iconeArma(x) : (x.tipo === "E" ? ARTE.escudo(26) : ARTE.armadura(x, 26))} <b>${x.nome}</b> <small>${tipo === "arma" ? `${x.dano} ${x.tdano}` : x.tipo === "E" ? "+2 CA" : "CA " + x.ca + (x.dexMax === -1 ? " + Des" : x.dexMax ? " + Des (máx. 2)" : "")} · ${x.peso} kg${(tipo === "arma" ? !REGRAS.profArma(x) : !REGRAS.profArm(x)) ? " · sem proficiência" : ""}</small></div><div class="fx-itbtn"><button data-compra="${tipo}:${x.nome}" ${ouro < x.preco ? "disabled" : ""}>${x.preco} po</button></div></div>`).join("");
     corpo = `<h3>Armas</h3><div class="fx-itens">${arm(REGRAS.ARMAS, "arma")}</div><h3>Armaduras e escudo</h3><div class="fx-itens">${arm(REGRAS.ARMADURAS, "arm")}</div>`;
   } else corpo = `<div class="fx-itens">${L.itens.map(([n, pr, pe]) => `<div class="fx-item"><div><b>${esc(n)}</b> <small>${pe} kg</small></div><div class="fx-itbtn"><button data-compra-it="${esc(n)}" ${ouro < pr ? "disabled" : ""}>${fx(pr)}</button></div></div>`).join("")}</div>`;
-  return `<div class="caixa-rg"><h2>🛒 ${L.titulo} — ${esc(lojaAtiva.npc)}</h2><div class="fx-tracos">${L.sub} · você tem <b>${ouro}</b> po</div>${corpo}<button class="acao" data-loja-sair>Despedir-se</button> <button class="acao" data-fechar-rg>Fechar</button></div>`;
+  return `<div class="caixa-rg"><div class="rg-cab">${RETRATO_NPC.tag(lojaAtiva.tipo)}<h2>🛒 ${L.titulo} — ${esc(lojaAtiva.npc)}</h2></div><div class="fx-tracos">${L.sub} · você tem <b>${ouro}</b> po</div>${corpo}<button class="acao" data-loja-sair>Despedir-se</button> <button class="acao" data-fechar-rg>Fechar</button></div>`;
 }
 function atualizarBotaoLoja() { const b = $("abrir-loja"); if (b) { b.hidden = !lojaAtiva; b.textContent = lojaAtiva ? "🛒 Loja — " + (LOJAS[lojaAtiva.tipo]?.titulo || "") : "🛒 Loja"; } }
 function abrirLoja(a) {
