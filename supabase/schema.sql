@@ -56,3 +56,8 @@ create table if not exists public.rpg_banco_chaves (
 );
 alter table public.rpg_banco_chaves enable row level security;
 revoke all on public.rpg_banco_chaves from anon, authenticated;
+
+-- Permissões das tabelas (projetos novos do Supabase não dão sozinhos). As políticas RLS acima limitam cada jogador ao próprio save.
+grant select, insert, update on public.rpg_saves to authenticated;
+grant select, insert, update, delete on public.rpg_saves, public.rpg_uso_ia, public.rpg_chaves_dono, public.rpg_banco_chaves to service_role;
+grant execute on function public.rpg_conta_uso(uuid) to service_role;
