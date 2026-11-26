@@ -1683,7 +1683,10 @@ function vidaPelaIA(a) {                                 // filtro da cura pedid
     const r = aplicarVida({ variacao: v, motivo: `${po.nome} (gasta)` });
     return { ...r, pocao_gasta: po.nome };
   }
-  return aplicarVida(a);
+  const r = aplicarVida(a);
+  if (v < 0 && !cb?.ativo && !mc?.ativo && r && !r.erro)   // dano por ataque fora do tabuleiro: a luta tem de abrir o tabuleiro
+    return { ...r, instrucao: "Se esse dano veio de um inimigo atacando, a luta COMEÇOU: chame iniciar_combate AGORA (ambiente, mapa e inimigos) em vez de narrar o combate à mão, e mantenha a continuidade com a cena atual (mesmo local, mesmos personagens), sem recomeçar a narração." };
+  return r;
 }
 const temAliadoPerto = () => GRUPO.jogadores > 1 || GRUPO.modo === "grupo" || !!(Rede.estado?.online && Rede.estado.total > 1);
 async function decidirAjudaIA() {                        // a IA decide se um aliado da cena ajuda o jogador que falhou na salvaguarda
@@ -3298,7 +3301,7 @@ async function chamarIAInterna() {
       const SEM_VOLTA = new Set(["alterar_vida", "atualizar_inventario", "conceder_xp"]);   // com narração pronta e sem erro: o app só registra
       // Economia: XP, vida, inventário e registros não precisam de nova narração paga. Se a IA já narrou, o app só registra;
       // se não narrou nada, o app escreve uma linha curta e os botões padrão aparecem. Erro ou personagem caído: a IA narra.
-      const okSemVolta = (c, i) => CHAMADAS_SILENCIOSAS.has(c.name) || (SEM_VOLTA.has(c.name) && !respostas[i]?.functionResponse?.response?.erro && ficha.vidaAtual > 0 && !ficha.morto);
+      const okSemVolta = (c, i) => CHAMADAS_SILENCIOSAS.has(c.name) || (SEM_VOLTA.has(c.name) && !respostas[i]?.functionResponse?.response?.erro && ficha.vidaAtual > 0 && !ficha.morto && !(c.name === "alterar_vida" && texto.length <= 60 && respostas[i]?.functionResponse?.response?.instrucao));   // dano sem narração: a IA precisa narrar e abrir o combate
       if (chamadas.every(okSemVolta) && (texto.length > 60 || chamadas.some(c => SEM_VOLTA.has(c.name)))) {
         if (texto.length <= 60) { const fez = [...new Set(chamadas.filter(c => SEM_VOLTA.has(c.name)).map(c => ({ conceder_xp: "seu XP", alterar_vida: "sua vida", atualizar_inventario: "sua bolsa" })[c.name]))]; addMsg(`📜 O Mestre atualizou ${fez.join(", ")}. O que você faz agora?`, "mestre"); }
         DIAG.economizou();
