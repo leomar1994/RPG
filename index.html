@@ -294,7 +294,7 @@
 
   /* ---------- Chaves de IA ---------- */
   #morte { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; background: rgba(0,0,0,.88); padding: 20px; } #morte[hidden] { display: none; }
-  #chaves-ia, #chave-guia, #aventura-solo, #mundo-dlg, #oficio-dlg, #mundomapa-dlg { position: fixed; inset: 0; z-index: 200; overflow-y: auto; background: var(--fundo); padding: 20px 16px; }
+  #chaves-ia, #chave-indep, #chave-guia, #aventura-solo, #mundo-dlg, #oficio-dlg, #mundomapa-dlg { position: fixed; inset: 0; z-index: 200; overflow-y: auto; background: var(--fundo); padding: 20px 16px; }
   .ch-linha { display: grid; gap: 6px; margin: 14px 0; } .ch-linha input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--borda); background: var(--painel); color: var(--texto); font: inherit; }
   .cg-passos { padding-left: 20px; line-height: 1.6; } .cg-passos code { background: var(--painel); padding: 1px 5px; border-radius: 4px; }
   .ch-linha small { color: var(--suave); } .ch-ok { color: var(--ok); }
@@ -386,7 +386,7 @@
   #form-ficha button { padding: 12px; border: 0; border-radius: 8px; background: var(--latao); color: #2a2010; font: 700 1.1rem "Alegreya Sans", sans-serif; cursor: pointer; }
 
   /* ---------- regras do livro: equipamento, magias e painel do combate ---------- */
-  #regras-dlg { position: fixed; inset: 0; z-index: 200; overflow-y: auto; background: var(--fundo); padding: 20px 16px; }
+  #regras-dlg { position: fixed; inset: 0; z-index: 260; overflow-y: auto; background: var(--fundo); padding: 20px 16px; }
   .caixa-rg { max-width: 560px; margin: 0 auto; display: grid; gap: 12px; }
   .caixa-rg h2 { margin: 0; font: 700 2rem "Cormorant Garamond", Georgia, serif; color: var(--latao); }
   .caixa-rg h3 { margin: 6px 0 0; } .caixa-rg details { border: 1px solid var(--borda); border-radius: 8px; padding: 8px 10px; } .caixa-rg summary { cursor: pointer; }
@@ -691,6 +691,12 @@
       <div class="linha-botoes"><button type="button" id="ch-banco-emprestar">🏦 Emprestar minhas chaves</button><button type="button" id="ch-banco-retirar" class="secundario">Retirar do banco</button></div>
       <p id="ch-banco-status" class="dica">Entre na sua conta (☁ no menu inicial) para usar o banco de chaves.</p>
     </fieldset>
+    <div class="linha-botoes"><button type="button" id="ch-salvar">Salvar</button><button type="button" id="ch-fechar" class="secundario">Fechar</button></div></div>
+</div>
+
+<div id="chave-indep" role="dialog" aria-modal="true" aria-label="Chave independente" hidden>
+  <div class="caixa-sala"><h2>🖥 Chave independente</h2>
+    <p class="dica">Uma IA que roda no seu próprio computador (Ollama ou LM Studio), sem chave de internet. Ela é a última reserva: só entra quando as IAs grátis estiverem no limite.</p>
     <fieldset class="ch-local"><legend>🖥 IA no meu computador — reserva final</legend>
       <p class="dica">Só entra quando TODAS as IAs grátis estiverem no limite ou fora do ar, e continua a história de onde parou. Funciona com o Ollama ou o LM Studio rodando neste computador (sem limite e sem custo).</p>
       <div class="ch-linha"><label for="ch-local-url"><b>Endereço do programa</b></label><input id="ch-local-url" autocomplete="off" placeholder="http://localhost:11434 (Ollama) · http://localhost:1234 (LM Studio)"></div>
@@ -699,7 +705,7 @@
       <div class="linha-botoes"><button type="button" id="ch-local-testar">🔌 Testar</button><button type="button" id="ch-local-ajuda" class="secundario">❓ Como instalar</button><button type="button" id="ch-local-remover" class="secundario">Remover</button></div>
       <p id="ch-local-status" class="dica"></p>
     </fieldset>
-    <div class="linha-botoes"><button type="button" id="ch-salvar">Salvar</button><button type="button" id="ch-fechar" class="secundario">Fechar</button></div></div>
+    <div class="linha-botoes"><button type="button" id="indep-salvar">Salvar</button><button type="button" id="indep-fechar" class="secundario">Fechar</button></div></div>
 </div>
 
 <div id="mundomapa-dlg" role="dialog" aria-modal="true" aria-label="Mapa do mundo" hidden>
@@ -820,6 +826,7 @@
   <button id="nuvem-btn" type="button" hidden>☁ Entrar / Criar conta</button>
   <p id="nuvem-status" class="dica"></p>
   <button id="abrir-chaves" class="secundario">🔑 Chaves de IA</button>
+  <button id="abrir-indep" class="secundario" type="button">🖥 Chave independente</button>
   <button id="mundo-abrir" class="secundario">🌍 Mundo</button>
   <button id="off-abrir" class="secundario" type="button">📦 Campanhas offline</button>
   <div id="online">
@@ -2801,6 +2808,9 @@ $("oficio-corpo").addEventListener("click", async e => {
 });
 $("abrir-chaves").addEventListener("click", () => { montarChaves(); $("chaves-ia").hidden = false; $("chaves-ia").scrollTop = 0; });
 $("ch-fechar").addEventListener("click", () => { $("chaves-ia").hidden = true; });
+$("abrir-indep").addEventListener("click", () => { try { mostrarLocal(); } catch (e) {} $("ch-local-status").textContent = ""; $("chave-indep").hidden = false; $("chave-indep").scrollTop = 0; });
+$("indep-fechar").addEventListener("click", () => { $("chave-indep").hidden = true; });
+$("indep-salvar").addEventListener("click", () => { salvarLocal(); $("ch-local-status").textContent = "✅ Salvo. Toque em 🔌 Testar para conferir a conexão."; });
 function salvarLocal() {
   try { const u = $("ch-local-url").value.trim(), m = $("ch-local-modelo").value.trim();
     if (u) localStorage.setItem("local_url", u); else localStorage.removeItem("local_url");
