@@ -298,6 +298,7 @@
   .ch-linha { display: grid; gap: 6px; margin: 14px 0; } .ch-linha input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--borda); background: var(--painel); color: var(--texto); font: inherit; }
   .cg-passos { padding-left: 20px; line-height: 1.6; } .cg-passos code { background: var(--painel); padding: 1px 5px; border-radius: 4px; }
   .ch-linha small { color: var(--suave); } .ch-ok { color: var(--ok); }
+  .ch-campo { display: flex; gap: 6px; align-items: center; } .ch-campo input { flex: 1; min-width: 0; } .caixa-sala button.ch-btn { flex: none; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 16px; line-height: 1; } .ch-conta { margin: 10px 0 0; }
 
   /* ---------- Criação de personagem ---------- */
   [hidden] { display: none !important; }
@@ -659,7 +660,7 @@
 </div>
 <div id="chave-guia" role="dialog" aria-modal="true" aria-label="Criar chave de IA grátis" hidden>
   <div class="caixa-sala"><h2>🔑 Criar minha chave grátis</h2>
-    <p class="dica">Para a IA responder, o jogo precisa de uma chave sua (é grátis e leva ~1 minuto). Por segurança, nenhum site pode criá-la por você sem você entrar na conta: o login com Google é feito no site oficial do OpenRouter, numa aba nova — o jogo continua aberto aqui. A chave fica só neste navegador.</p>
+    <p class="dica">Para a IA responder, o jogo precisa de uma chave sua (é grátis e leva ~1 minuto). Por segurança, nenhum site pode criá-la por você sem você entrar na conta: o login com Google é feito no site oficial do OpenRouter, numa aba nova — o jogo continua aberto aqui. Se você entrou na conta (☁), a chave fica salva nela e vale em qualquer aparelho.</p>
     <div id="cg-auto" hidden><button type="button" id="cg-oauth">⚡ Conectar com o OpenRouter (automático, sem copiar)</button><p class="dica">Você entra com o Google, aprova, e volta para o jogo já com a chave salva.</p><hr></div>
     <ol class="cg-passos"><li>Toque em <b>Abrir o OpenRouter</b> e entre com a sua conta Google.</li><li>Clique em <b>Create Key</b> (qualquer nome; não precisa pôr dinheiro).</li><li>Copie a chave (começa com <code>sk-or-v1-</code>), volte aqui e cole abaixo.</li></ol>
     <div class="linha-botoes"><button type="button" id="cg-abrir">🌐 Abrir o OpenRouter (nova aba)</button></div>
@@ -673,7 +674,8 @@
 </div>
 <div id="chaves-ia" role="dialog" aria-modal="true" aria-label="Chaves de IA" hidden>
   <div class="caixa-sala"><h2>🔑 Chaves de IA</h2>
-    <p class="dica">Cada chave extra dá mais limite grátis: quando uma IA chega no limite, o jogo passa sozinho para a próxima. As chaves ficam só neste navegador. Deixe em branco o que não quiser mudar.</p>
+    <p class="dica">Cada chave extra dá mais limite grátis: quando uma IA chega no limite, o jogo passa sozinho para a próxima. Entrando na sua conta (☁ no menu inicial), as chaves ficam salvas nela e valem em qualquer aparelho em que você entrar com o mesmo e-mail. Use 👁 para ver a chave, 📋 para copiar e 📥 para colar.</p>
+    <p id="ch-conta" class="dica ch-conta"></p>
     <div class="linha-botoes"><button type="button" id="ch-guia">🧭 Assistente: criar chave grátis</button><button type="button" id="ch-diag" class="secundario">🩺 Diagnóstico das IAs</button></div>
     <div id="ch-diag-caixa" hidden><pre id="ch-diag-txt" style="white-space:pre-wrap;font-size:12px;max-height:260px;overflow:auto;background:rgba(0,0,0,.25);padding:8px;border-radius:8px"></pre>
       <div class="linha-botoes"><button type="button" id="ch-diag-testar">🧪 Testar todas as chaves</button><button type="button" id="ch-diag-copiar" class="secundario">📋 Copiar</button><button type="button" id="ch-diag-atual" class="secundario">🔄 Atualizar lista de modelos</button></div></div>
@@ -2573,15 +2575,38 @@ async function chamarAPI(corpo, container) {
    6B) CHAVES DE IA (OpenRouter + provedores extras)
    ===================================================================== */
 const CHAVES = [{ ls: "openrouter_key", nome: "OpenRouter", onde: "openrouter.ai/keys", dica: "A principal: tem vários modelos grátis." }, ...PROVEDORES.map(p => ({ ls: p.ls, nome: p.nome, onde: p.onde, dica: p.dica || "Grátis, sem cartão. Entra na frente do OpenRouter." }))];
+// Grava a chave neste aparelho e anota quando (para a conta saber qual é a mais nova ao remover/readicionar em outro aparelho).
+function gravarChave(ls, v) { localStorage.setItem(ls, v); try { localStorage.setItem("chave_t_" + ls, String(Date.now())); } catch (e) {} }
+function piscarBtn(btn, t) { const o = btn.dataset.txt || (btn.dataset.txt = btn.textContent); btn.textContent = t; clearTimeout(btn._t); btn._t = setTimeout(() => { btn.textContent = o; }, 1200); }
+// Campo de chave com 👁 mostrar/ocultar, 📋 copiar e 📥 colar (para conferir e comparar chaves).
+function campoChave(inp) {
+  if (inp.parentNode?.classList.contains("ch-campo")) return inp.parentNode;
+  const caixa = document.createElement("div"); caixa.className = "ch-campo";
+  const b = (txt, tit, fn) => { const x = Object.assign(document.createElement("button"), { type: "button", className: "secundario ch-btn", textContent: txt, title: tit }); x.setAttribute("aria-label", tit); x.onclick = fn; return x; };
+  const olho = b("👁", "Mostrar a chave", () => { const ver = inp.type === "password"; inp.type = ver ? "text" : "password"; olho.textContent = ver ? "🙈" : "👁"; olho.title = ver ? "Ocultar a chave" : "Mostrar a chave"; olho.setAttribute("aria-label", olho.title); });
+  const copiar = b("📋", "Copiar a chave", async () => {
+    const v = inp.value.trim(); if (!v) return piscarBtn(copiar, "vazio");
+    try { await navigator.clipboard.writeText(v); } catch (e) { const t = inp.type; inp.type = "text"; inp.select(); try { document.execCommand("copy"); } catch (e2) {} inp.type = t; }
+    piscarBtn(copiar, "✓");
+  });
+  const colar = b("📥", "Colar a chave", async () => {
+    let t = ""; try { t = (await navigator.clipboard.readText()).trim(); } catch (e) { inp.focus(); alert("O navegador não deixou o jogo ler o que você copiou. Toque e segure no campo e escolha Colar."); return; }
+    if (!t) return piscarBtn(colar, "vazio");
+    inp.value = t; inp.dispatchEvent(new Event("input", { bubbles: true })); inp.dispatchEvent(new Event("paste")); piscarBtn(colar, "✓");
+  });
+  inp.parentNode.insertBefore(caixa, inp); caixa.append(inp, olho, copiar, colar);
+  return caixa;
+}
 function montarChaves() {
   mostrarLocal();
+  try { const logou = NUVEM.logado(); $("ch-conta").textContent = logou ? `☁ Conta ${NUVEM.email()}: as chaves salvas aqui valem em qualquer aparelho.` : "⚠ Você não entrou na conta: as chaves ficam só neste aparelho. Entre (☁ no menu inicial) para usá-las em qualquer aparelho."; } catch (e) {}
   $("ch-lista").replaceChildren(...CHAVES.map(c => {
     const d = document.createElement("div"); d.className = "ch-linha";
     const tem = !!lerLS(c.ls), lb = document.createElement("label"); lb.htmlFor = "ch-" + c.ls; lb.innerHTML = `<b>${esc(c.nome)}</b> ${tem ? '<span class="ch-ok">✓ chave salva</span>' : ""}`;
-    const inp = Object.assign(document.createElement("input"), { id: "ch-" + c.ls, type: "password", autocomplete: "off", placeholder: tem ? "•••••••• (deixe em branco para manter)" : "Cole a chave aqui" });
+    const inp = Object.assign(document.createElement("input"), { id: "ch-" + c.ls, type: "password", autocomplete: "off", spellcheck: false, value: lerLS(c.ls), placeholder: "Cole a chave aqui" });
     const sm = document.createElement("small"); sm.textContent = `${c.dica} Criar em ${c.onde}`;
-    d.append(lb, inp, sm);
-    if (tem) { const r = Object.assign(document.createElement("button"), { type: "button", className: "secundario", textContent: "Remover chave" }); r.onclick = () => { try { localStorage.removeItem(c.ls); } catch (e) {} montarChaves(); }; d.append(r); }
+    d.append(lb, inp, sm); campoChave(inp);
+    if (tem) { const r = Object.assign(document.createElement("button"), { type: "button", className: "secundario", textContent: "Remover chave" }); r.onclick = () => { if (!confirm(`Remover a chave do ${c.nome}? Ela sai deste aparelho e da sua conta.`)) return; try { NUVEM.removerChave(c.ls); } catch (e) {} try { localStorage.removeItem(c.ls); localStorage.removeItem("chave_t_" + c.ls); } catch (e) {} montarChaves(); }; d.append(r); }
     return d;
   }));
 }
@@ -2830,9 +2855,9 @@ $("ch-salvar").addEventListener("click", () => { setTimeout(() => { try { NUVEM.
   salvarLocal();
   try { localStorage.setItem("emprestar_ia", $("ch-emprestar").checked ? "sim" : "nao"); localStorage.setItem("emprestar_ia_mestre", $("ch-emprestar-mestre").checked ? "sim" : "nao"); } catch (e) {}
   try { if (salaAtiva || RODADA.ativo) sala.postMessage(perfilJogador()); } catch (e) {}
-  for (const c of CHAVES) { const v = $("ch-" + c.ls).value.trim().replace(/^Bearer\s+/i, ""); if (v) {
+  for (const c of CHAVES) { const v = $("ch-" + c.ls).value.trim().replace(/^Bearer\s+/i, ""); if (v && v !== lerLS(c.ls)) {
     const ruim = problemaChave(c.ls, v); if (ruim) { alert(`${c.nome}: ${ruim}`); continue; }
-    try { localStorage.setItem(c.ls, v); } catch (e) { alert("Não consegui salvar a chave neste navegador."); } } }
+    try { gravarChave(c.ls, v); } catch (e) { alert("Não consegui salvar a chave neste navegador."); } } }
   bloqueados.clear(); PROVEDORES.forEach(pv => { try { localStorage.removeItem("modelos_" + pv.id); } catch (e) {} descobrirModelos(pv, true); }); montarChaves(); $("chaves-ia").hidden = true;
   if (montarFila().length && esperaChaveRes) chaveResolvida(true);
   try { addMsg("🔑 Chaves de IA atualizadas.", "sistema"); } catch (e) {}
@@ -2847,9 +2872,9 @@ function montarGuiasExtras() {
       <p class="dica">${esc(pv.dica || "Grátis, sem cartão.")}</p>
       <ol class="cg-passos">${(pv.guia || ["Crie a chave em " + esc(pv.onde) + " e cole abaixo."]).map(t => `<li>${t}</li>`).join("")}</ol>
       <div class="linha-botoes"><button type="button" class="secundario" data-abrir>🌐 Abrir ${esc(pv.onde)} (nova aba)</button></div>
-      <label class="ch-linha"><input type="password" autocomplete="off" placeholder="Cole a chave do ${esc(pv.nome)}"></label>
+      <label class="ch-linha"><input type="password" autocomplete="off" spellcheck="false" placeholder="Cole a chave do ${esc(pv.nome)}"></label>
       <div class="linha-botoes"><button type="button" data-salvar>✅ Testar e salvar</button></div><p class="dica" data-st></p>`;
-    const inp = d.querySelector("input"), st = d.querySelector("[data-st]");
+    const inp = d.querySelector("input"), st = d.querySelector("[data-st]"); campoChave(inp);
     d.querySelector("[data-abrir]").onclick = () => window.open(pv.abrir || "https://" + pv.onde, "_blank", "noopener");
     const salvar = async () => { if (await salvarChaveGuia(pv.id, inp.value, st)) { inp.value = ""; d.querySelector("summary").innerHTML = `<b>${esc(pv.nome)}</b> <span class="ch-ok">✓ chave salva</span>`; chaveResolvida(true); } };
     d.querySelector("[data-salvar]").onclick = salvar;
@@ -2857,7 +2882,7 @@ function montarGuiasExtras() {
     return d;
   }));
 }
-function abrirGuiaChave() { $("cg-status").textContent = ""; montarGuiasExtras(); $("cg-chave").value = ""; $("cg-auto").hidden = !/^https?:$/.test(location.protocol); $("chave-guia").hidden = false; $("chave-guia").scrollTop = 0; }
+function abrirGuiaChave() { campoChave($("cg-chave")); $("cg-status").textContent = ""; montarGuiasExtras(); $("cg-chave").value = ""; $("cg-auto").hidden = !/^https?:$/.test(location.protocol); $("chave-guia").hidden = false; $("chave-guia").scrollTop = 0; }
 async function testarChave(tipo, chave) {                // confirma com o próprio provedor antes de salvar
   try {
     const pv = PROVEDORES.find(p => p.id === tipo);
@@ -2885,7 +2910,8 @@ async function salvarChaveGuia(tipo, valor, st) {
   st.textContent = "Testando…";
   const t = await testarChave(tipo, v);
   if (t.ok === false) { st.textContent = "❌ " + t.msg; return false; }
-  try { localStorage.setItem(tipo === "orc" ? "openrouter_key" : pv.ls, v); } catch (e) { st.textContent = "Não consegui salvar neste navegador."; return false; }
+  try { gravarChave(tipo === "orc" ? "openrouter_key" : pv.ls, v); } catch (e) { st.textContent = "Não consegui salvar neste navegador."; return false; }
+  setTimeout(() => { try { NUVEM.enviar(true); NUVEM.chavesParaServidor(); if (lerLS("banco_emprestando") === "sim") NUVEM.bancoEmprestar(true); } catch (e) {} }, 500);   // vai para a conta: vale em qualquer aparelho
   bloqueados.clear(); PROVEDORES.forEach(pv => { try { localStorage.removeItem("modelos_" + pv.id); } catch (e) {} descobrirModelos(pv, true); });
   st.textContent = t.ok ? "✅ Chave válida e salva!" : "⚠️ " + t.msg;
   return true;
@@ -2956,7 +2982,7 @@ $("cg-oauth").addEventListener("click", async () => {
   try {
     const r = await fetch("https://openrouter.ai/api/v1/auth/keys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: cod, code_verifier: ver, code_challenge_method: "S256" }) });
     const j = await r.json(); if (!j.key) throw new Error(j.error?.message || "sem chave na resposta");
-    localStorage.setItem("openrouter_key", j.key); sessionStorage.removeItem("orc_verifier"); bloqueados.clear();
+    gravarChave("openrouter_key", j.key); sessionStorage.removeItem("orc_verifier"); try { NUVEM.enviar(); } catch (e) {} bloqueados.clear();
     try { addMsg("🔑 Conectado ao OpenRouter. Pode jogar!", "sistema"); } catch (e) {}
   } catch (e) { alert("Não consegui concluir o login com o OpenRouter: " + e.message + "\nUse o assistente 🔑 para colar a chave."); }
 })();
@@ -9552,6 +9578,37 @@ const NUVEM = (() => {
     return { ...bk, mods, excluidos, extras };
   }
   function chavesLocais() { const o = {}; for (const k of CHAVES_LS()) { const v = lerLS(k); if (v) o[k] = v; } return o; }
+  // Chaves de IA na conta: vale a MAIS NOVA de cada uma (deste aparelho ou da conta). A conta guarda quando cada chave
+  // foi colada (_t) e quando foi removida (_removidas), para que trocar ou remover num aparelho valha em todos.
+  const LS_CHAVES = () => [...PROVEDORES.map(p => p.ls), "openrouter_key"].filter((v, i, a) => a.indexOf(v) === i);
+  const tChave = k => +lerLS("chave_t_" + k) || 0;
+  function mesclarChaves(nv) {
+    nv = nv || {}; const tN = nv._t || {}, rem = nv._removidas || {}, out = {}, outT = {}, outRem = {}; let kn = 0;
+    for (const k of LS_CHAVES()) {
+      const vl = lerLS(k), tl = tChave(k), vn = typeof nv[k] === "string" ? nv[k] : "", tn = +tN[k] || 0, tr = +rem[k] || 0;
+      if (tr && tr >= tl && tr >= tn) { if (vl) { try { localStorage.removeItem(k); localStorage.removeItem("chave_t_" + k); } catch (e) {} } outRem[k] = tr; continue; }
+      let v = vl, t = tl;
+      if (vn && vn !== vl && (!vl || tn >= tl)) { try { localStorage.setItem(k, vn); if (tn) localStorage.setItem("chave_t_" + k, String(tn)); else localStorage.removeItem("chave_t_" + k); } catch (e) {} v = vn; t = tn; kn++; }
+      if (v) { out[k] = v; if (t) outT[k] = t; }
+    }
+    return { out, outT, outRem, kn };
+  }
+  function pacoteChaves(nv) {                            // o que vai para a conta: configurações deste aparelho + chaves mescladas
+    const { out, outT, outRem } = mesclarChaves(nv), r = { ...(nv || {}) };
+    for (const k of LS_CHAVES()) delete r[k]; delete r._t; delete r._removidas;
+    for (const k of CHAVES_LS()) if (!LS_CHAVES().includes(k)) { const v = lerLS(k); if (v) r[k] = v; }
+    Object.assign(r, out); if (Object.keys(outT).length) r._t = outT; if (Object.keys(outRem).length) r._removidas = outRem;
+    return r;
+  }
+  async function removerChave(k) {
+    if (!logado()) return;
+    try {
+      const c = await cliente(); const atual = await baixar().catch(() => null); if (!atual) return;
+      const chaves = { ...(atual.chaves || {}) }; delete chaves[k]; if (chaves._t) { chaves._t = { ...chaves._t }; delete chaves._t[k]; } chaves._removidas = { ...(chaves._removidas || {}), [k]: Date.now() };
+      const { error } = await c.from("rpg_saves").update({ chaves }).eq("user_id", sessao.user.id); if (error) throw error;
+      status("☁ Chave removida da sua conta.");
+    } catch (e) { status("☁ Não deu para remover a chave da conta agora: " + (e.message || e)); }
+  }
   async function aplicar(d, chaves) {
     let n = 0;
     if (d && typeof d === "object") {
@@ -9560,7 +9617,7 @@ const NUVEM = (() => {
       try { for (const m of d.mods || []) { const a = await CODEX.get("mod", m.id); if (!a || (a.atualizado || a.criado || 0) < (m.atualizado || m.criado || 0)) await CODEX.put("mod", m.id, a ? { ...m, codex: Object.fromEntries(Object.entries(m.codex || {}).map(([k, e]) => [k, { ...e, img: a.codex?.[k]?.img || "" }])) } : m); } } catch (e) {}
       try { for (const [k, v] of Object.entries(d.extras || {})) if (!lerLS(k)) localStorage.setItem(k, v); } catch (e) {}
     }
-    let kn = 0; try { for (const [k, v] of Object.entries(chaves || {})) if (CHAVES_LS().includes(k) && v && lerLS(k) !== v) { localStorage.setItem(k, v); kn++; } } catch (e) {}
+    let kn = 0; try { if (chaves) kn = mesclarChaves(chaves).kn; for (const [k, v] of Object.entries(chaves || {})) if (CHAVES_LS().includes(k) && !LS_CHAVES().includes(k) && v && lerLS(k) !== v) localStorage.setItem(k, v); } catch (e) {}
     return { n, kn };
   }
   async function baixar() {
@@ -9587,7 +9644,7 @@ const NUVEM = (() => {
     try {
       const c = await cliente(); const atual = await baixar().catch(() => null);
       if (atual?.dados) await aplicar(atual.dados, null);  // outro aparelho pode ter salvo antes: junta primeiro (vale o mais novo de cada personagem)
-      const dados = await pacote(), chaves = { ...(atual?.chaves || {}), ...chavesLocais() };
+      const chaves = pacoteChaves(atual?.chaves), dados = await pacote();
       const { error } = await c.from("rpg_saves").upsert({ user_id: sessao.user.id, dados, chaves, atualizado: new Date().toISOString() });
       if (error) throw error;
       status(`☁ Salvo na nuvem às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.`);
@@ -9680,7 +9737,7 @@ const NUVEM = (() => {
     return out;
   }
   const pronto = cliente().catch(e => { console.warn("nuvem:", e); });   // na abertura: se já havia sessão, entra sozinho
-  return { bancoStatus, bancoEmprestar, bancoRetirar, chavesParaServidor, entrar, enviar, logado, email, filaServidor, infoServidor, configurado, botao, pronto, aplicar, pacote };
+  return { bancoStatus, bancoEmprestar, bancoRetirar, chavesParaServidor, removerChave, entrar, enviar, logado, email, filaServidor, infoServidor, configurado, botao, pronto, aplicar, pacote };
 })();
 $("nuvem-btn").addEventListener("click", () => NUVEM.entrar());
 $("ch-banco-emprestar").addEventListener("click", () => NUVEM.bancoEmprestar(false));
