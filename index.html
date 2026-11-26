@@ -724,7 +724,7 @@
 
 <div id="mundo-dlg" role="dialog" aria-modal="true" aria-label="Mundo compartilhado" hidden>
   <div class="caixa-sala"><h2>🌍 Mundo compartilhado</h2>
-    <p class="dica">Cada campanha tem um mundo único no servidor, igual para todos os jogadores: os lugares, NPCs, caminhos, mortos e missões que a IA cria ficam salvos lá, e quem jogar depois encontra tudo. É automático: entre na conta (☁ no menu inicial) e escolha a campanha.</p>
+    <p class="dica">Cada campanha tem um mundo único no servidor. Ninguém edita o mundo: ele só muda pela história de quem joga. Os lugares, NPCs, conversas e missões que a IA cria ficam salvos lá e existem para todos, mas cada personagem só conhece o que já visitou. Quem morre deixa o corpo no local: outros aventureiros podem achá-lo (até 4 vezes, ele se decompõe e some). É automático: entre na conta (☁) e escolha a campanha.</p>
     <p id="mundo-resumo" class="dica"></p>
     <label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="mundo-global" style="margin-top:4px"> <span><b>Usar o mundo compartilhado</b><br><span class="dica" id="mundo-global-info"></span></span></label>
     <details><summary>⚙ Avançado: servidor próprio ou só neste aparelho</summary>
@@ -1154,7 +1154,7 @@ DIFICULDADE E GRUPO:
 
 VIDA:
 - COMBATE: quando uma luta começar (ou o jogador atacar alguém), NÃO narre a luta rodada a rodada nem peça dados de ataque: chame iniciar_combate (sem escrever narração fora dele) com o campo ambiente (a narração do cenário e de como as criaturas surgem, sem nomes), o campo mapa (o id do mapa que combina com o cenário) e 1 a 5 inimigos adequados ao nível do grupo e ao multiplicador de dificuldade (ca 11 a 16, ataque_bonus +3 a +6, dano de 1d6+1 a 2d6+4, vida de 7 a 15 no nível 1 e crescente). O rotulo descreve só a aparência; o nome real vai no campo nome e só é revelado se o jogador passar num teste de conhecimento. O aplicativo conduz o combate em tabuleiro e devolve o resultado: então narre o desfecho em poucas frases, concedendo XP se houve vitória.
-- MUNDO PERSISTENTE: o mundo é guardado e cresce com o jogo. Sempre que o personagem chegar a um lugar (masmorra, sala, vila, floresta), chame mudar_local com o nome e as saídas; se o bloco MUNDO PERSISTENTE já descreve o lugar, respeite a descrição e os corpos listados (descreva-os na cena). Mudanças duradouras: registrar_fato. Ao registrar um lugar novo, escolha em mudar_local o id de MAPAS DE COMBATE que combina com ele; lutas nesse lugar usam o mesmo mapa. Corpos de aventureiros mortos mudam com o tempo: alterar_morto (cadaver, meio-vivo, morto-vivo, zumbi, esqueleto, fantasma). Os pertences listados num corpo só passam ao jogador por saquear_morto. Nunca contradiga o que o mundo já registrou.
+- MUNDO PERSISTENTE: o mundo é guardado e cresce com o jogo. Sempre que o personagem chegar a um lugar (masmorra, sala, vila, floresta), chame mudar_local com o nome e as saídas; se o bloco MUNDO PERSISTENTE já descreve o lugar, respeite a descrição e os corpos listados (descreva-os na cena). Mudanças duradouras: registrar_fato. Ao registrar um lugar novo, escolha em mudar_local o id de MAPAS DE COMBATE que combina com ele; lutas nesse lugar usam o mesmo mapa. Corpos de aventureiros mortos mudam com o tempo: alterar_morto (cadaver, meio-vivo, morto-vivo, zumbi, esqueleto, fantasma). Os pertences listados num corpo só passam ao jogador por saquear_morto. Quando o personagem notar ou examinar um corpo de CORPOS NESTE LOCAL, chame descobrir_corpo: cada aventureiro diferente que o acha conta uma descoberta; na 4ª ele está em decomposição e depois deixa de existir; narre conforme o resultado e lembre que o corpo é de OUTRO jogador. Lugares e NPCs criados por outros jogadores existem para todos, mas o personagem só conhece o que já visitou: revele o resto por rumores ou quando ele chegar lá. Nunca contradiga o que o mundo já registrou.
 - CAMPANHA VIVA (solo): você pode expandir a campanha e mudar a rota conforme o jogador age; ao virar a história, chame atualizar_campanha (rumo em 1 ou 2 frases) para guardar. A rota fica salva e a campanha continua dela depois.
 - LOJAS: quando o jogador quiser comprar de um NPC vendedor (ferreiro = armas e armaduras; comerciante = itens gerais; alquimista = poções), chame abrir_loja com o tipo e o nome do vendedor; o aplicativo mostra o catálogo e os preços reais (não invente itens ou preços). Chame fechar_loja quando ele terminar ou se despedir. Fora de um vendedor, não há compras.
 - NPCs: chame registrar_npc só na PRIMEIRA vez que um NPC com nome aparece (nome, papel, lugar, persona curta); não repita para NPCs já listados e não envie falas (o aplicativo guarda o diálogo sozinho). Mantenha o jeito de cada NPC.
@@ -1534,6 +1534,10 @@ const FERRAMENTAS = [{
     description: "O jogador vasculha o corpo de um aventureiro morto do mundo (CORPOS NESTE LOCAL). O aplicativo rola d100: só 40% de chance de achar algo, uma tentativa por aventureiro. Se der certo, VOCÊ escolhe o item (um dos pertences) e chama de novo com ele. Chame quando ele disser que vasculha, revista ou saqueia o corpo.",
     parameters: { type: "OBJECT", properties: { nome: { type: "STRING", description: "Nome do aventureiro morto." }, item: { type: "STRING", description: "Item escolhido por você entre os pertences (deixe vazio na primeira tentativa se ainda não decidiu)." } }, required: ["nome"] }
   }, {
+    name: "descobrir_corpo",
+    description: "O personagem encontra ou examina o corpo de um aventureiro morto do mundo (listado em CORPOS NESTE LOCAL). Cada aventureiro diferente que o encontra conta uma descoberta: na 4ª o corpo já está em decomposição e depois disso deixa de existir. Devolve como o corpo está agora. Vasculhar (saquear_morto) já conta como descoberta.",
+    parameters: { type: "OBJECT", properties: { nome: { type: "STRING", description: "Nome do aventureiro morto." } }, required: ["nome"] }
+  }, {
     name: "atualizar_inventario",
     description: "Adiciona ou remove itens da bolsa do jogador (achados, compras, presentes, itens usados, gastos ou perdidos).",
     parameters: {
@@ -1825,15 +1829,15 @@ const Mundo = (() => {
   const online = () => (cfg?.modo === "online" && cfg.servidor && cfg.id) || (glob() && NUVEM.logado());
   let pendente = null;
   const enxuto = e => (e.tipo === "npc" && (e.falas || []).length > 14) ? { ...e, falas: e.falas.slice(-14) } : e;
-  async function empurrarGlobal(ids) {                   // manda o que mudou para o mundo compartilhado (Supabase)
+  async function empurrarGlobal(ids) {                   // a história grava no mundo compartilhado por uma função do servidor que só acrescenta
     const sb = await NUVEM.cliente(); if (!sb) { estado = "erro"; return; }
-    const linhas = ids.map(i => ents.get(i)).filter(Boolean).map(enxuto).map(e => ({ mundo: cfg.id, id: String(e.id).slice(0, 80), tipo: String(e.tipo || ""), dados: e, ts: Number(e.ts) || 0 }));
+    const lista1 = ids.map(i => ents.get(i)).filter(Boolean).map(enxuto);
     ids.forEach(i => { if (!ents.get(i)) pend.delete(i); });
-    if (!linhas.length) { salvarLocal(); return; }
-    const { error } = await sb.from("rpg_mundo_ents").upsert(linhas, { onConflict: "mundo,id" });
+    if (!lista1.length) { salvarLocal(); return; }
+    const { error } = await sb.rpc("rpg_mundo_gravar", { p_mundo: cfg.id, p_ents: lista1 });
     if (error) {                                         // tenta uma a uma: uma entidade ruim não trava as outras
       let falhou = 0;
-      for (const l of linhas) { const r = await sb.from("rpg_mundo_ents").upsert(l, { onConflict: "mundo,id" }); if (r.error) { falhou++; if (r.error.code === "23514") pend.delete(l.id); } else pend.delete(l.id); }
+      for (const e of lista1) { const r = await sb.rpc("rpg_mundo_gravar", { p_mundo: cfg.id, p_ents: [e] }); if (r.error) falhou++; else pend.delete(e.id); }
       estado = falhou ? "erro" : "online"; salvarLocal(); return;
     }
     ids.forEach(i => pend.delete(i)); estado = "online"; salvarLocal(); if (pend.size) empurrar();
@@ -1894,7 +1898,18 @@ const Mundo = (() => {
   }
   async function configurar(nova) { try { localStorage.setItem(MUNDO_CFG, JSON.stringify(nova)); } catch {} await carregar(); }
   const pessoa = () => ficha?.nome || "alguém";
-  const corposEm = lid => lista("morto").filter(m => m.localId === lid);
+  const meuId = () => (glob() ? NUVEM.userId() : String(ficha?.id || ""));
+  const morVis = m => !m.fim || (m.descobertoPor || []).includes(meuId());      // corpo que já se desfez não existe para quem não o achou a tempo
+  const sabe = id => !glob() || id === ficha?.localAtual || (ficha?.conhecidos || []).includes(id);
+  const conhecer = id => { if (!id || !ficha) return; const c = (ficha.conhecidos ||= []); if (!c.includes(id)) { c.push(id); if (c.length > 400) c.shift(); } };
+  const corposEm = lid => lista("morto").filter(m => m.localId === lid && morVis(m));
+  const listaVis = tipo => {                                                      // no mundo compartilhado o personagem só enxerga o que já visitou
+    const l = lista(tipo);
+    if (tipo === "morto") return l.filter(morVis);
+    if (tipo !== "local" || !glob()) return l;
+    const vis = new Set(l.filter(x => sabe(x.id)).flatMap(x => [x.id, ...(x.saidas || [])]));
+    return l.filter(x => vis.has(x.id));
+  };
   const dias = m => Math.max(0, Math.floor((Date.now() - (m.desde || Date.now())) / 86400000));
   return {
     carregar, configurar, puxar, lista, up, sincronizar, aguardar: () => pendente || Promise.resolve(),
@@ -1938,13 +1953,13 @@ const Mundo = (() => {
       l.visitas = (l.visitas || 0) + 1; up(l);
       const antes = ficha.localAtual;
       if (antes && antes !== l.id) up({ id: `c_${antes}_${l.id}`.slice(0, 40), tipo: "caminho", de: antes, para: l.id, por: pessoa() });
-      ficha.localAtual = l.id;
+      ficha.localAtual = l.id; conhecer(l.id);
       let mapaLocal = null;
       if (l.pois && !(ficha.mapasLocais ||= []).some(m => norm(m.nome) === norm(l.pois.nome))) { ficha.mapasLocais.push({ nome: l.pois.nome, lugares: l.pois.lugares }); mapaLocal = l.pois.nome; }   // o mapa da vila, já criado por outro jogador, vai para a bolsa
       try { salvarPersonagem(); } catch {}
       return { local: l.nome, novo, mapa_da_vila_na_bolsa: mapaLocal || undefined, mapa_de_combate: l.mapa || undefined, corpos_aqui: corposEm(l.id).map(m => `${m.nome} (${m.estado})`), saidas: l.saidas.map(i => ents.get(i)?.nome).filter(Boolean), instrucao: corposEm(l.id).length ? "Há corpos de aventureiros mortos aqui: descreva-os como estão." : "" };
     },
-    todos: () => [...ents.values()],
+    todos: () => [...ents.values()], listaVis,
     achaLocalPorId: i => ents.get(i) || null,
     registrarNpc(a) {                                    // NPC do mundo: nome, papel, lugar, personalidade e os diálogos com os jogadores
       const nome = String(a?.nome || "").trim().slice(0, 60); if (!nome) return { erro: "Informe o nome do NPC." };
@@ -1963,7 +1978,7 @@ const Mundo = (() => {
       up({ id: "f_" + id8(), tipo: "fato", texto: t, localId: ficha.localAtual || "", por: pessoa() }); return { ok: true };
     },
     alterarMorto(a) {
-      const m = lista("morto").find(x => norm(x.nome) === norm(a?.nome));
+      const m = lista("morto").filter(morVis).find(x => norm(x.nome) === norm(a?.nome));
       if (!m) return { erro: "Não existe um aventureiro morto com esse nome. Corpos conhecidos: " + lista("morto").map(x => x.nome).join(", ") };
       const est = ["cadaver", "meio-vivo", "morto-vivo", "zumbi", "esqueleto", "fantasma"].includes(a.estado) ? a.estado : m.estado;
       up({ ...m, estado: est, nota: a.descricao ? String(a.descricao).slice(0, 160) : m.nota }); return { ok: true, estado: est };
@@ -1976,7 +1991,7 @@ const Mundo = (() => {
     obter: id => ents.get(id), corposAqui: lid => corposEm(lid),
     mapaAtual: () => ents.get(ficha.localAtual)?.mapa || "",
     saquear(a) {                                          // 40% de chance (d100 ≤ 40), uma tentativa por aventureiro; o item é escolhido pela IA
-      let m = lista("morto").find(x => norm(x.nome) === norm(a?.nome));
+      let m = lista("morto").filter(morVis).find(x => norm(x.nome) === norm(a?.nome));
       if (!m) return { erro: "Não existe esse corpo. Corpos conhecidos: " + lista("morto").map(x => x.nome).join(", ") };
       if (m.localId !== ficha.localAtual) return { erro: "Esse corpo não está neste local." };
       const quem = ficha.id, ja = (m.vasculhado || []).includes(quem), liberado = (m.liberado || []).includes(quem);
@@ -1997,22 +2012,43 @@ const Mundo = (() => {
       up({ ...m, pertences: m.pertences.filter((_, i) => i !== k), liberado: (m.liberado || []).filter(x => x !== quem) }); mostrarFicha(); addMsg(`🎒 Você pegou ${p.n} do corpo de ${m.nome}.`, "sistema");
       return { sucesso: true, ok: true, item: p.n };
     },
+    async descobrirCorpo(a) {                              // alguém encontra o corpo: 4 descobertas (de contas diferentes) e ele se desfaz
+      const m = lista("morto").filter(morVis).find(x => norm(x.nome) === norm(a?.nome));
+      if (!m) return { erro: "Não existe esse corpo (ou já se desfez). Corpos conhecidos: " + (lista("morto").filter(morVis).map(x => x.nome).join(", ") || "nenhum") };
+      if (m.localId !== ficha.localAtual) return { erro: "Esse corpo não está neste local." };
+      let r = null;
+      if (glob() && online()) { try { const sb = await NUVEM.cliente(); const { data, error } = await sb.rpc("rpg_mundo_corpo", { p_mundo: cfg.id, p_id: m.id }); if (!error && data) r = data; } catch {} }
+      if (r && r.existe === false) { ents.delete(m.id); salvarLocal(); return { erro: "Esse corpo já se desfez: não há mais nada ali." }; }
+      let nova = false;
+      if (r?.dados) { ents.set(m.id, { ...m, ...r.dados }); salvarLocal(); nova = !!r.nova; }
+      else {                                               // sem servidor: conta aqui mesmo (uma descoberta por personagem)
+        const por = m.descobertoPor || [], eu = String(ficha.id || ""); nova = !por.includes(eu);
+        if (nova) { const novo = [...por, eu]; up({ ...m, descobertoPor: novo, vezes: novo.length, ...(novo.length >= 4 ? { estado: "decomposicao", fim: true } : {}) }); }
+        const mm = ents.get(m.id); r = { vezes: mm.vezes || por.length, estado: mm.estado };
+      }
+      const v = r.vezes || 1, dono = `${m.nome} (${[m.raca, m.classe].filter(Boolean).join(" ")}, morreu de ${m.causa || "causa desconhecida"})`;
+      const fase = r.estado === "decomposicao" || v >= 4 ? "É a ÚLTIMA vez que o corpo existe: está em decomposição avançada, desfazendo-se em trapos e ossos. Narre isso; depois desta cena ele deixa de existir para todos."
+        : v === 3 ? "O corpo está muito deteriorado, quase só ossos e trapos, claramente já revirado por outros." : v === 2 ? "Outro aventureiro já passou por aqui: o corpo mostra sinais de ter sido remexido e já começou a se deteriorar." : "Ninguém tinha encontrado o corpo antes: está como ficou ao morrer.";
+      return { ok: true, corpo: m.nome, descoberta_numero: v, estado: r.estado, primeira_vez_deste_personagem: nova, instrucao: `O corpo é de ${dono}, um aventureiro de OUTRO jogador (jamais o personagem atual). ${fase} ${nova ? "" : "Este personagem já tinha encontrado esse corpo antes. "}Para vasculhar, o jogador usa saquear_morto (só 40% de chance).` };
+    },
+    async saquearComDescoberta(a) { const d = await Mundo.descobrirCorpo(a); if (d.erro) return d; const r = Mundo.saquear(a); return { ...r, descoberta: { numero: d.descoberta_numero, estado: d.estado, instrucao: d.instrucao } }; },
     registrarMorto(reg) {
       up({ id: "m_" + reg.id, tipo: "morto", nome: reg.nome, raca: reg.raca, classe: reg.classe, nivel: reg.nivel, causa: reg.causa, historia: reg.historia, pertences: reg.pertences || [], localId: ficha.localAtual || "", estado: "cadaver", desde: reg.quando || Date.now() });
     },
     contexto() {
       if (!this.ativoNoModo()) return "";
-      const loc = ents.get(ficha.localAtual), mortos = lista("morto"), aqui = loc ? corposEm(loc.id) : [];
+      const loc = ents.get(ficha.localAtual), mortos = lista("morto").filter(morVis), aqui = loc ? corposEm(loc.id) : [];
       let t = `\n\nMUNDO PERSISTENTE «${this.nome()}» (guardado e compartilhado; cresce com o jogo). `;
       t += loc ? `LOCAL ATUAL: ${loc.nome}${loc.categoria ? " (" + loc.categoria + ")" : ""}${loc.desc ? " — " + loc.desc : ""}${loc.perigos ? " [SEGREDO: " + loc.perigos + "]" : ""}${loc.mapa ? " [MAPA DE COMBATE DESTE LOCAL: " + loc.mapa + "]" : ""}. SAÍDAS CONHECIDAS: ${(loc.saidas || []).map(i => ents.get(i)?.nome).filter(Boolean).join(", ") || "nenhuma registrada"}. `
                : "O personagem ainda não tem local registrado: chame mudar_local ao descrever onde ele está. ";
       if (aqui.length) t += `CORPOS NESTE LOCAL: ${aqui.map(m => `${m.nome}${norm(m.nome || "") === norm(ficha.nome || "") && m.id !== ficha.id ? " [o FALECIDO, não o personagem atual]" : ""} (${[m.raca, m.classe].filter(Boolean).join(" ")} nv${m.nivel}; ${m.estado}; morreu: ${m.causa}; há ${dias(m)} dia(s)${m.nota ? "; " + m.nota : ""}${(m.pertences || []).length ? "; pertences: " + m.pertences.map(p => p.q > 1 ? p.q + "× " + p.n : p.n).join(", ") : ""})`).join(" | ")}. Descreva-os na cena; com o tempo podem virar meio-vivo ou morto-vivo (alterar_morto), hostis ou não. `;
       const npcsAqui = lista("npc").filter(n => loc && n.localId === loc.id).slice(-6);
-      if (npcsAqui.length) t += `NPCs JÁ CONHECIDOS NESTE LOCAL (mantenha nome, jeito e memória das conversas): ${npcsAqui.map(n => `${n.nome}${n.papel ? " (" + n.papel + ")" : ""}${n.persona ? " — " + n.persona : ""}${(n.falas || []).length ? "; última conversa: jogador “" + n.falas.at(-1).j + "” → “" + n.falas.at(-1).n + "”" : ""}`).join(" | ")}. `;
+      if (npcsAqui.length) t += `NPCs JÁ CONHECIDOS NESTE LOCAL (mantenha nome, jeito e memória das conversas): ${npcsAqui.map(n => `${n.nome}${n.papel ? " (" + n.papel + ")" : ""}${n.persona ? " — " + n.persona : ""}${(n.falas || []).length ? "; última conversa" + (n.falas.at(-1).por && n.falas.at(-1).por !== pessoa() ? " (com outro aventureiro, " + n.falas.at(-1).por + ")" : "") + ": jogador “" + n.falas.at(-1).j + "” → “" + n.falas.at(-1).n + "”" : ""}`).join(" | ")}. `;
       const fatos = lista("fato").filter(f => !loc || f.localId === loc.id).slice(-5); if (fatos.length) t += `FATOS DESTE LOCAL: ${fatos.map(f => f.texto).join("; ")}. `;
-      const outros = lista("local").filter(l => l !== loc && l.estado !== "citado").slice(-10); if (outros.length) t += `OUTROS LUGARES JÁ CONHECIDOS: ${outros.map(l => l.nome).join(", ")}. `;
+      const outros = lista("local").filter(l => l !== loc && l.estado !== "citado" && sabe(l.id)).slice(-10); if (outros.length) t += `OUTROS LUGARES JÁ CONHECIDOS: ${outros.map(l => l.nome).join(", ")}. `;
+      if (glob()) { const novos = lista("local").filter(l => l.estado !== "citado" && !sabe(l.id)).slice(-8); if (novos.length) t += `LUGARES DESTE MUNDO QUE O PERSONAGEM AINDA NÃO CONHECE (outros aventureiros já os visitaram; só leve até lá ou deixe ouvir rumores se a história pedir; ao chegar, chame mudar_local e respeite a descrição registrada): ${novos.map(l => l.nome + (l.categoria ? " (" + l.categoria + ")" : "")).join(", ")}. `; }
       const fora = mortos.filter(m => !loc || m.localId !== loc.id).slice(-4); if (fora.length) t += `OUTROS MORTOS NO MUNDO: ${fora.map(m => `${m.nome}${norm(m.nome || "") === norm(ficha.nome || "") && m.id !== ficha.id ? " [o FALECIDO]" : ""} (${m.estado}${m.localId && ents.get(m.localId) ? " em " + ents.get(m.localId).nome : ""})`).join(", ")}. `;
-      return t.slice(0, 2300);
+      return t.slice(0, 2900);
     }
   };
 })();
@@ -2683,7 +2719,7 @@ $("mundo-novo-local").addEventListener("click", () => { if (confirm("Apagar o mu
 
 // ---- mapa do mundo (lugares, caminhos e corpos guardados) ----
 function mundoMapaDesenhar() {
-  const locais = Mundo.lista("local"), W = 640, H = 460, cx = W / 2, cy = H / 2;
+  const locais = Mundo.listaVis("local"), W = 640, H = 460, cx = W / 2, cy = H / 2;
   $("mm-titulo").textContent = "🌍 " + Mundo.nome();
   if (!locais.length) { $("mm-svg").innerHTML = '<p class="dica">Ainda não há lugares: eles aparecem conforme a história avança.</p>'; return; }
   const viz = new Map(locais.map(l => [l.id, new Set()]));
@@ -2776,7 +2812,7 @@ function irTaverna(direto) {
     if (!direto) notasParaIA.push(`[APLICATIVO: o personagem foi até a ${nome}.]`);
     abrirEstalagem(nome); return;
   }
-  const vilas = (() => { try { return Mundo.lista("local").filter(l => l.estado !== "citado" && ehPovoadoLocal(l)); } catch (e) { return []; } })();
+  const vilas = (() => { try { return Mundo.listaVis("local").filter(l => l.estado !== "citado" && ehPovoadoLocal(l)); } catch (e) { return []; } })();
   abrirRegras(`<div class="caixa-rg"><h2>🍺 Ir à taverna</h2><div class="fx-tracos">Você não está numa vila ou cidade. ${vilas.length ? "Viaje rápido até uma que você já conhece e vá direto para a taverna:" : "Visite uma vila ou cidade primeiro: as que você conhecer aparecem aqui."}</div>
     <div class="fx-itens">${vilas.map(l => { const nao = motivoSemViagem(l); return `<div class="fx-item"><div><b>🏘 ${esc(l.nome)}</b>${nao ? `<br><small>${esc(nao)}</small>` : ""}</div><div class="fx-itbtn"><button data-tav-ir="${esc(l.id)}" ${nao ? "disabled" : ""}>🧭 Ir</button></div></div>`; }).join("")}</div>
     <button class="acao" data-tav="fechar">Fechar</button></div>`);
@@ -3218,7 +3254,8 @@ async function chamarIAInterna() {
         else if (c.name === "atualizar_codex") resposta = CODEX.aplicar(c.args);
         else if (c.name === "registrar_fato") { try { CENA.fato(c.args?.texto); } catch (e) {} resposta = Mundo.ativoNoModo() ? Mundo.registrarFato(c.args) : { ok: true }; }
         else if (c.name === "alterar_morto") resposta = Mundo.ativoNoModo() ? Mundo.alterarMorto(c.args) : { ok: true };
-        else if (c.name === "saquear_morto") resposta = Mundo.ativoNoModo() ? Mundo.saquear(c.args) : { erro: "Indisponível." };
+        else if (c.name === "descobrir_corpo") resposta = Mundo.ativoNoModo() ? await Mundo.descobrirCorpo(c.args) : { erro: "Indisponível." };
+        else if (c.name === "saquear_morto") resposta = Mundo.ativoNoModo() ? await Mundo.saquearComDescoberta(c.args) : { erro: "Indisponível." };
         else if (c.name === "atualizar_inventario") resposta = aplicarInventario(c.args);
         else if (c.name === "registrar_mapa_local") { resposta = aplicarMapaLocal(c.args); if (Mundo.ativoNoModo()) Mundo.guardarPois(c.args); }
         else if (c.name === "iniciar_combate") resposta = await executarCombate(c.args);
@@ -6278,7 +6315,7 @@ const INIMIGOS_TIER = [["goblins", "lobos", "kobolds", "bandidos de estrada", "r
 let TAV_OFERTA = null;
 function novaMissaoTaverna() {
   const n = Math.min(20, Math.max(1, ficha.nivel || 1)), tier = n <= 4 ? 0 : n <= 10 ? 1 : n <= 16 ? 2 : 3, sorte = a => a[Math.floor(Math.random() * a.length)];
-  const lugares = (() => { try { return Mundo.lista("local").filter(l => l.id !== ficha.localAtual && !RE_POVOADO.test(norm(l.nome + " " + (l.categoria || "")))).map(l => l.nome); } catch (e) { return []; } })();
+  const lugares = (() => { try { return Mundo.listaVis("local").filter(l => l.id !== ficha.localAtual && !RE_POVOADO.test(norm(l.nome + " " + (l.categoria || "")))).map(l => l.nome); } catch (e) { return []; } })();
   const onde = lugares.length && Math.random() < .6 ? "em " + sorte(lugares) : sorte(["na floresta ao norte", "nas ruínas da colina", "na mina abandonada", "na estrada do leste", "no pântano ao sul", "na velha torre de vigia", "nas cavernas do rio"]);
   const ini = sorte(INIMIGOS_TIER[tier]), i = Math.random() < .25 ? 0 : Math.random() < .7 ? 1 : 2, dific = ["fácil", "média", "difícil"][i];
   const T = sorte([
@@ -9791,7 +9828,7 @@ const NUVEM = (() => {
     return out;
   }
   const pronto = cliente().catch(e => { console.warn("nuvem:", e); });   // na abertura: se já havia sessão, entra sozinho
-  return { cliente, bancoStatus, bancoEmprestar, bancoRetirar, chavesParaServidor, removerChave, entrar, enviar, logado, email, filaServidor, infoServidor, configurado, botao, pronto, aplicar, pacote };
+  return { cliente, userId: () => sessao?.user?.id || "", bancoStatus, bancoEmprestar, bancoRetirar, chavesParaServidor, removerChave, entrar, enviar, logado, email, filaServidor, infoServidor, configurado, botao, pronto, aplicar, pacote };
 })();
 $("nuvem-btn").addEventListener("click", () => NUVEM.entrar());
 $("ch-banco-emprestar").addEventListener("click", () => NUVEM.bancoEmprestar(false));

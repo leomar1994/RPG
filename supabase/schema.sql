@@ -116,3 +116,93 @@ drop policy if exists "rpg_off: dono apaga" on public.rpg_campanhas_off;
 create policy "rpg_off: dono apaga" on public.rpg_campanhas_off for delete to authenticated using (autor = auth.uid());
 grant select on public.rpg_campanhas_off to anon;
 grant select, insert, update, delete on public.rpg_campanhas_off to authenticated;
+
+-- ===== Mundo compartilhado: o jogador NÃO edita, só a história grava (funções que apenas acrescentam) =====
+drop policy if exists "rpg_mundo: logado cria" on public.rpg_mundo_ents;
+drop policy if exists "rpg_mundo: logado atualiza" on public.rpg_mundo_ents;
+revoke insert, update, delete on public.rpg_mundo_ents from authenticated, anon;
+
+create or replace function public.rpg_mundo_gravar(p_mundo text, p_ents jsonb) returns integer
+language plpgsql security definer set search_path = public as $$
+declare
+  e jsonb; t text; i text; old public.rpg_mundo_ents; novo jsonb; n integer := 0; tms bigint; k text;
+begin
+  if auth.uid() is null then raise exception 'login'; end if;
+  if p_mundo is null or char_length(p_mundo) not between 1 and 80 then raise exception 'mundo'; end if;
+  if jsonb_typeof(p_ents) <> 'array' or jsonb_array_length(p_ents) > 60 then raise exception 'lote'; end if;
+  for e in select * from jsonb_array_elements(p_ents) loop
+    t := e->>'tipo'; i := e->>'id';
+    if t is null or t not in ('local','npc','fato','caminho','morto','meta') then continue; end if;
+    if i is null or char_length(i) not between 1 and 80 then continue; end if;
+    if pg_column_size(e) > 20000 then continue; end if;
+    tms := case when (e->>'ts') ~ '^[0-9]{1,15}$' then (e->>'ts')::bigint else 0 end;
+    select * into old from public.rpg_mundo_ents where mundo = p_mundo and id = i for update;
+    if not found then
+      insert into public.rpg_mundo_ents (mundo, id, tipo, dados, ts) values (p_mundo, i, t, e, tms);
+      n := n + 1; continue;
+    end if;
+    if old.tipo <> t then continue; end if;
+    novo := old.dados;
+    if t = 'local' then
+      novo := novo || jsonb_build_object(
+        'saidas', (select coalesce(jsonb_agg(distinct x), '[]'::jsonb) from (select jsonb_array_elements_text(coalesce(old.dados->'saidas','[]'::jsonb)) x union select jsonb_array_elements_text(coalesce(e->'saidas','[]'::jsonb))) q),
+        'visitas', greatest(coalesce((old.dados->>'visitas')::int, 0), case when (e->>'visitas') ~ '^[0-9]{1,6}$' then (e->>'visitas')::int else 0 end));
+      if old.dados->>'estado' = 'citado' and e->>'estado' = 'conhecido' then novo := novo || jsonb_build_object('estado', 'conhecido'); end if;
+      foreach k in array array['desc','perigos','mapa','categoria','pois'] loop
+        if not (novo ? k) and (e ? k) then novo := novo || jsonb_build_object(k, e->k); end if;
+      end loop;
+    elsif t = 'npc' then
+      novo := novo || jsonb_build_object(
+        'conversas', greatest(coalesce((old.dados->>'conversas')::int, 0), case when (e->>'conversas') ~ '^[0-9]{1,6}$' then (e->>'conversas')::int else 0 end),
+        'falas', (select coalesce(jsonb_agg(f order by tt), '[]'::jsonb) from (select f, case when (f->>'t') ~ '^[0-9]{1,15}$' then (f->>'t')::bigint else 0 end tt from (select jsonb_array_elements(coalesce(old.dados->'falas','[]'::jsonb)) f union select jsonb_array_elements(coalesce(e->'falas','[]'::jsonb))) u order by 2 desc limit 30) z));
+      foreach k in array array['atitude','objetivo'] loop
+        if e ? k then novo := novo || jsonb_build_object(k, e->k); end if;
+      end loop;
+      foreach k in array array['papel','aparencia','persona','localId','lugarTxt'] loop
+        if not (novo ? k) and (e ? k) then novo := novo || jsonb_build_object(k, e->k); end if;
+      end loop;
+    elsif t = 'meta' then
+      if not (novo ? 'nome') and (e ? 'nome') then novo := novo || jsonb_build_object('nome', e->'nome'); end if;
+    elsif t = 'morto' then
+      novo := novo || jsonb_build_object(
+        'vasculhado', (select coalesce(jsonb_agg(distinct x), '[]'::jsonb) from (select jsonb_array_elements_text(coalesce(old.dados->'vasculhado','[]'::jsonb)) x union select jsonb_array_elements_text(coalesce(e->'vasculhado','[]'::jsonb))) q),
+        'liberado', coalesce(e->'liberado', old.dados->'liberado', '[]'::jsonb));
+      if e ? 'pertences' then
+        novo := novo || jsonb_build_object('pertences', (select coalesce(jsonb_agg(p), '[]'::jsonb) from jsonb_array_elements(coalesce(old.dados->'pertences','[]'::jsonb)) p where exists (select 1 from jsonb_array_elements(coalesce(e->'pertences','[]'::jsonb)) q where q->>'n' = p->>'n')));
+      end if;
+      if e ? 'nota' then novo := novo || jsonb_build_object('nota', e->'nota'); end if;
+      if not coalesce((old.dados->>'fim')::boolean, false) and e->>'estado' in ('cadaver','meio-vivo','morto-vivo','zumbi','esqueleto','fantasma') then
+        novo := novo || jsonb_build_object('estado', e->>'estado');
+      end if;
+    else
+      continue;
+    end if;
+    update public.rpg_mundo_ents set dados = novo, ts = greatest(old.ts, tms) where mundo = p_mundo and id = i;
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+revoke execute on function public.rpg_mundo_gravar(text, jsonb) from public, anon;
+grant execute on function public.rpg_mundo_gravar(text, jsonb) to authenticated;
+
+-- Descoberta de corpo: a 4ª conta diferente encontra o cadáver em decomposição; depois ele deixa de existir para as outras.
+create or replace function public.rpg_mundo_corpo(p_mundo text, p_id text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare r public.rpg_mundo_ents; d jsonb; por jsonb; quem text := auth.uid()::text; n int; nova boolean := false;
+begin
+  if auth.uid() is null then raise exception 'login'; end if;
+  select * into r from public.rpg_mundo_ents where mundo = p_mundo and id = p_id and tipo = 'morto' for update;
+  if not found then return jsonb_build_object('existe', false); end if;
+  d := r.dados; por := coalesce(d->'descobertoPor', '[]'::jsonb);
+  if coalesce((d->>'fim')::boolean, false) and not jsonb_exists(por, quem) then return jsonb_build_object('existe', false); end if;
+  if not jsonb_exists(por, quem) then
+    por := por || to_jsonb(quem); nova := true;
+    if jsonb_array_length(por) >= 4 then d := d || jsonb_build_object('estado', 'decomposicao', 'fim', true); end if;
+  end if;
+  n := jsonb_array_length(por);
+  d := d || jsonb_build_object('descobertoPor', por, 'vezes', n);
+  if nova then update public.rpg_mundo_ents set dados = d, ts = greatest(ts, (extract(epoch from clock_timestamp()) * 1000)::bigint) where mundo = p_mundo and id = p_id; end if;
+  return jsonb_build_object('existe', true, 'nova', nova, 'vezes', n, 'estado', d->>'estado', 'dados', d);
+end $$;
+revoke execute on function public.rpg_mundo_corpo(text, text) from public, anon;
+grant execute on function public.rpg_mundo_corpo(text, text) to authenticated;
