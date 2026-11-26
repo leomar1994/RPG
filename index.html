@@ -1153,7 +1153,7 @@ DIFICULDADE E GRUPO:
 - A dificuldade nunca pode ser injusta: o jogador sempre deve ter uma chance razoável de escapar ou resolver sem lutar.
 
 VIDA:
-- COMBATE: quando uma luta começar (ou o jogador atacar alguém), NÃO narre a luta rodada a rodada nem peça dados de ataque: chame iniciar_combate (sem escrever narração fora dele) com o campo ambiente (a narração do cenário e de como as criaturas surgem, sem nomes), o campo mapa (o id do mapa que combina com o cenário) e 1 a 5 inimigos adequados ao nível do grupo e ao multiplicador de dificuldade (ca 11 a 16, ataque_bonus +3 a +6, dano de 1d6+1 a 2d6+4, vida de 7 a 15 no nível 1 e crescente). O rotulo descreve só a aparência; o nome real vai no campo nome e só é revelado se o jogador passar num teste de conhecimento. O aplicativo conduz o combate em tabuleiro e devolve o resultado: então narre o desfecho em poucas frases, concedendo XP se houve vitória.
+- COMBATE: o APLICATIVO percebe sozinho quando criaturas atacam, abre o tabuleiro, conduz a luta, concede o XP e guarda o saque. NÃO chame iniciar_combate nem narre a luta rodada a rodada. Quando uma luta começar (ou o jogador atacar alguém), narre em 2 ou 3 frases, no presente, a investida das criaturas citando o NOME de cada uma como no bestiário (ex.: "dois Goblins investem contra você") e a quantidade, e termine sem opções. Criaturas feridas, presas, mortas ou só mencionadas não iniciam luta. Depois do combate o aplicativo avisa o resultado: você só narra o desfecho quando o jogador pedir ou na próxima cena.
 - MUNDO PERSISTENTE: o mundo é guardado e cresce com o jogo. Sempre que o personagem chegar a um lugar (masmorra, sala, vila, floresta), chame mudar_local com o nome e as saídas; se o bloco MUNDO PERSISTENTE já descreve o lugar, respeite a descrição e os corpos listados (descreva-os na cena). Mudanças duradouras: registrar_fato. Ao registrar um lugar novo, escolha em mudar_local o id de MAPAS DE COMBATE que combina com ele; lutas nesse lugar usam o mesmo mapa. Corpos de aventureiros mortos mudam com o tempo: alterar_morto (cadaver, meio-vivo, morto-vivo, zumbi, esqueleto, fantasma). Os pertences listados num corpo só passam ao jogador por saquear_morto. Quando o personagem notar ou examinar um corpo de CORPOS NESTE LOCAL, chame descobrir_corpo: cada aventureiro diferente que o acha conta uma descoberta; na 4ª ele está em decomposição e depois deixa de existir; narre conforme o resultado e lembre que o corpo é de OUTRO jogador. Lugares e NPCs criados por outros jogadores existem para todos, mas o personagem só conhece o que já visitou: revele o resto por rumores ou quando ele chegar lá. Nunca contradiga o que o mundo já registrou.
 - CAMPANHA VIVA (solo): você pode expandir a campanha e mudar a rota conforme o jogador age; ao virar a história, chame atualizar_campanha (rumo em 1 ou 2 frases) para guardar. A rota fica salva e a campanha continua dela depois.
 - LOJAS: quando o jogador quiser comprar de um NPC vendedor (ferreiro = armas e armaduras; comerciante = itens gerais; alquimista = poções), chame abrir_loja com o tipo e o nome do vendedor; o aplicativo mostra o catálogo e os preços reais (não invente itens ou preços). Chame fechar_loja quando ele terminar ou se despedir. Fora de um vendedor, não há compras.
@@ -1685,7 +1685,7 @@ function vidaPelaIA(a) {                                 // filtro da cura pedid
   }
   const r = aplicarVida(a);
   if (v < 0 && !cb?.ativo && !mc?.ativo && r && !r.erro)   // dano por ataque fora do tabuleiro: a luta tem de abrir o tabuleiro
-    return { ...r, instrucao: "Se esse dano veio de um inimigo atacando, a luta COMEÇOU: chame iniciar_combate AGORA (ambiente, mapa e inimigos) em vez de narrar o combate à mão, e mantenha a continuidade com a cena atual (mesmo local, mesmos personagens), sem recomeçar a narração." };
+    return { ...r, instrucao: "Se esse dano veio de um inimigo atacando, narre em 2 frases o ataque citando o NOME da criatura como no bestiário e a quantidade (o aplicativo abre o tabuleiro sozinho; não chame iniciar_combate). Mantenha a continuidade com a cena atual, sem recomeçar a narração." };
   return r;
 }
 const temAliadoPerto = () => GRUPO.jogadores > 1 || GRUPO.modo === "grupo" || !!(Rede.estado?.online && Rede.estado.total > 1);
@@ -3305,13 +3305,14 @@ async function chamarIAInterna() {
       if (chamadas.every(okSemVolta) && (texto.length > 60 || chamadas.some(c => SEM_VOLTA.has(c.name)))) {
         if (texto.length <= 60) { const fez = [...new Set(chamadas.filter(c => SEM_VOLTA.has(c.name)).map(c => ({ conceder_xp: "seu XP", alterar_vida: "sua vida", atualizar_inventario: "sua bolsa" })[c.name]))]; addMsg(`📜 O Mestre atualizou ${fez.join(", ")}. O que você faz agora?`, "mestre"); }
         DIAG.economizou();
-        travarChat(false); talvezResumir();
+        travarChat(false); talvezResumir(); try { COMBATE_AUTO.verificar(texto); } catch (e) { console.warn(e); }
       }
       else if (++profCont > 3) { addMsg("O que você faz agora?", "mestre"); travarChat(false); }   // a IA só pede funções em sequência: para de gastar pedidos
       else { DIAG.motivo = "continuação: " + chamadas.map(c => c.name).join(", "); await chamarIA(); }   // a IA narra a consequência; ao terminar, o chat é destravado
     } else {
       travarChat(false);
       talvezResumir();
+      try { COMBATE_AUTO.verificar(texto); } catch (e) { console.warn(e); }
     }
   } catch (e) {
     if (minha !== gerIA || e?.cancelado) return;
@@ -3362,10 +3363,11 @@ async function enviarJogador(texto, nota = null) {
   travarChat(true);
   if (!nota?.jaMostrado) addMsg(texto, "jogador");
   const ataca = /\b(ataco|atacar|atiro|atirar|disparo|disparar|arremes{1,2}o|arremessar|lan[cç]o (?:o|a|um|uma|meu|minha)|golpeio|acerto|investo|parto pra cima|parto para cima|saco (?:a|o|minha|meu)? ?(?:espada|arma|machado|arco|adaga))\b/i.test(texto) && !cb?.ativo;
+  COMBATE_AUTO.jogadorAtacou = ataca;
   const notas = notasParaIA.splice(0);                     // o que o app resolveu sozinho (poção, descanso…) desde a última jogada
   if (nota?.ia) notas.push(nota.ia);
   if (notas.length) texto += "\n" + notas.join("\n");
-  historico.push({ role: "user", parts: [{ text: ataca ? texto + "\n[SISTEMA: o jogador declarou uma ação de ataque. Se houver qualquer inimigo na cena, chame iniciar_combate AGORA (com ambiente, mapa e inimigos) para abrir o tabuleiro, sem narrar a luta e sem pedir dado. Se não houver inimigo, narre normalmente.]" : texto }] });
+  historico.push({ role: "user", parts: [{ text: ataca ? texto + "\n[SISTEMA: o jogador declarou uma ação de ataque. Se houver inimigo hostil na cena, narre em 2 ou 3 frases o golpe dele e a reação das criaturas, citando o NOME de cada uma como no bestiário e a quantidade; o aplicativo abre o tabuleiro sozinho (NÃO chame iniciar_combate, não peça dado). Se não houver inimigo, narre normalmente.]" : texto }] });
   travarChat(true);
   await chamarIA();
 }
@@ -6982,6 +6984,62 @@ async function executarCombate({ inimigos, mapa, ambiente }) {
   try { if (C3.ok && C3.S?.on) C3.ligar(false); } catch (e) {}   // tabuleiro sempre em 2D (imagens PNG)
   return new Promise(resolve => { cb.resolve = resolve; });
 }
+/* ---------- Combate automático: o APP percebe na narração que criaturas atacam e abre o tabuleiro (a IA só narra) ---------- */
+const COMBATE_AUTO = (() => {
+  const NUM = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, varios: 3, varias: 3, alguns: 3, algumas: 3, bando: 3, grupo: 3, horda: 4, matilha: 3, par: 2, dupla: 2 };
+  const HOSTIL = /\b(ataca\w*|avan[cç]a\w*|investe\w*|salta\w*|pula\w* sobre|emboscad\w*|golpeia\w*|morde\w*|mordem|rosna\w*|ruge\w*|partem? (?:para cima|pra cima|contra)|sacam?|desembainha\w*|dispara\w*|lan[cç]a\w*|cerca\w*|surgem?|saltam|atiram?|arremessa\w*|ataque)\b/;
+  const NAO = /\b(ferid[oa]s?|mort[oa]s?|derrotad\w*|inconscient\w*|amarrad\w*|prisioneir\w*|rendid\w*|capturad\w*|gemi\w*|gemend\w*|cadaver\w*|corpos?|estatua\w*|lenda|conta(m|va|ram)?|dizem|boatos?|rumores?|mencion\w*|lembra\w*|ataques? a|nao ataca\w*|nao avanca\w*|nao investe\w*|sem atacar|recua\w*|foge\w*|fugiu|fugiram|pergunt\w*)\b/;
+  const ALVO = /\b(voce|voces|seu|sua|seus|suas|te|o grupo|aventureir\w*|emboscad\w*)\b|\b(surgem?|avan[cç]am?|investem?|partem|cercam|saltam)\b/;
+  let fim = 0, ultimo = "", jogadorAtacou = false;
+  const padrao = nome => new RegExp("\\b" + norm(nome).split(/[\s-]+/).map(w => w + "(?:s|es|is)?").join("[\\s-]+") + "\\b");
+  let _cats = null;
+  const cats = () => _cats ||= CAT_MONSTROS.map(m => ({ m, re: padrao(m.nome) })).sort((a, b) => b.m.nome.length - a.m.nome.length);
+  function achar(texto, relaxado) {
+    const achados = new Map(), frases = String(texto).split(/(?<=[.!?…])\s+|\n+/);
+    for (const fr of frases) {
+      const n = norm(fr); let marcada = n;
+      for (const { m, re } of cats()) {
+        const r = re.exec(marcada); if (!r) continue;
+        marcada = marcada.slice(0, r.index) + " ".repeat(r[0].length) + marcada.slice(r.index + r[0].length);   // não conta "Lobo" dentro de "Lobo Atroz"
+        if (NAO.test(n)) continue;
+        const depois = n.slice(r.index), v = HOSTIL.exec(depois);
+        if (!relaxado && !(v && ALVO.test(n))) continue;
+        if (relaxado && !v && !/\b(reage|reagem|revida\w*|defende\w*|resiste\w*|rosna\w*)\b/.test(n)) continue;
+        const antes = n.slice(Math.max(0, r.index - 24), r.index).split(/\s+/).filter(Boolean);
+        let q = r[0] !== norm(m.nome) ? 2 : 1;                             // forma no plural = 2 criaturas, salvo número explícito
+        for (const w of antes.reverse()) { if (/^\d+$/.test(w)) { q = Math.min(5, +w); break; } if (NUM[w]) { q = NUM[w]; break; } }
+        achados.set(m.nome, Math.max(achados.get(m.nome) || 0, q));
+      }
+    }
+    let tot = 0; const lista = [];
+    for (const [nome, q] of achados) for (let k = 0; k < q && tot < 5; k++, tot++) lista.push(nome);
+    return lista;
+  }
+  function verificar(texto) {
+    const relaxado = jogadorAtacou; jogadorAtacou = false;
+    if (!texto || texto.length < 20 || cb?.ativo || mc?.ativo || MESTRE_HUMANO || !ficha?.id || ficha.morto || ficha.vidaAtual <= 0) return false;
+    if (Date.now() - fim < 45000 || texto === ultimo) return false;       // logo após um combate a narração é do desfecho
+    const lista = achar(texto, relaxado); if (!lista.length) return false;
+    ultimo = texto;
+    iniciar(lista); return true;
+  }
+  async function iniciar(nomes) {
+    travarChat(true);
+    const xp = nomes.reduce((t, n) => t + (Number(catMonstro(n)?.xp) || 0), 0), cont = {}; nomes.forEach(n => cont[n] = (cont[n] || 0) + 1);
+    const resumo = Object.entries(cont).map(([n, q]) => q > 1 ? `${q} ${n}` : n).join(", ");
+    addMsg(`⚔ Combate! ${resumo}.`, "sistema");
+    const inimigos = nomes.map(n => ({ nome: n, rotulo: n, bestiario: n }));
+    let r; try { r = await executarCombate({ inimigos, ambiente: "", mapa: "" }); } catch (e) { console.warn(e); travarChat(false); return; }
+    fim = Date.now();
+    let nota = `[APLICATIVO: combate contra ${resumo} resolvido pelo app: ${r?.resultado || "encerrado"} em ${r?.rodadas ?? "?"} rodada(s); vida ${ficha.vidaAtual}/${ficha.vidaMaxima}.`;
+    if (r?.resultado === "vitoria") { try { await executarConcessaoXp({ quantidade: xp, motivo: `vitória contra ${resumo}`, tipo_resolucao: "combate" }); } catch (e) {} nota += " O XP já foi concedido pelo app: NÃO chame conceder_xp para esse combate."; }
+    if (r?.saque_do_chao) nota += " O saque já foi resolvido pelo app: não invente outro.";
+    nota += " Não chame iniciar_combate; narre o desfecho só se o jogador pedir ou na próxima cena.]";
+    notasParaIA.push(nota);
+    travarChat(false);
+  }
+  return { verificar, achar, get jogadorAtacou() { return jogadorAtacou; }, set jogadorAtacou(v) { jogadorAtacou = v; }, fim: () => { fim = Date.now(); } };
+})();
 $("cb-estilo").addEventListener("click", () => { CHIBI.alternar(); $("cb-estilo").textContent = CHIBI.ligado() ? "🎨 Estilo: desenho" : "🎨 Estilo: retrato"; try { if (cb?.mesa) renderMc(); else if (cb) renderCb(); } catch (e) {} });
 $("cb-comecar").addEventListener("click", async () => {
   if (!cb?.ativo || cb.comecou) return;
