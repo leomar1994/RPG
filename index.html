@@ -1469,7 +1469,7 @@ const FERRAMENTAS = [{
         local:  { type: "STRING", description: "Nome do local, ex.: 'Vila de Pedraforte'." },
         lugares: { type: "ARRAY", description: "2 a 12 pontos de interesse.", items: { type: "OBJECT", properties: {
           nome: { type: "STRING", description: "Ex.: 'Igreja de São Brás'." },
-          tipo: { type: "STRING", description: "igreja, comercio, ferreiro, estabulo, guilda, taverna, casa, castelo, porto, boticario, portao, praca, floresta, ruina ou outro." },
+          tipo: { type: "STRING", description: "igreja, comercio, ferreiro, loja_de_armas, alquimista, estabulo, guilda, taverna, casa, castelo, porto, boticario, portao, praca, floresta, ruina ou outro." },
           nota: { type: "STRING", description: "Opcional: frase curta sobre o lugar." } }, required: ["nome", "tipo"] } }
       },
       required: ["local", "lugares"]
@@ -2795,7 +2795,7 @@ function mundoMapaDesenhar() {
     g += `<g class="no${d ? " destino" : ""}" data-no="${l.id}" tabindex="0" role="button" aria-label="${esc(l.nome)}${d ? " (destino da viagem)" : ""}"${apagado}><title>${esc(l.nome)}</title>` +
       (d ? `<circle class="halo" cx="${p.x.toFixed(0)}" cy="${p.y.toFixed(0)}" r="27" fill="rgba(255,224,138,.18)" stroke="#ffe08a" stroke-width="3"/><text x="${p.x.toFixed(0)}" y="${(p.y - 24).toFixed(0)}" text-anchor="middle" font-size="16">${{ taverna: "🍺", missao: "📜", retorno: "↩" }[d]}</text>` : "") +
       `<circle cx="${p.x.toFixed(0)}" cy="${p.y.toFixed(0)}" r="${aqui ? 20 : 16}" fill="${COR[l.categoria] || COR.outro}" ${citado ? 'opacity=".45" stroke-dasharray="3 3"' : ""} stroke="${aqui ? "#fff" : "#d9b45a"}" stroke-width="${aqui ? 3 : 1.5}"/>` +
-      `<text x="${p.x.toFixed(0)}" y="${(p.y + 5).toFixed(0)}" text-anchor="middle" font-size="14">${aqui ? "🧍" : citado ? "?" : ""}</text>` +
+      (aqui || citado ? `<text x="${p.x.toFixed(0)}" y="${(p.y + 5).toFixed(0)}" text-anchor="middle" font-size="14">${aqui ? "🧍" : "?"}</text>` : (() => { const [r, ic] = iconeLugar(l.categoria === "vila" ? "" : l.categoria || "", l.nome || ""); return r ? iconeLugarSvg(ic, p.x, p.y, 15) : ""; })()) +
       (corpos ? `<text x="${(p.x + 14).toFixed(0)}" y="${(p.y - 10).toFixed(0)}" font-size="15">☠</text>` : "") +
       (comNome ? `<text x="${p.x.toFixed(0)}" y="${(p.y + 33).toFixed(0)}" text-anchor="middle" font-size="12" fill="#e6dcc3" stroke="#15121f" stroke-width="3" paint-order="stroke">${esc(l.nome.length > 22 ? l.nome.slice(0, 21) + "…" : l.nome)}</text>` : "") + `</g>`;
   }
@@ -6330,12 +6330,25 @@ const C3 = (() => {
 /* =====================================================================
    9E) MAPA DO LOCAL: a IA lista os lugares, o jogo desenha o mapa (grátis e sempre igual)
    ===================================================================== */
-const ICONES_LUGAR = [[/igreja|templo|capela|catedral|santuario/, "⛪", "#6b5a8c"], [/ferre|forja|armeiro/, "⚒", "#7a4a2a"], [/estabul|cavalo|montaria/, "🐴", "#6b5a2a"],
+const ICONES_LUGAR = [[/loja.de.armas|armaria|armeir|\barmas\b/, "⚔", "#6b3a3a"], [/igreja|templo|capela|catedral|santuario/, "✝", "#6b5a8c"], [/ferre|forja/, "@bigorna", "#7a4a2a"], [/estabul|cavalo|montaria/, "@ferradura", "#6b5a2a"],
   [/guilda|ordem|associacao/, "🏛", "#2f5d8c"], [/taverna|estalagem|pousada|bar/, "🍺", "#8c5a2f"], [/castelo|fortaleza|torre|palacio/, "🏰", "#555b6b"],
-  [/porto|cais|doca/, "⚓", "#2f6b8c"], [/boticar|curand|alquimi|herbo/, "⚗", "#2f7a4d"], [/portao|entrada|muralha/, "🚪", "#555b6b"],
+  [/porto|cais|doca/, "⚓", "#2f6b8c"], [/boticar|curand|alquimi|herbo/, "🧪", "#2f7a4d"], [/portao|entrada|muralha/, "🚪", "#555b6b"],
   [/mercado|comerci|loja|feira|armazem/, "🏪", "#8c6d2f"], [/casa|moradia|chacara|fazenda/, "🏠", "#6b4a3a"], [/floresta|bosque|mata/, "🌲", "#2f6b3a"],
   [/ruina|cripta|cemiterio|tumba/, "🗿", "#4a4a55"], [/praca|fonte|poco/, "⛲", "#2f6b8c"]];
-const iconeLugar = t => ICONES_LUGAR.find(([r]) => r.test(norm(t))) || [null, "📍", "#5a4a6b"];
+const iconeLugar = (t, nome = "") => {                   // o nome vale quando o tipo não diz (ou quando é loja de armas)
+  const n = norm(nome), arm = ICONES_LUGAR[0];
+  if (n && arm[0].test(n)) return arm;
+  return ICONES_LUGAR.find(([r]) => r.test(norm(t))) || (n && ICONES_LUGAR.find(([r]) => r.test(n))) || [null, "📍", "#5a4a6b"];
+};
+const ICONE_LUGAR_SVG = {                                 // símbolos sem emoji: desenhados (caixa 32×32)
+  ferradura: `<path d="M9 5 V15 Q9 27 16 27 Q23 27 23 15 V5" fill="none" stroke="#2a2010" stroke-width="8" stroke-linecap="round"/><path d="M9 5 V15 Q9 27 16 27 Q23 27 23 15 V5" fill="none" stroke="#c9c9d2" stroke-width="5" stroke-linecap="round"/><g fill="#2a2010"><circle cx="9" cy="9" r="1.1"/><circle cx="9" cy="15" r="1.1"/><circle cx="23" cy="9" r="1.1"/><circle cx="23" cy="15" r="1.1"/><circle cx="12" cy="22" r="1.1"/><circle cx="20" cy="22" r="1.1"/></g>`,
+  bigorna: `<path d="M2 9 H24 L30 7 L28 13 H23 Q20 13 20 17 H21 V20 H11 V17 H12 Q12 14 8 14 Q3 13 2 9Z" fill="#5a5a66" stroke="#1e1e24" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 20 H24 L26 26 H6Z" fill="#46464f" stroke="#1e1e24" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 10 H23" stroke="#9a9aa8" stroke-width="1.2"/>`
+};
+function iconeLugarSvg(ic, x, y, tam = 20) {              // emoji/texto ou desenho, centrado em (x, y)
+  if (ic && ic[0] === "@" && ICONE_LUGAR_SVG[ic.slice(1)]) { const k = tam / 32 * 1.15; return `<g transform="translate(${(x - 16 * k).toFixed(1)} ${(y - 16 * k).toFixed(1)}) scale(${k.toFixed(3)})">${ICONE_LUGAR_SVG[ic.slice(1)]}</g>`; }
+  const cruz = ic === "✝" || ic === "⚔";
+  return `<text x="${x.toFixed(0)}" y="${(y + tam * 0.36).toFixed(0)}" font-size="${tam}" text-anchor="middle"${cruz ? ' fill="#fff" stroke="#2a2010" stroke-width="1" font-weight="bold"' : ""}>${ic}</text>`;
+}
 function aplicarMapaLocal({ local, lugares }) {                  // chamada pela IA
   const nome = String(local || "").trim().slice(0, 50);
   const lista = (Array.isArray(lugares) ? lugares : []).map(l => ({ nome: String(l?.nome || "").trim().slice(0, 40), tipo: String(l?.tipo || "").trim().slice(0, 30), nota: String(l?.nota || "").trim().slice(0, 100) })).filter(l => l.nome);
@@ -6351,14 +6364,30 @@ function aplicarMapaLocal({ local, lugares }) {                  // chamada pela
 }
 function desenharMapaLocal(m) {
   const W = 640, H = 440, cx = W / 2, cy = H / 2, n = m.lugares.length, dois = n > 8;
-  const pos = m.lugares.map((l, i) => { const anel = dois ? (i % 2 ? 1 : 0) : 1, a = -Math.PI / 2 + (i / n) * 2 * Math.PI; const rx = anel ? 205 : 120, ry = anel ? 160 : 85; return { x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) }; });
-  let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Mapa de ${esc(m.nome)}"><defs><radialGradient id="pg" cx="50%" cy="50%" r="75%"><stop offset="0" stop-color="#e8d9ae"/><stop offset="1" stop-color="#c3a96b"/></radialGradient></defs><rect width="${W}" height="${H}" fill="url(#pg)"/>`;
-  g += `<g stroke="#8a6d3b" stroke-width="7" stroke-linecap="round" fill="none" opacity=".55">` + pos.map(q => `<path d="M${cx} ${cy} L${q.x.toFixed(0)} ${q.y.toFixed(0)}"/>`).join("") + `</g>`;
-  g += `<circle cx="${cx}" cy="${cy}" r="20" fill="#b89c5c" stroke="#8a6d3b" stroke-width="3"/><text x="${cx}" y="${cy + 6}" font-size="18" text-anchor="middle">⛲</text>`;
+  const larg = l => Math.max(96, Math.min(150, l.nome.length * 6.4 + 40));
+  const pos = m.lugares.map((l, i) => { const anel = dois ? (i % 2 ? 1 : 0) : 1, a = -Math.PI / 2 + (i / n) * 2 * Math.PI; const rx = anel ? 225 : 120, ry = anel ? 175 : 95; return { x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a), w: larg(l) }; });
+  for (let it = 0; it < 300; it++) {                      // empurra os cartões que se encostam (nenhum fica em cima de outro nem da fonte)
+    let mexeu = false;
+    const caixas = [...pos, { x: cx, y: cy, w: 56, fixo: true }];
+    for (let i = 0; i < caixas.length; i++) for (let j = i + 1; j < caixas.length; j++) {
+      const A = caixas[i], B = caixas[j], ox = (A.w + B.w) / 2 + 10 - Math.abs(A.x - B.x), oy = 50 - Math.abs(A.y - B.y);
+      if (ox <= 0 || oy <= 0) continue; mexeu = true;
+      const sx = Math.sign(A.x - B.x) || (i % 2 ? 1 : -1), sy = Math.sign(A.y - B.y) || (j % 2 ? 1 : -1), fa = A.fixo ? 0 : B.fixo ? 1 : 0.5, fb = 1 - fa;
+      if (oy < ox) { A.y += sy * oy * fa; B.y -= sy * oy * fb; } else { A.x += sx * ox * fa; B.x -= sx * ox * fb; }
+    }
+    pos.forEach(q => { q.x = Math.min(W - q.w / 2 - 6, Math.max(q.w / 2 + 6, q.x)); });
+    if (!mexeu) break;
+  }
+  const minY = Math.min(...pos.map(q => q.y)) - 26, maxY = Math.max(...pos.map(q => q.y)) + 26;
+  if (minY < 0) pos.forEach(q => q.y -= minY);
+  const H2 = Math.max(H, maxY - Math.min(0, minY)), fy = cy - Math.min(0, minY);   // fy: a fonte acompanha o deslocamento
+  let g = `<svg viewBox="0 0 ${W} ${H2.toFixed(0)}" role="img" aria-label="Mapa de ${esc(m.nome)}"><defs><radialGradient id="pg" cx="50%" cy="50%" r="75%"><stop offset="0" stop-color="#e8d9ae"/><stop offset="1" stop-color="#c3a96b"/></radialGradient></defs><rect width="${W}" height="${H2.toFixed(0)}" fill="url(#pg)"/>`;
+  g += `<g stroke="#8a6d3b" stroke-width="7" stroke-linecap="round" fill="none" opacity=".55">` + pos.map(q => `<path d="M${cx} ${fy.toFixed(0)} L${q.x.toFixed(0)} ${q.y.toFixed(0)}"/>`).join("") + `</g>`;
+  g += `<circle cx="${cx}" cy="${fy.toFixed(0)}" r="20" fill="#b89c5c" stroke="#8a6d3b" stroke-width="3"/><text x="${cx}" y="${(fy + 6).toFixed(0)}" font-size="18" text-anchor="middle">⛲</text>`;
   m.lugares.forEach((l, i) => {
-    const [, ic, cor] = iconeLugar(l.tipo || l.nome), q = pos[i], tw = Math.max(96, Math.min(150, l.nome.length * 6.4 + 40));
+    const [, ic, cor] = iconeLugar(l.tipo || "", l.nome), q = pos[i], tw = Math.max(96, Math.min(150, l.nome.length * 6.4 + 40));
     g += `<g class="lugar" tabindex="0" role="button" data-lugar="${i}" aria-label="Ir para ${esc(l.nome)}"><rect x="${(q.x - tw / 2).toFixed(0)}" y="${(q.y - 20).toFixed(0)}" width="${tw.toFixed(0)}" height="40" rx="10" fill="${cor}" stroke="#2a2010" stroke-width="2"/>` +
-      `<text x="${(q.x - tw / 2 + 18).toFixed(0)}" y="${(q.y + 7).toFixed(0)}" font-size="20" text-anchor="middle">${ic}</text><text x="${(q.x + 12).toFixed(0)}" y="${(q.y + 5).toFixed(0)}" font-size="12" fill="#fff" text-anchor="middle" font-family="sans-serif">${esc(l.nome.length > 22 ? l.nome.slice(0, 21) + "…" : l.nome)}</text></g>`;
+      `${iconeLugarSvg(ic, q.x - tw / 2 + 18, q.y, 20)}<text x="${(q.x + 12).toFixed(0)}" y="${(q.y + 5).toFixed(0)}" font-size="12" fill="#fff" text-anchor="middle" font-family="sans-serif">${esc(l.nome.length > 22 ? l.nome.slice(0, 21) + "…" : l.nome)}</text></g>`;
   });
   return g + `</svg>`;
 }
@@ -6456,7 +6485,7 @@ function novaMissaoTaverna(tipo = "taverna") {
 }
 // Igreja/templo e estábulo: também têm quadro de missões do nível do personagem (XP pela tabela de encontros do D&D 5e)
 let SV = { nome: "", tipo: "", oferta: null };
-const SV_INFO = { igreja: { ic: "⛪", txt: "O sacerdote acena em meio ao cheiro de incenso e cera.", quem: "O sacerdote", quadro: "Pedidos ao templo" }, estabulo: { ic: "🐴", txt: "O tratador escova um cavalo entre fardos de feno.", quem: "O tratador", quadro: "Serviços do estábulo" } };
+const SV_INFO = { igreja: { ic: "✝", txt: "O sacerdote acena em meio ao cheiro de incenso e cera.", quem: "O sacerdote", quadro: "Pedidos ao templo" }, estabulo: { ic: `<svg viewBox="0 0 32 32" width="1.1em" height="1.1em" style="vertical-align:-.15em" aria-hidden="true">${ICONE_LUGAR_SVG.ferradura}</svg>`, txt: "O tratador escova um cavalo entre fardos de feno.", quem: "O tratador", quadro: "Serviços do estábulo" } };
 function servicoHtml(aviso = "") {
   const inf = SV_INFO[SV.tipo], m = ficha.missao;
   const q = m ? `<div class="fx-item"><div><b>📜 ${esc(m.titulo)}</b> <span class="eq-tag">em andamento</span><br><small>${esc(m.desc)}<br>Recompensa: <b>${m.xp} XP</b> e <b>${po(m.ouro)}</b> · dificuldade ${m.dific}</small></div><div class="fx-itbtn"><button data-tav="sv-desistir">Desistir</button></div></div>`
