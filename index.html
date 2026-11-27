@@ -1825,7 +1825,7 @@ async function morrer() {
   morteEmCurso = false; travarChat(true);
   const sala_ = Rede.estado.online ? `\n\nSala online: ${Rede.estado.codigo}. Entre de novo com o mesmo código.` : "";
   await mostrarQueda(`☠ ${ficha.nome} morreu`, `${ficha.raca || ""} ${ficha.classe || ""} nível ${ficha.nivel} — ${reg.causa}.\n\nO personagem foi removido da sua lista. O corpo ficou no mapa do mundo como cadáver: outros aventureiros podem saqueá-lo (40% de chance de achar algo) ou encontrá-lo como morto-vivo.${sala_}`, [["🧙 Criar um novo personagem", true]]);
-  location.reload();
+  sairParaMenu();
 }
 
 /* =====================================================================
@@ -10177,6 +10177,14 @@ $("arquivo-backup").addEventListener("change", async e => {
 verificarArmazenamento();
 addEventListener("pagehide", () => { try { if (ficha.id) salvarPersonagem(); } catch {} });
 document.addEventListener("visibilitychange", () => { try { if (document.hidden && ficha.id) salvarPersonagem(); } catch {} });
+setTimeout(() => {                                       // F5 no meio da partida: volta para o mesmo personagem em vez do menu inicial
+  try {
+    const id = sessionStorage.getItem(JOGANDO_CHAVE); if (!id || ficha.id || $("papel").hidden) return;
+    const reg = lerSaves().find(r => r.id === id);
+    if (!reg || reg.ficha?.morto || reg.mestreHumano || reg.grupo?.jogadores >= 2) { sessionStorage.removeItem(JOGANDO_CHAVE); return; }
+    $("papel").hidden = true; continuarPersonagem(reg);
+  } catch (e) { console.warn(e); }
+}, 700);
 
 const DIARIO_CHAVE = id => "rpg-mesa:diario:" + id;
 function lerDiario(id) { try { return JSON.parse(localStorage.getItem(DIARIO_CHAVE(id))) || []; } catch { return []; } }
@@ -10240,8 +10248,11 @@ function exportarCampanha() {
   try { const nome = `campanha-${norm(ficha.nome || "mundo").replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.txt`; baixarTexto(nome, montarResumoCampanha()); addMsg("📄 Resumo da campanha salvo como arquivo de texto (veja a pasta Downloads).", "sistema"); }
   catch (e) { addMsg("Não foi possível gerar o resumo: " + e.message, "sistema"); }
 }
+const JOGANDO_CHAVE = "rpg-mesa:jogando"; let saindoMenu = false;   // personagem em jogo nesta aba: recarregar (F5) volta direto para ele
+function sairParaMenu() { saindoMenu = true; try { sessionStorage.removeItem(JOGANDO_CHAVE); } catch (e) {} location.reload(); }
 function salvarPersonagem() {
   if (!ficha.id || ficha.morto) return;                // morto não volta para a lista
+  try { if (!saindoMenu && !MESTRE_HUMANO && GRUPO.jogadores < 2) sessionStorage.setItem(JOGANDO_CHAVE, ficha.id); } catch (e) {}
   const saves = lerSaves();
   const registro = { id: ficha.id, ficha: { ...ficha }, grupo: { modo: GRUPO.modo, jogadores: GRUPO.jogadores },
                      mestreHumano: MESTRE_HUMANO, campanha, resumo: resumoCampanha, aventura: aventuraSolo, atualizadoEm: Date.now(),
@@ -10348,7 +10359,7 @@ $("novo-personagem").addEventListener("click", () => { $("personagens").hidden =
 function voltarAoMenu(perguntar) {                       // salva e recarrega: volta à tela inicial com tudo limpo
   if (perguntar && !confirm("Voltar ao menu inicial? O personagem e a campanha ficam salvos neste aparelho.")) return;
   try { if (ficha?.id) salvarPersonagem(); } catch (e) {}
-  location.reload();
+  sairParaMenu();
 }
 $("voltar-menu").addEventListener("click", () => voltarAoMenu(true));
 $("voltar-personagens").addEventListener("click", () => { $("personagens").hidden = true; $("papel").hidden = false; });
@@ -11007,7 +11018,7 @@ const OFFLINE = (() => {
         <div class="linha-botoes"><button type="button" data-off-jogar="${m.id}">▶ Jogar</button>${srvIds.has(m.id) ? "" : `<button type="button" class="secundario" data-off-pub="${m.id}">☁ Enviar ao servidor</button>`}<button type="button" class="secundario" data-off-exp="${m.id}">⬇ Exportar</button><button type="button" class="secundario" data-off-del="${m.id}">🗑</button></div></div>`).join("") : `<p class="dica">Nenhuma campanha ainda. Jogue com a IA e use 📖 Codex → 🧩 Compilar a sessão.</p>`}
       ${srvHtml}
       <label class="secundario off-imp">📥 Importar campanha (.json)<input type="file" id="off-imp" accept=".json,application/json" hidden></label></div>`;
-    $("off-sair").onclick = () => { fechar(); if (salvoFicha) location.reload(); };
+    $("off-sair").onclick = () => { fechar(); if (salvoFicha) sairParaMenu(); };
     d.querySelectorAll("[data-off-pub]").forEach(b => b.onclick = async () => { b.disabled = true; b.textContent = "Enviando…"; const m = await CODEX.get("mod", b.dataset.offPub), e = await publicar(m); if (e) { alert(e === "login" ? "Entre na conta (☁ no menu inicial) para enviar ao servidor." : "Não consegui enviar: " + e); } abrir(); });
     d.querySelectorAll("[data-srv-jogar]").forEach(b => b.onclick = async () => { b.disabled = true; b.textContent = "Baixando…"; try { const sb = await NUVEM.cliente(), { data, error } = await sb.from("rpg_campanhas_off").select("dados").eq("id", b.dataset.srvJogar).single(); if (error || !data?.dados) throw new Error(error?.message || "campanha não encontrada"); const m = data.dados; m.id = b.dataset.srvJogar; await CODEX.put("mod", m.id, m); escolherHeroi(m.id); } catch (e) { alert("Não consegui baixar a campanha: " + e.message); abrir(); } });
     d.querySelectorAll("[data-srv-del]").forEach(b => b.onclick = async () => { if (!confirm("Remover esta campanha do servidor para todos os jogadores?")) return; try { const sb = await NUVEM.cliente(); const { error } = await sb.from("rpg_campanhas_off").delete().eq("id", b.dataset.srvDel); if (error) throw new Error(error.message); } catch (e) { alert("Não consegui remover: " + e.message); } abrir(); });
@@ -11142,7 +11153,7 @@ const OFFLINE = (() => {
           <form class="off-livre" id="off-livre"><input id="off-txt" maxlength="300" placeholder="Perguntar ou tentar outra coisa… (vai para o Mestre humano)" autocomplete="off"><button type="submit">🧙 Enviar</button></form>`}
       ${st.hist.length ? `<div class="linha-botoes off-nav"><button type="button" class="secundario" id="off-voltar-cena">↶ Cena anterior</button></div>` : ""}
     </div>`;
-    $("off-menu").onclick = () => { salvar(); fechar(); location.reload(); };
+    $("off-menu").onclick = () => { salvar(); fechar(); sairParaMenu(); };
     $("off-codex").onclick = codexOffline;
     d.querySelectorAll("[data-off-esc]").forEach(b => b.onclick = () => escolher(Number(b.dataset.offEsc)));
     $("off-livre")?.addEventListener("submit", ev => { ev.preventDefault(); const t = $("off-txt").value.trim(); if (t) pausar("pergunta", t); });
