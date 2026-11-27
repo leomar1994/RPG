@@ -1710,9 +1710,14 @@ async function decidirAjudaIA() {                        // a IA decide se um al
   } catch (e) { limparEspera($("chat")); if (!temAliadoPerto()) return { perto: false, ajuda: false }; const ok = dadoCb(20) >= 11; return { perto: true, ajuda: ok, aliado: "Um aliado", narracao: ok ? "Um aliado chega correndo e estanca o sangramento a tempo." : "Um aliado tenta chegar até você, mas é tarde demais." }; }
 }
 function estabilizar(motivo) {
-  ficha.ultimoMotivo = ""; aplicarVida({ variacao: 1 - ficha.vidaAtual, motivo });
+  ficha.ultimoMotivo = ""; if (ficha.vidaAtual < 1) aplicarVida({ variacao: 1 - ficha.vidaAtual, motivo });   // já com 1 PV (ex.: salvaguarda): não repete "+0 Vida"
   ficha.avisouQueda = false; ficha.salvaFalhou = false; ficha.salvaFeita = false; ficha.pediuAjuda = false;
   morteEmCurso = false; travarChat(false);
+}
+function seguirAposSalvar(texto) {                        // depois de escapar da morte, o Mestre IA retoma a cena (sem isso o jogo ficava parado, sem botões)
+  if (MESTRE_HUMANO) return;
+  historico.push({ role: "user", parts: [{ text: texto }] });
+  travarChat(true); chamarIA().catch(e => { console.warn(e); travarChat(false); oferecerReenvio(); });
 }
 /* ---- Morte definitiva: a 0 de vida, sem poção de cura, o personagem morre e vira parte do mundo ---- */
 const CEMITERIO_CHAVE = "rpg-mesa:cemiterio", HERDAR_CHAVE = "rpg-mesa:herdar";
@@ -1779,12 +1784,13 @@ async function verificarMorte() {
     const cura = 2 + Math.floor(Math.random() * 4) + Math.floor(Math.random() * 4) + 2;      // 2d4 + 2
     ficha.ultimoMotivo = ""; aplicarVida({ variacao: Math.max(1, cura), motivo: `bebeu ${po.nome} (gasta)` });
     addMsg("🧪 A poção devolve o calor ao seu corpo. Você abre os olhos, vivo por pouco.", "sistema");
-    morteEmCurso = false; ficha.avisouQueda = false; ficha.salvaFalhou = false; ficha.salvaFeita = false; travarChat(false); return;
+    morteEmCurso = false; ficha.avisouQueda = false; ficha.salvaFalhou = false; ficha.salvaFeita = false; travarChat(false);
+    seguirAposSalvar(`[APLICATIVO] ${ficha.nome} bebeu ${po.nome} e se levantou com ${ficha.vidaAtual} PV. Narre em 1 frase e continue a cena, oferecendo as opções de ação.`); return;
   }
   if (!MESTRE_HUMANO && !ficha.salvaFeita) {               // 1ª chance: salvaguarda contra a morte (Constituição, CD 10)
     addMsg("💀 Você está morrendo: role a salvaguarda contra a morte (Resistência de Constituição, CD 10).", "sistema");
     let sv = { ok: false }; try { sv = await salvaguardaDeMorte(10, "Salvaguarda contra a morte"); } catch (e) { fecharDado(); }
-    if (sv.ok) { estabilizar("resistiu à morte"); historico.push({ role: "user", parts: [{ text: `[APLICATIVO] ${ficha.nome} passou na salvaguarda contra a morte e está estabilizado com 1 PV. Narre em 1 frase e continue.` }] }); return; }
+    if (sv.ok) { estabilizar("resistiu à morte"); seguirAposSalvar(`[APLICATIVO] ${ficha.nome} passou na salvaguarda contra a morte e está estabilizado com 1 PV. Narre em 1 frase como ele volta a si e continue a cena, oferecendo as opções de ação.`); return; }
   }
   if (!ficha.pediuAjuda) {                                 // 2ª chance: um aliado por perto
     ficha.pediuAjuda = true;
@@ -1796,7 +1802,7 @@ async function verificarMorte() {
       addMsg("⏳ Algum aliado está perto o bastante para ajudar?", "sistema");
       const d = await decidirAjudaIA();
       if (d.narracao) addMsg(d.narracao, "mestre");
-      if (d.ajuda) { estabilizar(`${d.aliado} te salvou`); addMsg(`🤝 ${d.aliado} te estabiliza: você fica com 1 PV.`, "sistema"); historico.push({ role: "user", parts: [{ text: `[APLICATIVO] ${d.aliado} salvou ${ficha.nome}, que está com 1 PV. Continue a cena.` }] }); return; }
+      if (d.ajuda) { estabilizar(`${d.aliado} te salvou`); addMsg(`🤝 ${d.aliado} te estabiliza: você fica com 1 PV.`, "sistema"); seguirAposSalvar(`[APLICATIVO] ${d.aliado} salvou ${ficha.nome}, que está com 1 PV. Continue a cena, oferecendo as opções de ação.`); return; }
       if (d.perto === false) addMsg("Não há ninguém perto o bastante para ajudar.", "sistema");
     }
   }
