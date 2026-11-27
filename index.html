@@ -2742,63 +2742,146 @@ $("mundo-entrar").addEventListener("click", () => { const c = lerCampos(); if (!
 $("mundo-novo-local").addEventListener("click", () => { if (confirm("Apagar o mundo deste aparelho (lugares, mortos e fatos) e começar outro do zero?")) acaoMundo(() => Mundo.novoLocal(), "✅ Mundo novo e vazio."); });
 
 // ---- mapa do mundo (lugares, caminhos e corpos guardados) ----
-function mundoMapaDesenhar() {
-  const locais = Mundo.listaVis("local"), cx = 320, cy = 230; let W = 640, H = 460;
+function mundoMapaDesenhar() {                          // pergaminho medieval: vilas em grupos, natureza separando, sem linhas retas
+  const locais = Mundo.listaVis("local");
   const dest = new Map(); try { if (temPergaminho()) destinosPergaminho().forEach(d => dest.set(d.l.id, d.tipo)); } catch (e) {}
   $("mm-titulo").textContent = "🧭 Pergaminho de Viagem — " + Mundo.nome();
-  $("mm-dica").innerHTML = temPergaminho() ? `O pergaminho é o seu mapa de viagem: os pontos <b>brilhantes</b> são os destinos possíveis (🍺 taverna conhecida · 📜 missão · ↩ ponto de retorno). Toque num deles para viajar. ☠ = corpos.` : "Você não tem o Pergaminho de Viagem na bolsa: só dá para ver o mapa.";
+  $("mm-dica").innerHTML = temPergaminho() ? `Lugares <b>em destaque</b> você já visitou; os <b>apagados</b> ainda não. Os que têm 🍺 taverna · 📜 missão · ↩ ponto de retorno são destinos de viagem: toque para viajar. ☠ = corpos.` : "Você não tem o Pergaminho de Viagem na bolsa: só dá para ver o mapa.";
   $("mm-taverna").hidden = !emPovoado();
   if (!locais.length) { $("mm-svg").innerHTML = '<p class="dica">Ainda não há lugares: eles aparecem conforme a história avança.</p>'; return; }
+  // sorteio fixo por mundo: o mapa não muda a cada vez que abre
+  let semente = 0; for (const ch of String(Mundo.nome()) + locais.length) semente = (semente * 31 + ch.charCodeAt(0)) >>> 0;
+  const rnd = () => { semente = (semente * 1664525 + 1013904223) >>> 0; return semente / 4294967296; };
   const viz = new Map(locais.map(l => [l.id, new Set()]));
   const liga = (a, b) => { if (viz.has(a) && viz.has(b) && a !== b) { viz.get(a).add(b); viz.get(b).add(a); } };
-  locais.forEach(l => (l.saidas || []).forEach(o => liga(l.id, o))); Mundo.lista("caminho").forEach(c => liga(c.de, c.para));
-  const camada = new Map(), comp = [];                 // camadas em anel a partir do lugar atual (ou do primeiro)
-  const raizes = [Mundo.obter(ficha.localAtual)?.id, ...locais.map(l => l.id)].filter(Boolean);
-  for (const r of raizes) {
-    if (camada.has(r)) continue; const fila = [r]; camada.set(r, 0); const grupo = [r];
-    while (fila.length) { const x = fila.shift(); for (const y of viz.get(x)) if (!camada.has(y)) { camada.set(y, camada.get(x) + 1); fila.push(y); grupo.push(y); } }
-    comp.push(grupo);
-  }
-  const pos = new Map();
-  comp.forEach((grupo, gi) => {
-    const porCam = {}; grupo.forEach(id => (porCam[camada.get(id)] ||= []).push(id));
-    Object.entries(porCam).forEach(([k, ids]) => ids.forEach((id, i) => {
-      const r = Number(k) * 85, a = Number(k) === 0 ? 0 : (i / ids.length) * 2 * Math.PI + (Number(k) * 0.7) + gi * 0.5;
-      pos.set(id, { x: cx + r * Math.cos(a) * 1.45, y: cy + r * Math.sin(a) });
-    }));
-  });
-  {                                                      // afasta os lugares: repulsão entre todos, mola nos caminhos (sem lugares um em cima do outro)
-    const ids = [...pos.keys()], P = ids.map(id => pos.get(id)), idx = new Map(ids.map((id, i) => [id, i])), arestas = [];
-    for (const [a, set] of viz) for (const b of set) if (a < b) arestas.push([idx.get(a), idx.get(b)]);
-    P.forEach((p, i) => { p.x += Math.sin(i * 12.9898) * 6; p.y += Math.cos(i * 78.233) * 6; });   // desempata pontos iguais
-    for (let it = 0; it < 350; it++) {
-      const f = P.map(() => ({ x: 0, y: 0 })), t = 1 - it / 350;
-      for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
-        let dx = P[i].x - P[j].x, dy = P[i].y - P[j].y, d2 = dx * dx + dy * dy || 0.01, d = Math.sqrt(d2);
-        const k = d < 95 ? 9000 / d2 + (95 - d) * 0.6 : 9000 / d2; dx /= d; dy /= d;
-        f[i].x += dx * k; f[i].y += dy * k; f[j].x -= dx * k; f[j].y -= dy * k;
-      }
-      for (const [i, j] of arestas) { const dx = P[j].x - P[i].x, dy = P[j].y - P[i].y, d = Math.hypot(dx, dy) || 1, k = (d - 110) * 0.05; f[i].x += dx / d * k; f[i].y += dy / d * k; f[j].x -= dx / d * k; f[j].y -= dy / d * k; }
-      P.forEach((p, i) => { f[i].x += (cx - p.x) * 0.004; f[i].y += (cy - p.y) * 0.004; const m = Math.hypot(f[i].x, f[i].y), lim = 30 * t + 1; if (m > lim) { f[i].x *= lim / m; f[i].y *= lim / m; } p.x += f[i].x; p.y += f[i].y; });
-    }
-    const minX = Math.min(...P.map(p => p.x)), minY = Math.min(...P.map(p => p.y));
-    P.forEach(p => { p.x = p.x - minX + 70; p.y = p.y - minY + 50; });
-    W = Math.max(640, Math.max(...P.map(p => p.x)) + 70); H = Math.max(460, Math.max(...P.map(p => p.y)) + 55);
-  }
-  const COR = { masmorra: "#8b3a3a", vila: "#c89b3c", floresta: "#3f7d3f", caverna: "#6b5b4a", ruina: "#6c6c80", estrada: "#8a7d52", sala: "#555a7a", outro: "#555a7a" };
-  let g = `<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" style="width:${Math.max(100, W / 640 * 100).toFixed(0)}%;min-width:${Math.min(W, 900).toFixed(0)}px" role="img" aria-label="Mapa do mundo">`;
-  const vistos = new Set();
-  for (const [a, set] of viz) for (const b of set) { const k = [a, b].sort().join("|"); if (vistos.has(k)) continue; vistos.add(k); const p = pos.get(a), q = pos.get(b), foi = Mundo.lista("caminho").some(c => (c.de === a && c.para === b) || (c.de === b && c.para === a)); g += `<line x1="${p.x.toFixed(0)}" y1="${p.y.toFixed(0)}" x2="${q.x.toFixed(0)}" y2="${q.y.toFixed(0)}" stroke="${foi ? "#d9b45a" : "#5b5470"}" stroke-width="${foi ? 3 : 2}" ${foi ? "" : 'stroke-dasharray="5 5"'}/>`; }
+  locais.forEach(l => (l.saidas || []).forEach(o => liga(l.id, o))); try { Mundo.lista("caminho").forEach(c => liga(c.de, c.para)); } catch (e) {}
+  // 1) vilas: cada povoado (sem repetir "Vila de X" / "Vila X") vira um grupo
+  const ehVilaEmSi = l => { const n = norm(l.nome || ""); return RE_POVOADO_NOME.test(n) && !RE_TAVERNA_NOME.test(n) && !RE_SUBLOCAL.test(n); };
+  const grupos = new Map();                              // chave -> { nome, ids: [], vila }
+  locais.filter(ehVilaEmSi).forEach(l => { const k = chavePovoado(l); if (!grupos.has(k)) grupos.set(k, { k, nome: l.nome, ids: [], vila: l }); else if ((l.visitas || 0) > (grupos.get(k).vila.visitas || 0)) { grupos.get(k).vila = l; grupos.get(k).nome = l.nome; } });
+  const grupoDe = new Map(), ermo = [];
+  const pertenceVila = l => { const n = norm(l.nome || ""), c = norm(l.categoria || ""); return c === "vila" || c === "sala" || RE_TAVERNA_NOME.test(n) || (RE_SUBLOCAL.test(n) && !/estrada|trilha|floresta|bosque|caverna|gruta|masmorra|mina|ruina|tunel|ponte/.test(n)); };
   for (const l of locais) {
-    const p = pos.get(l.id), citado = l.estado === "citado", corpos = Mundo.corposAqui(l.id).length, aqui = l.id === ficha.localAtual, d = dest.get(l.id);
-    const apagado = dest.size && !d && !aqui ? ' style="opacity:.38"' : "", comNome = !dest.size || d || aqui;   // apagados sem nome (toque para ver): o mapa fica limpo
-    g += `<g class="no${d ? " destino" : ""}" data-no="${l.id}" tabindex="0" role="button" aria-label="${esc(l.nome)}${d ? " (destino da viagem)" : ""}"${apagado}><title>${esc(l.nome)}</title>` +
-      (d ? `<circle class="halo" cx="${p.x.toFixed(0)}" cy="${p.y.toFixed(0)}" r="27" fill="rgba(255,224,138,.18)" stroke="#ffe08a" stroke-width="3"/><text x="${p.x.toFixed(0)}" y="${(p.y - 24).toFixed(0)}" text-anchor="middle" font-size="16">${{ taverna: "🍺", missao: "📜", retorno: "↩" }[d]}</text>` : "") +
-      `<circle cx="${p.x.toFixed(0)}" cy="${p.y.toFixed(0)}" r="${aqui ? 20 : 16}" fill="${COR[l.categoria] || COR.outro}" ${citado ? 'opacity=".45" stroke-dasharray="3 3"' : ""} stroke="${aqui ? "#fff" : "#d9b45a"}" stroke-width="${aqui ? 3 : 1.5}"/>` +
-      (aqui || citado ? `<text x="${p.x.toFixed(0)}" y="${(p.y + 5).toFixed(0)}" text-anchor="middle" font-size="14">${aqui ? "🧍" : "?"}</text>` : (() => { const [r, ic] = iconeLugar(l.categoria === "vila" ? "" : l.categoria || "", l.nome || ""); return r ? iconeLugarSvg(ic, p.x, p.y, 15) : ""; })()) +
-      (corpos ? `<text x="${(p.x + 14).toFixed(0)}" y="${(p.y - 10).toFixed(0)}" font-size="15">☠</text>` : "") +
-      (comNome ? `<text x="${p.x.toFixed(0)}" y="${(p.y + 33).toFixed(0)}" text-anchor="middle" font-size="12" fill="#e6dcc3" stroke="#15121f" stroke-width="3" paint-order="stroke">${esc(l.nome.length > 22 ? l.nome.slice(0, 21) + "…" : l.nome)}</text>` : "") + `</g>`;
+    const n = norm(l.nome || "");
+    if (ehVilaEmSi(l)) { grupoDe.set(l.id, chavePovoado(l)); continue; }
+    const porNome = [...grupos.keys()].find(k => k.length >= 4 && n.includes(k));   // "Mercado de Pedraforte" -> Pedraforte
+    if (porNome && pertenceVila(l)) { grupoDe.set(l.id, porNome); continue; }
+    if (pertenceVila(l) && grupos.size) {                // o povoado mais perto pelos caminhos
+      const vist = new Set([l.id]), fila = [l.id]; let achou = null;
+      while (fila.length && !achou) { const x = fila.shift(); for (const y of viz.get(x)) { if (vist.has(y)) continue; vist.add(y); const ly = locais.find(z => z.id === y); if (ly && ehVilaEmSi(ly)) { achou = chavePovoado(ly); break; } fila.push(y); } }
+      if (achou) { grupoDe.set(l.id, achou); continue; }
+    }
+    ermo.push(l);
   }
+  if (!grupos.size) { const sobra = ermo.filter(pertenceVila); if (sobra.length) { grupos.set("_", { k: "_", nome: "", ids: [], vila: null }); sobra.forEach(l => { grupoDe.set(l.id, "_"); ermo.splice(ermo.indexOf(l), 1); }); } }
+  for (const [id, k] of grupoDe) grupos.get(k).ids.push(id);
+  const G = [...grupos.values()];
+  G.forEach(g => { g.r = 55 + 24 * Math.sqrt(g.ids.length); });
+  // vizinhança entre vilas (há caminho entre lugares delas, direto ou por lugares do ermo)
+  const vizG = new Set(), gk = id => grupoDe.get(id);
+  for (const l of locais) {
+    if (!gk(l.id)) continue;
+    const vist = new Set([l.id]), fila = [[l.id, 0]];
+    while (fila.length) { const [x, d] = fila.shift(); if (d > 3) continue; for (const y of viz.get(x)) { if (vist.has(y)) continue; vist.add(y); if (gk(y) && gk(y) !== gk(l.id)) { vizG.add([gk(l.id), gk(y)].sort().join("|")); continue; } if (!gk(y)) fila.push([y, d + 1]); } }
+  }
+  // 2) posição das vilas: separadas com um "respiro" de natureza entre elas
+  G.forEach((g, i) => { const a = i / Math.max(1, G.length) * 2 * Math.PI + 0.4; const R = G.length > 1 ? 150 + 40 * G.length : 0; g.x = R * Math.cos(a) * 1.3; g.y = R * Math.sin(a); });
+  for (let it = 0; it < 400; it++) {
+    for (let i = 0; i < G.length; i++) for (let j = i + 1; j < G.length; j++) {
+      const A = G[i], B = G[j], dx = A.x - B.x, dy = A.y - B.y, d = Math.hypot(dx, dy) || 1, alvo = A.r + B.r + 130, viz2 = vizG.has([A.k, B.k].sort().join("|"));
+      const k = d < alvo ? (alvo - d) * 0.25 : viz2 ? -(d - alvo) * 0.02 : 0; A.x += dx / d * k; A.y += dy / d * k; B.x -= dx / d * k; B.y -= dy / d * k;
+    }
+    G.forEach(g => { g.x *= 0.995; g.y *= 0.995; });
+  }
+  // 3) lugares: os da vila em volta do centro dela; os do ermo no caminho entre as vilas a que se ligam
+  const pos = new Map();
+  G.forEach(g => {
+    const centro = g.vila ? g.vila.id : null, outros = g.ids.filter(id => id !== centro);
+    if (centro) pos.set(centro, { x: g.x, y: g.y, ax: g.x, ay: g.y });
+    outros.forEach((id, i) => { const a = i / Math.max(1, outros.length) * 2 * Math.PI + rnd() * 0.5, r = (centro ? 62 : 20) + (i % 2) * 34; pos.set(id, { x: g.x + r * Math.cos(a) * 1.25, y: g.y + r * Math.sin(a), ax: g.x, ay: g.y }); });
+  });
+  ermo.forEach((l, i) => {
+    const ligadas = new Map(), vist = new Set([l.id]), fila = [[l.id, 0]];
+    while (fila.length) { const [x, d] = fila.shift(); if (d > 4) continue; for (const y of viz.get(x)) { if (vist.has(y)) continue; vist.add(y); if (gk(y)) { if (!ligadas.has(gk(y))) ligadas.set(gk(y), d + 1); } else fila.push([y, d + 1]); } }
+    const gs = [...ligadas.entries()].sort((a, b) => a[1] - b[1]).slice(0, 2).map(([k]) => grupos.get(k));
+    let x, y;
+    if (gs.length === 2) { const t = 0.35 + rnd() * 0.3; x = gs[0].x + (gs[1].x - gs[0].x) * t; y = gs[0].y + (gs[1].y - gs[0].y) * t; }
+    else if (gs.length === 1) { const a = rnd() * 2 * Math.PI; x = gs[0].x + (gs[0].r + 70) * Math.cos(a); y = gs[0].y + (gs[0].r + 70) * Math.sin(a); }
+    else { const a = i * 2.4; x = Math.cos(a) * (120 + i * 18); y = Math.sin(a) * (90 + i * 14); }
+    pos.set(l.id, { x: x + (rnd() - 0.5) * 40, y: y + (rnd() - 0.5) * 40, ax: x, ay: y, ermo: true });
+  });
+  const ids = [...pos.keys()], P = ids.map(id => pos.get(id));
+  for (let it = 0; it < 300; it++) {                      // ninguém em cima de ninguém
+    for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
+      const A = P[i], B = P[j], dx = A.x - B.x, dy = A.y - B.y, d = Math.hypot(dx, dy) || 0.1, min = 76;
+      if (d < min) { const k = (min - d) / 2; A.x += dx / d * k; A.y += dy / d * k; B.x -= dx / d * k; B.y -= dy / d * k; }
+    }
+    P.forEach(p => { p.x += (p.ax - p.x) * 0.02; p.y += (p.ay - p.y) * 0.02;
+      if (p.ermo) G.forEach(q => { const dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy) || 0.1, min = q.r + 45; if (d < min) { p.x += dx / d * (min - d) * 0.5; p.y += dy / d * (min - d) * 0.5; } });   // o ermo fica fora das vilas
+    });
+  }
+  G.forEach(g => { const ps = g.ids.map(id => pos.get(id)); g.x = ps.reduce((s, p) => s + p.x, 0) / ps.length; g.y = ps.reduce((s, p) => s + p.y, 0) / ps.length; g.r = Math.max(60, ...ps.map(p => Math.hypot(p.x - g.x, (p.y - g.y) * 1.1) + 48)); });
+  for (let it = 0; it < 60; it++) P.forEach(p => { if (!p.ermo) return; G.forEach(q => {   // passada final: o ermo sai de dentro dos campos das vilas
+    const dx = p.x - q.x, dy = (p.y - q.y) * 1.15, d = Math.hypot(dx, dy) || 0.1, min = q.r * 1.3 + 34;
+    if (d < min) { p.x += dx / d * (min - d) * 0.6; p.y += dy / d * (min - d) * 0.6 / 1.15; } });
+    P.forEach(o => { if (o === p) return; const dx = p.x - o.x, dy = p.y - o.y, d = Math.hypot(dx, dy) || 0.1; if (d < 76) { p.x += dx / d * (76 - d) * 0.5; p.y += dy / d * (76 - d) * 0.5; } }); });
+  // enquadra
+  const xs = [...P.map(p => p.x), ...G.map(g => g.x - g.r * 1.15), ...G.map(g => g.x + g.r * 1.15)], ys = [...P.map(p => p.y), ...G.map(g => g.y - g.r), ...G.map(g => g.y + g.r + 24)];
+  const mx = Math.min(...xs) - 60, my = Math.min(...ys) - 60;
+  const W = Math.max(640, Math.max(...xs) - mx + 60), H = Math.max(460, Math.max(...ys) - my + 60);
+  P.forEach(p => { p.x -= mx; p.y -= my; }); G.forEach(g => { g.x -= mx; g.y -= my; });
+  // 4) desenho: pergaminho, campos das vilas, floresta / rio / colinas entre elas
+  const f = n => n.toFixed(0);
+  const blob = (cx, cy, rx, ry, irr) => { let d = ""; const n = 14; for (let i = 0; i <= n; i++) { const a = i / n * 2 * Math.PI, k = 1 + (rnd() - 0.5) * irr, x = cx + rx * k * Math.cos(a), y = cy + ry * k * Math.sin(a); d += (i ? " L" : "M") + f(x) + " " + f(y); } return d + "Z"; };
+  const arvore = (x, y, s = 1) => `<g transform="translate(${f(x)} ${f(y)}) scale(${s.toFixed(2)})"><rect x="-1.5" y="4" width="3" height="5" fill="#6b4a2a"/><path d="M0 -10 L8 5 H-8Z" fill="#3f6b3a" stroke="#2a4a26" stroke-width="1"/></g>`;
+  const colina = (x, y, s = 1) => `<path d="M${f(x - 16 * s)} ${f(y)} Q${f(x)} ${f(y - 18 * s)} ${f(x + 16 * s)} ${f(y)}" fill="#b89f6a" stroke="#7a6438" stroke-width="1.5"/><path d="M${f(x - 6 * s)} ${f(y - 6 * s)} Q${f(x)} ${f(y - 11 * s)} ${f(x + 5 * s)} ${f(y - 7 * s)}" fill="none" stroke="#7a6438" stroke-width="1"/>`;
+  let g = `<svg viewBox="0 0 ${f(W)} ${f(H)}" style="width:${f(Math.max(100, W / 640 * 100))}%;min-width:${f(Math.min(W, 900))}px;background:#d9c38f" role="img" aria-label="Mapa do mundo">` +
+    `<defs><radialGradient id="mm-perg" cx="50%" cy="45%" r="75%"><stop offset="0" stop-color="#efe1b8"/><stop offset=".75" stop-color="#d9c38f"/><stop offset="1" stop-color="#b8995c"/></radialGradient>` +
+    `<pattern id="mm-campo" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><rect width="10" height="10" fill="#c9cf8a"/><path d="M0 5 H10" stroke="#aab36a" stroke-width="2"/></pattern></defs>` +
+    `<rect width="${f(W)}" height="${f(H)}" fill="url(#mm-perg)"/>`;
+  for (let i = 0; i < W * H / 9000; i++) { const x = rnd() * W, y = rnd() * H; if (G.some(q => Math.hypot(x - q.x, (y - q.y) * 1.15) < q.r + 25) || P.some(p => Math.hypot(x - p.x, y - p.y) < 34)) continue; g += rnd() < 0.7 ? `<circle cx="${f(x)}" cy="${f(y)}" r="${(1 + rnd() * 1.5).toFixed(1)}" fill="#a8925a" opacity=".5"/>` : ""; }   // grama rala
+  const pares = [...vizG].map(s => s.split("|").map(k => grupos.get(k))).filter(([a, b]) => a && b);
+  if (!pares.length && G.length > 1) G.forEach((a, i) => { const b = G[(i + 1) % G.length]; if (a !== b) pares.push([a, b]); });
+  const longe = (x, y, m) => !G.some(q => Math.hypot(x - q.x, (y - q.y) * 1.15) < q.r + m) && !P.some(p => Math.hypot(x - p.x, y - p.y) < 30);
+  pares.forEach(([A, B], i) => {                          // entre cada par de vilas: rio, floresta ou colinas (alterna)
+    const dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
+    const t = (A.r + (d - A.r - B.r) / 2) / d, mx2 = A.x + dx * t, my2 = A.y + dy * t, L = Math.max(A.r, B.r) * 1.3 + 40, tipo = i % 3;
+    if (tipo === 0) {                                     // rio sinuoso
+      let dd = `M${f(mx2 - nx * L)} ${f(my2 - ny * L)}`; const n = 6;
+      for (let s = 1; s <= n; s++) { const tt = -L + 2 * L * s / n, onda = (s % 2 ? 1 : -1) * 22; dd += ` Q${f(mx2 + nx * (tt - L / n) + ux * onda)} ${f(my2 + ny * (tt - L / n) + uy * onda)} ${f(mx2 + nx * tt)} ${f(my2 + ny * tt)}`; }
+      g += `<path d="${dd}" fill="none" stroke="#5b86a8" stroke-width="9" stroke-linecap="round" opacity=".85"/><path d="${dd}" fill="none" stroke="#9cc3dd" stroke-width="3" stroke-linecap="round" opacity=".8"/>`;
+      g += `<g transform="translate(${f(mx2)} ${f(my2)}) rotate(${(Math.atan2(uy, ux) * 180 / Math.PI).toFixed(0)})"><rect x="-13" y="-6" width="26" height="12" rx="2" fill="#8a6a3a" stroke="#4a3418" stroke-width="1.5"/><path d="M-9 -6 V6 M-3 -6 V6 M3 -6 V6 M9 -6 V6" stroke="#4a3418" stroke-width="1"/></g>`;   // ponte
+    } else for (let s = 0; s < 16; s++) {                 // faixa de floresta ou de colinas
+      const tt = -L + 2 * L * rnd(), off = (rnd() - 0.5) * 50, x = mx2 + nx * tt + ux * off, y = my2 + ny * tt + uy * off;
+      if (!longe(x, y, 12)) continue;
+      g += tipo === 1 ? arvore(x, y, 0.9 + rnd() * 0.5) + (rnd() < 0.6 ? arvore(x + 9, y + 4, 0.8) : "") : colina(x, y, 0.9 + rnd() * 0.5);
+    }
+    if (tipo !== 0 && longe(mx2, my2, 8)) g += `<g transform="translate(${f(mx2)} ${f(my2)})"><path d="M-5 8 L-4 -7 Q0 -11 4 -7 L5 8Z" fill="#9a9a8a" stroke="#55554a" stroke-width="1.2"/><path d="M-2 -3 H2 M-2 1 H2" stroke="#55554a" stroke-width="1"/></g>`;   // marco de pedra
+  });
+  for (let i = 0; i < 10; i++) { const x = rnd() * W, y = rnd() * H; if (longe(x, y, 40)) g += arvore(x, y, 0.8 + rnd() * 0.4) + arvore(x + 10, y + 5, 0.7) + arvore(x - 8, y + 7, 0.75); }   // bosques soltos pelo ermo
+  G.forEach(q => {                                       // território da vila: campos e pastos em volta, casas agrupadas
+    g += `<path d="${blob(q.x, q.y, q.r * 1.15, q.r, 0.25)}" fill="url(#mm-campo)" stroke="#8f8a4a" stroke-width="2" stroke-dasharray="1 5" stroke-linecap="round" opacity=".9"/>`;
+    g += `<path d="${blob(q.x, q.y, q.r * 0.8, q.r * 0.68, 0.2)}" fill="#e3d3a4" opacity=".75"/>`;
+  });
+  const COR = { masmorra: "#8b3a3a", vila: "#c89b3c", floresta: "#3f7d3f", caverna: "#6b5b4a", ruina: "#6c6c80", estrada: "#8a7d52", sala: "#555a7a", outro: "#555a7a" };
+  for (const l of locais) {
+    const p = pos.get(l.id); if (!p) continue;
+    const visitado = l.estado !== "citado", corpos = Mundo.corposAqui(l.id).length, aqui = l.id === ficha.localAtual, d = dest.get(l.id), vila = G.some(q => q.vila?.id === l.id), r = aqui ? 19 : vila ? 18 : 15;
+    const [ri, ic] = iconeLugar(l.categoria === "vila" ? "" : l.categoria || "", l.nome || "");
+    g += `<g class="no${d ? " destino" : ""}" data-no="${l.id}" tabindex="0" role="button" aria-label="${esc(l.nome)}${visitado ? "" : " (ainda não visitado)"}${d ? " (destino da viagem)" : ""}"${visitado || aqui ? "" : ' opacity=".35"'}><title>${esc(l.nome)}${visitado ? "" : " — ainda não visitado"}</title>` +
+      (d ? `<circle class="halo" cx="${f(p.x)}" cy="${f(p.y)}" r="${r + 7}" fill="rgba(255,236,160,.35)" stroke="#b8862a" stroke-width="2.5"/><text x="${f(p.x + r - 2)}" y="${f(p.y - r + 4)}" font-size="14">${{ taverna: "🍺", missao: "📜", retorno: "↩" }[d]}</text>` : "") +
+      `<circle cx="${f(p.x)}" cy="${f(p.y)}" r="${r}" fill="${visitado ? (COR[l.categoria] || COR.outro) : "#9a8a6a"}" stroke="${aqui ? "#fff" : visitado ? "#5a3a10" : "#7a6a4a"}" stroke-width="${aqui ? 3.5 : visitado ? 2 : 1.2}"${visitado ? "" : ' stroke-dasharray="3 3"'}/>` +
+      (aqui ? `<text x="${f(p.x)}" y="${f(p.y + 5)}" text-anchor="middle" font-size="14">🧍</text>` : !visitado ? `<text x="${f(p.x)}" y="${f(p.y + 5)}" text-anchor="middle" font-size="13" fill="#3a2a10">?</text>` : ri ? iconeLugarSvg(ic, p.x, p.y, 15) : vila ? `<text x="${f(p.x)}" y="${f(p.y + 5)}" text-anchor="middle" font-size="14">🏘</text>` : "") +
+      (corpos ? `<text x="${f(p.x + 13)}" y="${f(p.y + 18)}" font-size="13">☠</text>` : "") +
+      (visitado || aqui ? `<text x="${f(p.x)}" y="${f(p.y + r + 14)}" text-anchor="middle" font-size="11.5" fill="#2a1a08" stroke="#efe1b8" stroke-width="3" paint-order="stroke" font-family="Georgia, serif">${esc(l.nome.length > 22 ? l.nome.slice(0, 21) + "…" : l.nome)}</text>` : "") + `</g>`;
+  }
+  G.forEach(q => {                                       // nome da vila em letra grande, com flâmula
+    if (!q.nome) return;
+    const tam = Math.min(22, 14 + q.ids.length), y = q.y - q.r - 6, x = q.x, larg = q.nome.length * tam * 0.55;
+    g += `<g pointer-events="none"><path d="M${f(x - larg / 2 - 16)} ${f(y - tam)} V${f(y + 4)} M${f(x - larg / 2 - 16)} ${f(y - tam)} L${f(x - larg / 2 - 2)} ${f(y - tam + 5)} L${f(x - larg / 2 - 16)} ${f(y - tam + 10)}Z" fill="#a8322a" stroke="#4a2410" stroke-width="1.5"/>` +
+      `<text x="${f(x)}" y="${f(y)}" text-anchor="middle" font-size="${tam}" font-family="Georgia, 'Times New Roman', serif" font-weight="bold" fill="#3a2208" stroke="#efe1b8" stroke-width="4" paint-order="stroke" letter-spacing="1">${esc(q.nome)}</text></g>`;
+  });
+  g += `<g transform="translate(${f(W - 44)} ${f(H - 44)})" opacity=".7"><circle r="22" fill="none" stroke="#5a3a10" stroke-width="1.5"/><path d="M0 -20 L5 0 L0 20 L-5 0Z" fill="#5a3a10"/><path d="M-20 0 L0 -4 L20 0 L0 4Z" fill="#8a6a3a"/><text y="-25" text-anchor="middle" font-size="11" font-family="Georgia, serif" fill="#3a2208">N</text></g>`;   // rosa dos ventos
   $("mm-svg").innerHTML = g + "</svg>";
 }
 function mundoMapaInfo(id) {
