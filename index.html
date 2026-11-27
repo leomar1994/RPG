@@ -289,6 +289,7 @@
   /* ---------- Mapa do local ---------- */
   .of-bloco { border: 1px solid var(--latao); border-radius: 10px; padding: 10px; margin: 8px 0; line-height: 1.5; }
 .of-bloco button { margin: 4px 4px 0 0; }
+#mm-svg { overflow: auto; -webkit-overflow-scrolling: touch; }
 #mm-svg svg { width: 100%; height: auto; display: block; background: #15121f; border: 1px solid var(--latao); border-radius: 12px; }
 #mm-svg .no { cursor: pointer; }
 #mm-info img { width: 100%; border-radius: 8px; margin-top: 6px; }
@@ -2742,7 +2743,7 @@ $("mundo-novo-local").addEventListener("click", () => { if (confirm("Apagar o mu
 
 // ---- mapa do mundo (lugares, caminhos e corpos guardados) ----
 function mundoMapaDesenhar() {
-  const locais = Mundo.listaVis("local"), W = 640, H = 460, cx = W / 2, cy = H / 2;
+  const locais = Mundo.listaVis("local"), cx = 320, cy = 230; let W = 640, H = 460;
   const dest = new Map(); try { if (temPergaminho()) destinosPergaminho().forEach(d => dest.set(d.l.id, d.tipo)); } catch (e) {}
   $("mm-titulo").textContent = "🧭 Pergaminho de Viagem — " + Mundo.nome();
   $("mm-dica").innerHTML = temPergaminho() ? `O pergaminho é o seu mapa de viagem: os pontos <b>brilhantes</b> são os destinos possíveis (🍺 taverna conhecida · 📜 missão · ↩ ponto de retorno). Toque num deles para viajar. ☠ = corpos.` : "Você não tem o Pergaminho de Viagem na bolsa: só dá para ver o mapa.";
@@ -2766,19 +2767,37 @@ function mundoMapaDesenhar() {
       pos.set(id, { x: cx + r * Math.cos(a) * 1.45, y: cy + r * Math.sin(a) });
     }));
   });
+  {                                                      // afasta os lugares: repulsão entre todos, mola nos caminhos (sem lugares um em cima do outro)
+    const ids = [...pos.keys()], P = ids.map(id => pos.get(id)), idx = new Map(ids.map((id, i) => [id, i])), arestas = [];
+    for (const [a, set] of viz) for (const b of set) if (a < b) arestas.push([idx.get(a), idx.get(b)]);
+    P.forEach((p, i) => { p.x += Math.sin(i * 12.9898) * 6; p.y += Math.cos(i * 78.233) * 6; });   // desempata pontos iguais
+    for (let it = 0; it < 350; it++) {
+      const f = P.map(() => ({ x: 0, y: 0 })), t = 1 - it / 350;
+      for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
+        let dx = P[i].x - P[j].x, dy = P[i].y - P[j].y, d2 = dx * dx + dy * dy || 0.01, d = Math.sqrt(d2);
+        const k = d < 95 ? 9000 / d2 + (95 - d) * 0.6 : 9000 / d2; dx /= d; dy /= d;
+        f[i].x += dx * k; f[i].y += dy * k; f[j].x -= dx * k; f[j].y -= dy * k;
+      }
+      for (const [i, j] of arestas) { const dx = P[j].x - P[i].x, dy = P[j].y - P[i].y, d = Math.hypot(dx, dy) || 1, k = (d - 110) * 0.05; f[i].x += dx / d * k; f[i].y += dy / d * k; f[j].x -= dx / d * k; f[j].y -= dy / d * k; }
+      P.forEach((p, i) => { f[i].x += (cx - p.x) * 0.004; f[i].y += (cy - p.y) * 0.004; const m = Math.hypot(f[i].x, f[i].y), lim = 30 * t + 1; if (m > lim) { f[i].x *= lim / m; f[i].y *= lim / m; } p.x += f[i].x; p.y += f[i].y; });
+    }
+    const minX = Math.min(...P.map(p => p.x)), minY = Math.min(...P.map(p => p.y));
+    P.forEach(p => { p.x = p.x - minX + 70; p.y = p.y - minY + 50; });
+    W = Math.max(640, Math.max(...P.map(p => p.x)) + 70); H = Math.max(460, Math.max(...P.map(p => p.y)) + 55);
+  }
   const COR = { masmorra: "#8b3a3a", vila: "#c89b3c", floresta: "#3f7d3f", caverna: "#6b5b4a", ruina: "#6c6c80", estrada: "#8a7d52", sala: "#555a7a", outro: "#555a7a" };
-  let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Mapa do mundo">`;
+  let g = `<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" style="width:${Math.max(100, W / 640 * 100).toFixed(0)}%;min-width:${Math.min(W, 900).toFixed(0)}px" role="img" aria-label="Mapa do mundo">`;
   const vistos = new Set();
   for (const [a, set] of viz) for (const b of set) { const k = [a, b].sort().join("|"); if (vistos.has(k)) continue; vistos.add(k); const p = pos.get(a), q = pos.get(b), foi = Mundo.lista("caminho").some(c => (c.de === a && c.para === b) || (c.de === b && c.para === a)); g += `<line x1="${p.x.toFixed(0)}" y1="${p.y.toFixed(0)}" x2="${q.x.toFixed(0)}" y2="${q.y.toFixed(0)}" stroke="${foi ? "#d9b45a" : "#5b5470"}" stroke-width="${foi ? 3 : 2}" ${foi ? "" : 'stroke-dasharray="5 5"'}/>`; }
   for (const l of locais) {
     const p = pos.get(l.id), citado = l.estado === "citado", corpos = Mundo.corposAqui(l.id).length, aqui = l.id === ficha.localAtual, d = dest.get(l.id);
-    const apagado = dest.size && !d && !aqui ? ' style="opacity:.38"' : "";
-    g += `<g class="no${d ? " destino" : ""}" data-no="${l.id}" tabindex="0" role="button" aria-label="${esc(l.nome)}${d ? " (destino da viagem)" : ""}"${apagado}>` +
+    const apagado = dest.size && !d && !aqui ? ' style="opacity:.38"' : "", comNome = !dest.size || d || aqui;   // apagados sem nome (toque para ver): o mapa fica limpo
+    g += `<g class="no${d ? " destino" : ""}" data-no="${l.id}" tabindex="0" role="button" aria-label="${esc(l.nome)}${d ? " (destino da viagem)" : ""}"${apagado}><title>${esc(l.nome)}</title>` +
       (d ? `<circle class="halo" cx="${p.x.toFixed(0)}" cy="${p.y.toFixed(0)}" r="27" fill="rgba(255,224,138,.18)" stroke="#ffe08a" stroke-width="3"/><text x="${p.x.toFixed(0)}" y="${(p.y - 24).toFixed(0)}" text-anchor="middle" font-size="16">${{ taverna: "🍺", missao: "📜", retorno: "↩" }[d]}</text>` : "") +
       `<circle cx="${p.x.toFixed(0)}" cy="${p.y.toFixed(0)}" r="${aqui ? 20 : 16}" fill="${COR[l.categoria] || COR.outro}" ${citado ? 'opacity=".45" stroke-dasharray="3 3"' : ""} stroke="${aqui ? "#fff" : "#d9b45a"}" stroke-width="${aqui ? 3 : 1.5}"/>` +
       `<text x="${p.x.toFixed(0)}" y="${(p.y + 5).toFixed(0)}" text-anchor="middle" font-size="14">${aqui ? "🧍" : citado ? "?" : ""}</text>` +
       (corpos ? `<text x="${(p.x + 14).toFixed(0)}" y="${(p.y - 10).toFixed(0)}" font-size="15">☠</text>` : "") +
-      `<text x="${p.x.toFixed(0)}" y="${(p.y + 33).toFixed(0)}" text-anchor="middle" font-size="11" fill="#e6dcc3">${esc(l.nome.length > 22 ? l.nome.slice(0, 21) + "…" : l.nome)}</text></g>`;
+      (comNome ? `<text x="${p.x.toFixed(0)}" y="${(p.y + 33).toFixed(0)}" text-anchor="middle" font-size="12" fill="#e6dcc3" stroke="#15121f" stroke-width="3" paint-order="stroke">${esc(l.nome.length > 22 ? l.nome.slice(0, 21) + "…" : l.nome)}</text>` : "") + `</g>`;
   }
   $("mm-svg").innerHTML = g + "</svg>";
 }
@@ -2801,8 +2820,27 @@ function destinosPergaminho() {                           // só: ponto de retor
   try { if (ficha.retorno?.id) add(Mundo.obter(ficha.retorno.id) || vis.find(x => norm(x.nome) === norm(ficha.retorno.nome)), "retorno"); } catch (e) {}
   const m = ficha.missao;
   if (m) add(vis.find(x => (m.ondeId && x.id === m.ondeId) || (m.onde && norm(x.nome).length >= 3 && norm(m.onde).includes(norm(x.nome)))), "missao");
-  vis.filter(l => l.estado !== "citado" && ehPovoadoLocal(l)).forEach(l => add(l, "taverna"));
+  const vistosPov = new Map(), aquiL = (() => { try { return Mundo.obter(ficha.localAtual); } catch (e) { return null; } })(), kAqui = aquiL ? chavePovoado(aquiL) : "";
+  vis.filter(l => l.estado !== "citado" && ehDestinoTaverna(l)).forEach(l => {
+    const k = chavePovoado(l), ant = vistosPov.get(k); if (k === kAqui) return;   // já está nesta vila (ou numa com o mesmo nome)    // "Vila de Pedraforte" e "Vila Pedraforte" são a mesma: fica a mais visitada
+    if (!ant || (l.visitas || 1) > (ant.visitas || 1)) vistosPov.set(k, l);
+  });
+  [...vistosPov.values()].forEach(l => add(l, "taverna"));
   return out;
+}
+const RE_TAVERNA_NOME = /tavern|estalagem|pousada|hospedaria|albergue/;
+const RE_SUBLOCAL = /mercado|comercio|loja|praca|ferreir|forja|templo|igreja|capela|santuario|\brua\b|beco|patio|portao|porta\b|ponte|torre|casa\b|salao|armazem|celeiro|poco|fonte|banh|sotao|escada|porao|\bbar\b|muralha|cais|doca|quartel|prefeitura|moinho|estabulo|cemiterio|arena|biblioteca|oficina|guilda|mansao|castelo|tunel|mina|ruina|estrada|trilha|floresta|bosque|caverna|gruta|masmorra/;
+const RE_POVOADO_NOME = /\b(vila|cidade|aldeia|povoado|vilarejo|porto|capital|burgo|arraial)\b/;
+function ehDestinoTaverna(l) {                            // 🍺 só para a taverna de verdade ou para a própria vila/cidade (não para o mercado, a praça, a loja…)
+  if (!l) return false;
+  const n = norm(l.nome || ""), cat = norm(l.categoria || "");
+  if (RE_TAVERNA_NOME.test(n)) return true;
+  if (RE_SUBLOCAL.test(n)) return false;
+  return RE_POVOADO_NOME.test(n) || /vila|cidade|aldeia|povoado/.test(cat);
+}
+function chavePovoado(l) {
+  const n = norm(l.nome || "");
+  return RE_TAVERNA_NOME.test(n) ? n : n.replace(/\b(vila|cidade|aldeia|povoado|vilarejo|de|da|do|dos|das|o|a)\b/g, " ").replace(/\s+/g, " ").trim() || n;
 }
 function motivoSemViagem(l) {
   if (!l) return "Destino desconhecido.";
@@ -2823,7 +2861,7 @@ function perigoNaCena() {                                 // a última narraçã
 function viagemHtml(l) {
   if (!l || l.estado === "citado" || l.id === ficha.localAtual) return "";
   const nao = motivoSemViagem(l);
-  return `<div class="linha-botoes"><button type="button" data-viajar="${esc(l.id)}" ${nao ? "disabled" : ""}>🧭 Viagem rápida para cá</button>${ehPovoadoLocal(l) ? ` <button type="button" data-viajar="${esc(l.id)}" data-taverna="1" ${nao ? "disabled" : ""}>🍺 Viajar e ir à taverna</button>` : ""}</div>${nao ? `<small class="dica">${esc(nao)}</small>` : ""}`;
+  return `<div class="linha-botoes"><button type="button" data-viajar="${esc(l.id)}" ${nao ? "disabled" : ""}>🧭 Viagem rápida para cá</button>${ehDestinoTaverna(l) ? ` <button type="button" data-viajar="${esc(l.id)}" data-taverna="1" ${nao ? "disabled" : ""}>🍺 Viajar e ir à taverna</button>` : ""}</div>${nao ? `<small class="dica">${esc(nao)}</small>` : ""}`;
 }
 function viajarRapido(id, taverna) {
   const l = Mundo.obter(id), nao = motivoSemViagem(l); if (nao) { alert(nao); return; }
@@ -2856,7 +2894,7 @@ function irTaverna(direto) {
     if (!direto) notasParaIA.push(`[APLICATIVO: o personagem foi até a ${nome}.]`);
     abrirEstalagem(nome); return;
   }
-  const vilas = (() => { try { return Mundo.listaVis("local").filter(l => l.estado !== "citado" && ehPovoadoLocal(l)); } catch (e) { return []; } })();
+  const vilas = (() => { try { return Mundo.listaVis("local").filter(l => l.estado !== "citado" && ehDestinoTaverna(l)); } catch (e) { return []; } })();
   abrirRegras(`<div class="caixa-rg"><h2>🍺 Ir à taverna</h2><div class="fx-tracos">Você não está numa vila ou cidade. ${vilas.length ? "Use o Pergaminho de Viagem para ir a uma que você já conhece e vá direto para a taverna:" : "Visite uma vila ou cidade primeiro: as que você conhecer aparecem aqui."}</div>
     <div class="fx-itens">${vilas.map(l => { const nao = motivoSemViagem(l); return `<div class="fx-item"><div><b>🏘 ${esc(l.nome)}</b>${nao ? `<br><small>${esc(nao)}</small>` : ""}</div><div class="fx-itbtn"><button data-tav-ir="${esc(l.id)}" ${nao ? "disabled" : ""}>🧭 Ir</button></div></div>`; }).join("")}</div>
     <button class="acao" data-tav="fechar">Fechar</button></div>`);
