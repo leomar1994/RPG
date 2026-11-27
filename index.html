@@ -345,7 +345,7 @@
   .attr.selecionado { outline: 2px solid var(--latao); outline-offset: 4px; border-radius: 8px; }
 
   /* ---------- Personagens salvos ---------- */
-  #personagens { position: fixed; inset: 0; z-index: 25; overflow-y: auto; background: var(--fundo); padding: 20px 16px; }
+  #personagens { position: fixed; inset: 0; z-index: 25; overflow-y: auto; background: linear-gradient(rgba(14,10,22,.8), rgba(14,10,22,.88)), var(--fundo) url("fundo-menu.webp") center / cover fixed no-repeat; padding: 20px 16px; }
   .painel-lista { max-width: 520px; margin: 0 auto; display: grid; gap: 12px; }
   .painel-lista h2 { margin: 0; font: 700 2rem "Cormorant Garamond", Georgia, serif; color: var(--latao); }
   .cartao { background: var(--painel); border: 1px solid var(--borda); border-radius: 10px; padding: 8px 12px; display: grid; gap: 6px; }
@@ -376,7 +376,9 @@
   .ficha-livro p { margin: 0 0 4px; }
 
   /* ---------- Escolha de papel e mesa do Mestre ---------- */
-  #papel { position: fixed; inset: 0; z-index: 30; background: var(--fundo); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; }
+  #papel { position: fixed; inset: 0; z-index: 30; background: linear-gradient(rgba(14,10,22,.35), rgba(14,10,22,.72)), var(--fundo) url("fundo-menu.webp") center / cover no-repeat; display: flex; flex-direction: column; align-items: center; justify-content: safe center; overflow-y: auto; gap: 14px; padding: 24px; text-align: center; }
+  #papel h2, #papel p { text-shadow: 0 2px 8px #000, 0 0 3px #000; }
+  #papel p { color: #f1e8d4; }
   #papel h2, #mesa-mestre h2 { margin: 0; font: 700 2rem "Cormorant Garamond", Georgia, serif; color: var(--latao); }
   #papel button, #mesa-mestre button { padding: 12px 20px; border: 0; border-radius: 8px; background: var(--latao); color: #2a2010; font: 700 1.05rem "Alegreya Sans", sans-serif; cursor: pointer; }
   #papel button { min-width: 230px; }
