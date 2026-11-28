@@ -1400,6 +1400,7 @@ function completarFicha(f) {   // preenche campos que personagens antigos não t
   if (!f.pergaminhoV) { f.pergaminhoV = true; if (!f.inventario.some(i => /pergaminho de viagem/i.test(i.nome)) && f.inventario.length < 100) f.inventario.push({ nome: "Pergaminho de Viagem", qtd: 1, peso: 0.01, nota: "" }); }   // personagens antigos ganham o pergaminho
   f.fome = Number.isFinite(f.fome) ? Math.max(0, Math.min(100, f.fome)) : 100;   // 100 = saciado, 0 = faminto
   f.sede = Number.isFinite(f.sede) ? Math.max(0, Math.min(100, f.sede)) : 100;
+  f.cochilos = f.cochilos && typeof f.cochilos.t === "string" ? { t: f.cochilos.t.slice(0, 80), n: Math.max(0, Math.min(2, Math.floor(f.cochilos.n) || 0)), exp: !!f.cochilos.exp } : null;   // cochilos grátis seguidos na mesma taverna
   f.cantil = Number.isFinite(f.cantil) ? Math.max(0, Math.min(4, Math.floor(f.cantil))) : 4;   // goles de água no cantil
   f.retorno = f.retorno && f.retorno.id ? { id: String(f.retorno.id).slice(0, 60), nome: String(f.retorno.nome || "").slice(0, 60) } : null;
   return f;
@@ -6592,7 +6593,7 @@ function estalagemHtml(nome, aviso = "") {
     <h3>Comer e beber</h3><div class="fx-itens">${CARDAPIO.map(c => `<div class="fx-item"><div><b>${c.ic} ${c.nome}</b> <small>recupera ${cura(c.cura)} de vida</small></div><div class="fx-itbtn"><button data-tav="${c.k}" ${ouro < c.preco ? "disabled" : ""}>${po(c.preco)}</button></div></div>`).join("")}</div>
     <h3>Descansar</h3><div class="fx-itens">
       <div class="fx-item"><div><b>🛏 Quarto para a noite</b> <small>descanso longo: vida cheia, magias e habilidades</small></div><div class="fx-itbtn"><button data-tav="quarto" ${semQuarto ? "disabled" : ""}>${po(PRECO.quarto)}</button></div></div>
-      <div class="fx-item"><div><b>🪑 Cochilar numa cadeira</b> <small>descanso curto (grátis)</small></div><div class="fx-itbtn"><button data-tav="curto">Grátis</button></div></div>
+      <div class="fx-item"><div><b>🪑 Cochilar numa cadeira</b> <small>descanso curto grátis · até 2 vezes seguidas por taverna</small></div><div class="fx-itbtn"><button data-tav="curto">Grátis</button></div></div>
     </div>
     ${semQuarto ? `<h3>Sem dinheiro para o quarto? Trabalhe em troca</h3><div class="fx-tracos">O estalajadeiro aceita serviço pela cama de palha no sótão.</div>
     <div class="fx-itens"><div class="fx-item"><div><b>🧽 Lavar a louça da noite</b></div><div class="fx-itbtn"><button data-tav="louca">Trabalhar</button></div></div>
@@ -6661,12 +6662,13 @@ function acaoServico(a) {
 let estalagemAtual = "";
 function abrirEstalagem(nome) { estalagemAtual = nome || "Estalagem"; abrirRegras(estalagemHtml(estalagemAtual)); }
 function descansoLongoPago(motivo) {                     // aplica as regras do descanso longo (vida, magias) sem chamar a IA
+  ficha.cochilos = null;                                 // dormiu de verdade: os cochilos grátis voltam
   try { MAGIA.descansoLongo(); } catch (e) {} try { HABIL.descanso("longo"); } catch (e) {}
   const cura = ficha.vidaMaxima - ficha.vidaAtual; if (cura > 0) aplicarVida({ variacao: cura, motivo });
   ficha.desdeDescanso = 0; ficha.curtosHoje = 0; try { FOME.descanso(true); } catch (e) {} try { mostrarFicha(); } catch (e) {}
 }
-function descansoCurtoApp(onde) {                        // até 2 por dia: recupera 1/4 da vida máxima
-  if ((ficha.curtosHoje || 0) >= 2) return "Você já descansou o quanto dava hoje: só um descanso longo vai ajudar agora.";
+function descansoCurtoApp(onde, naTaverna) {             // até 2 por dia (na taverna o limite é por taverna): recupera 1/4 da vida máxima
+  if (!naTaverna && (ficha.curtosHoje || 0) >= 2) return "Você já descansou o quanto dava hoje: só um descanso longo vai ajudar agora.";
   ficha.curtosHoje = (ficha.curtosHoje || 0) + 1;
   try { MAGIA.descansoCurto(); } catch (e) {} try { HABIL.descanso("curto"); } catch (e) {}
   try { FOME.descanso(false); } catch (e) {}
@@ -6721,7 +6723,20 @@ function acaoEstalagem(a) {
     notasParaIA.push(`[APLICATIVO: sem dinheiro, o personagem trabalhou na ${nome} (${a === "louca" ? "lavou a louça" : "limpou o estábulo"}) em troca de dormir no sótão e fez um descanso longo. Agora é de manhã.]`);
     return;
   }
-  if (a === "curto") { const r = descansoCurtoApp(`numa cadeira da ${nome}`); return abrirRegras(estalagemHtml(nome, r || "Você cochila uma hora perto da lareira.")); }
+  if (a === "curto") {
+    const k = norm(nome), c = ficha.cochilos && ficha.cochilos.t === k ? ficha.cochilos : (ficha.cochilos = { t: k, n: 0, exp: false });   // outra taverna: a contagem recomeça
+    if (c.n >= 2) {                                        // 3º cochilo grátis seguido na mesma taverna: o taverneiro expulsa
+      if (c.exp) return abrirRegras(estalagemHtml(nome, "O taverneiro cruza os braços: sem quarto pago, nada de cadeira. Pague a hospedagem ou procure outra taverna."));
+      c.exp = true; fecharRegras();
+      addMsg(`🚪 O taverneiro da ${nome} expulsa você: cochilar de graça de novo, não!`, "sistema");
+      notasParaIA.push(`[APLICATIVO: o personagem cochilou de graça 2 vezes seguidas na ${nome} e tentou uma 3ª; o taverneiro o expulsou. Sem quarto pago, ele não descansa mais aí (só em outra taverna ou pagando a hospedagem).]`);
+      if (!$("entrada").disabled) enviarJogador("(O taverneiro me expulsa por cochilar na cadeira pela terceira vez.)", { forcarIA: true, curta: "(expulso da taverna)", ia: `[APLICATIVO: NARRE AGORA, em 1 parágrafo curto, o taverneiro da ${nome} expulsando o personagem da cadeira e dando um sermão firme: quem quer dormir tem que pagar uma hospedagem (quarto 0,5 po); não é pensão grátis. O personagem fica do lado de fora da porta. Não dê vida nem cobre moedas.]` });
+      return;
+    }
+    const r = descansoCurtoApp(`numa cadeira da ${nome}`, true);
+    if (!r) { c.n++; ficha.cochilos = c; }
+    return abrirRegras(estalagemHtml(nome, r || `Você cochila uma hora perto da lareira.${c.n === 1 ? " (Falta 1 cochilo grátis nesta taverna.)" : " (Último cochilo grátis aqui: o taverneiro já está de olho.)"}`));
+  }
 }
 // A IA cobra algo fora das lojas (refeição, quarto, passagem, suborno…): o jogador decide Pagar ou Não pagar.
 function executarCobranca(a) {
