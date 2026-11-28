@@ -7203,7 +7203,7 @@ async function executarCombate({ inimigos, mapa, ambiente }) {
 }
 /* ---------- Fome e sede: cada jogada gasta as barras; comida e bebida enchem; barra vazia = −1 de vida por jogada ---------- */
 const FOME = (() => {
-  const PASSO = { fome: 3.5, sede: 5 };                  // por jogada: a fome acaba em ~29 jogadas, a sede em 20
+  const PASSO = { fome: 2, sede: 3 };                    // por jogada: a fome acaba em ~50 jogadas, a sede em ~33
   const COMIDA = /(racao|pao\b|carne|queijo|fruta|maca\b|ensopado|biscoito|peixe|torta|refeicao|banquete|salsicha|presunto|castanha|nozes|mingau|sopa)/;
   const BEBIDA = /(agua\b|odre|cerveja|hidromel|vinho|suco|leite)/;
   const nivel = v => v <= 0 ? "vazia" : v <= 25 ? "baixa" : "ok";
