@@ -2284,7 +2284,7 @@ function addMsg(texto, tipo) {
   if (tipo === "mestre") {
     const ex = extrairOpcoes(texto);
     if (ex) { opcoes = ex.opcoes; texto = ex.texto; }
-    if (!restaurando) { contMestre++; try { if (ficha) ficha.desdeDescanso = (ficha.desdeDescanso || 0) + 1; } catch (e) {} try { CENAS_SALVAS.capturar(texto); FALAS_NPC.capturar(texto); } catch (e) {} try { RETRATO_NPC.aposNarracao(texto); } catch (e) {} try { CENA.aposNarracao(); } catch (e) {} try { setTimeout(() => CODEX.compilarAuto(), 1500); } catch (e) {} if (observando) { observando = false; obsCache = { local: ficha?.localAtual || "", texto, n: contMestre }; } }
+    if (!restaurando) { contMestre++; try { if (ficha) ficha.desdeDescanso = (ficha.desdeDescanso || 0) + 1; } catch (e) {} try { CENAS_SALVAS.capturar(texto); FALAS_NPC.capturar(texto); } catch (e) {} try { RETRATO_NPC.aposNarracao(texto); } catch (e) {} if (typeof texto === "string" && texto.length > 30) ANCORA_CENA.ultima = texto; try { CENA.aposNarracao(); } catch (e) {} try { setTimeout(() => CODEX.compilarAuto(), 1500); } catch (e) {} if (observando) { observando = false; obsCache = { local: ficha?.localAtual || "", texto, n: contMestre }; } }
   }
   if (!restaurando && (tipo === "mestre" || tipo === "jogador")) registrarLinha(tipo, texto);
   if (!restaurando && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE) && (tipo === "mestre" || tipo === "jogador")) try { CODEX.log(tipo === "mestre" ? "narracao" : "acao", texto); if (opcoes.length) CODEX.log("opcoes", opcoes.join(" | "), { opcoes }); } catch (e) {}   // guarda as últimas linhas da campanha
@@ -2437,6 +2437,7 @@ const FUNCOES_ESSENCIAIS = new Set(["solicitar_teste_dado", "conceder_xp", "alte
 const soEssenciais = tools => (tools || []).map(t => ({ functionDeclarations: (t.functionDeclarations || []).filter(d => FUNCOES_ESSENCIAIS.has(d.name)) }));
 const bloqueados = new Map();   // item da fila -> instante (ms) em que volta a ser usado
 let modeloAtual = "";
+const ANCORA_CENA = { ultima: "", trocou: false };      // continuidade: última narração + aviso de que a IA trocou (a reserva recebe pouco histórico e perde a cena)
 const IA_ATUAL = { x: null, ac: null, pausar: null, ger: 0 };
 const DIAG = (() => { let l = []; try { l = JSON.parse(localStorage.getItem("diag_ia") || "[]"); } catch (e) {}
   // Por jogada: cada pedido (narração, continuação depois de funções, resumo...) e quantas tentativas ele custou
@@ -2633,6 +2634,7 @@ async function chamarAPI(corpo, container) {
           throw Object.assign(new Error(`${modelo}: resposta vazia (${dados.choices?.[0]?.finish_reason || dados.candidates?.[0]?.finishReason || dados.promptFeedback?.blockReason || "sem motivo"})`), { vazio: true });
         }
         if (modeloAtual !== x.id && (modeloAtual || x.local)) try { addMsg(x.local ? "🖥 As IAs grátis estão no limite: a IA do seu computador continua a história de onde parou." : "🔄 Reconectado ao Mestre.", "sistema"); } catch (e) {}
+        if (modeloAtual && modeloAtual !== x.id) ANCORA_CENA.trocou = true;
         modeloAtual = x.id; r._reserva = reserva;
         return r;
       }
@@ -3514,6 +3516,10 @@ async function enviarJogador(texto, nota = null) {
   COMBATE_AUTO.jogadorAtacou = ataca;
   const notas = notasParaIA.splice(0);                     // o que o app resolveu sozinho (poção, descanso…) desde a última jogada
   if (nota?.ia) notas.push(nota.ia);
+  if (ANCORA_CENA.ultima && !MESTRE_HUMANO && (nota?.forcarIA || ANCORA_CENA.trocou || /^🔍\s*Observar/i.test(texto))) {   // item usado, IA trocada ou "observar": reforça a cena em andamento
+    notas.push(`[APLICATIVO: CONTINUIDADE — esta é a cena em andamento (mantenha o lugar exato, o esconderijo, a posição do personagem e quem está por perto; só mude se o jogador se mover): «${ANCORA_CENA.ultima.replace(/\s+/g, " ").slice(-650)}». Responda continuando ESTA cena em até 2 parágrafos, sempre dentro da história: nunca converse com o jogador fora dela nem diga "claro, vou continuar".]`);
+    ANCORA_CENA.trocou = false;
+  }
   if (notas.length) texto += "\n" + notas.join("\n");
   historico.push({ role: "user", parts: [{ text: ataca ? texto + "\n[SISTEMA: o jogador declarou uma ação de ataque. Se houver inimigo hostil na cena, narre em 2 ou 3 frases o golpe dele e a reação das criaturas, citando o NOME de cada uma como no bestiário e a quantidade; o aplicativo abre o tabuleiro sozinho (NÃO chame iniciar_combate, não peça dado). Se não houver inimigo, narre normalmente.]" : texto }] });
   travarChat(true);
