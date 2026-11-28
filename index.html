@@ -2297,6 +2297,7 @@ function addMsg(texto, tipo) {
   if (tipo === "mestre" && opcoes.length && opcoes.length < 3 && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE) && !salaAguardando())
     for (const p of ["🔍 Observar o ambiente", "➡ Seguir adiante com cautela", "🛡 Ficar em guarda e esperar"]) if (opcoes.length < 3) opcoes.push(p);   // a IA mandou poucas opções: completa
   if (tipo === "mestre" && !opcoes.length && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE) && !salaAguardando()) { opcoes = ["🔍 Observar o ambiente", "🗣 Falar com quem estiver por perto", "➡ Seguir adiante com cautela", "🛡 Ficar em guarda e esperar"]; padrao = true; }   // sem chat livre: nunca fica sem ação
+  if (tipo === "mestre" && opcoes.length && !(typeof MESTRE_HUMANO !== "undefined" && MESTRE_HUMANO)) opcoes = opcoes.map(rotularOpcao);
   if (opcoes.length) {
     const caixa = document.createElement("div");
     caixa.className = "opcoes" + (padrao ? " padrao" : "");
@@ -4667,6 +4668,14 @@ function descansoLongoLocal() {                         // descanso longo tranqu
     return true;
   } catch (e) { console.warn("descanso", e); return false; }
 }
+function rotularOpcao(o) {                              // a opção mostra a perícia que de fato será rolada (o app corrige perícia incoerente)
+  try {
+    const t = testeDaOpcao(o); if (!t) return o;
+    const nova = periciaCoerente(t.pericia_atributo, t.motivo);
+    if (nova === t.pericia_atributo) return o;
+    return String(o).replace(/\(\s*(?:teste de\s+)?[^()]+?(\s*[,;:–-]?\s*CD\s*\d{1,2})?\s*\)\s*$/i, (_, cd) => `(${nova}${cd || ""})`);
+  } catch (e) { return o; }
+}
 async function escolherOpcao(o) {
   if (MESTRE_HUMANO) canal.postMessage({ de: "jogador", id: ficha?.id, nome: ficha?.nome, tipo: "sug", texto: o });
   const observar = /^🔍\s*Observar o ambiente/i.test(o);
@@ -4717,8 +4726,8 @@ function ajustarCD(cd, pericia, resist) {
 }
 // A IA às vezes junta ação de força bruta com a perícia errada (ex.: "Esmagar a caixa (Furtividade)")
 function periciaCoerente(pericia, motivo) {
-  const k = norm(pericia), m = norm(motivo || "");
-  if (/\b(esmag|quebr|destroc|despedac|arrebent|derrub|chut|arromb|empurr|levant)\w*/.test(m) && !/atletismo|forca/.test(k) && !/fechadura|gazua|cadeado/.test(m)) return "Atletismo";
+  const k = norm(pericia), m = norm(motivo || "").replace(/\bquebrad\w*/g, "");   // "chave quebrada" é adjetivo, não força bruta
+  if (/\b(esmag|quebr|destroc|despedac|arrebent|derrub|chut|arromb|empurr|levant|alavanc)\w*/.test(m) && !/atletismo|forca/.test(k) && !/fechadura|gazua|cadeado/.test(m)) return "Atletismo";
   return pericia;
 }
 async function executarTeste({ pericia_atributo, cd, motivo }) {
