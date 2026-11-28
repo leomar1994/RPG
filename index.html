@@ -7358,12 +7358,16 @@ const COMBATE_AUTO = (() => {
   const GUARDA = /\b(guarda\w*|soldad\w*|sentinela\w*|vigia\w*)\b/;
   const padrao = nome => new RegExp("\\b" + norm(nome).split(/[\s-]+/).map(w => w + "(?:s|es|is)?").join("[\\s-]+") + "\\b");
   let _cats = null;
-  const cats = () => _cats ||= CAT_MONSTROS.map(m => ({ m, re: padrao(m.nome) })).sort((a, b) => b.m.nome.length - a.m.nome.length);
+  const cats = () => _cats ||= [...CAT_MONSTROS.map(m => ({ m, re: padrao(m.nome) })).sort((a, b) => b.m.nome.length - a.m.nome.length),
+    // palavras genéricas de inimigo ("homens", "vultos"…): usam a ficha de Bandido (ou Guarda para soldados)
+    { m: { nome: "Bandido" }, gen: true, re: /\b(homens?|vultos?|figuras?|sujeitos?|estranhos|desconhecid[oa]s|encapuzad[oa]s?|mascarad[oa]s?|assaltantes?|saqueadores?|salteadores?|ladr(?:ao|oes)|mercenari[oa]s?|brutamontes|agressores?)\b/ },
+    { m: { nome: "Guarda" }, gen: true, re: /\b(soldados?|sentinelas?|vigias?)\b/ }];
+  let genPalavra = "";
   function achar(texto, relaxado) {
-    const achados = new Map(), frases = String(texto).split(/(?<=[.!?…])\s+|\n+/);
+    const achados = new Map(), frases = String(texto).split(/(?<=[.!?…])\s+|\n+/); genPalavra = "";
     for (const fr of frases) {
       const n = norm(fr); let marcada = n;
-      for (const { m, re } of cats()) {
+      for (const { m, re, gen } of cats()) {
         const r = re.exec(marcada); if (!r) continue;
         marcada = marcada.slice(0, r.index) + " ".repeat(r[0].length) + marcada.slice(r.index + r[0].length);   // não conta "Lobo" dentro de "Lobo Atroz"
         if (NAO.test(n)) continue;
@@ -7373,7 +7377,8 @@ const COMBATE_AUTO = (() => {
           if (relaxado && !v && !/\b(reage|reagem|revida\w*|defende\w*|resiste\w*|rosna\w*)\b/.test(n)) continue;
         }
         const antes = n.slice(Math.max(0, r.index - 24), r.index).split(/\s+/).filter(Boolean);
-        let q = r[0] !== norm(m.nome) ? 2 : 1;                             // forma no plural = 2 criaturas, salvo número explícito
+        let q = gen ? (/(s|es|oes)$/.test(r[0]) && !/^(brutamontes)$/.test(r[0]) ? 2 : 1) : r[0] !== norm(m.nome) ? 2 : 1;   // forma no plural = 2 criaturas, salvo número explícito
+        if (gen) genPalavra = r[0];
         for (const w of antes.reverse()) { if (/^\d+$/.test(w)) { q = Math.min(5, +w); break; } if (NUM[w]) { q = NUM[w]; break; } }
         achados.set(m.nome, Math.max(achados.get(m.nome) || 0, q));
       }
@@ -7400,7 +7405,8 @@ const COMBATE_AUTO = (() => {
     if (!opcoes?.length || opcoes.some(o => ATAQUE.test(norm(o)))) return opcoes;
     const nomes = presentes(texto), dial = opcoes.find(o => DIALOGO.test(norm(o))), fala = /[—“"«]/.test(texto) && /\b(diz|disse|pergunta\w*|responde\w*|fala|murmura|sussurra|grita|explica|rosna)\b/i.test(norm(texto));
     if (!nomes.length && !dial && !fala) return opcoes;
-    let alvo = nomes[0] || ""; if (!alvo && dial) { const m = norm(dial).match(/\b(?:com|a|ao|à) (o |a |os |as )?([a-z][a-z' -]{2,24})/); alvo = m ? ((m[1] || "") + m[2]).trim().replace(/\s+(sobre|para|pra|e|que)\b.*$/, "") : ""; }
+    let alvo = nomes[0] || ""; if (alvo && genPalavra && !CAT_MONSTROS.some(c => norm(texto).includes(norm(c.nome)))) alvo = (/(s|es|oes)$/.test(genPalavra) ? "os " : "o ") + genPalavra;
+    if (!alvo && dial) { const m = norm(dial).match(/\b(?:com|a|ao|à) (o |a |os |as )?([a-z][a-z' -]{2,24})/); alvo = m ? ((m[1] || "") + m[2]).trim().replace(/\s+(sobre|para|pra|e|que)\b.*$/, "") : ""; }
     const op = "⚔ Atacar" + (alvo ? " " + alvo : " quem está à sua frente");
     const l = opcoes.length >= 5 ? opcoes.slice(0, 4) : opcoes.slice(); l.push(op); return l;
   }
