@@ -2763,6 +2763,13 @@ $("mundo-entrar").addEventListener("click", () => { const c = lerCampos(); if (!
 $("mundo-novo-local").addEventListener("click", () => { if (confirm("Apagar o mundo deste aparelho (lugares, mortos e fatos) e começar outro do zero?")) acaoMundo(() => Mundo.novoLocal(), "✅ Mundo novo e vazio."); });
 
 // ---- mapa do mundo (lugares, caminhos e corpos guardados) ----
+function tokenVoce(x, y, r, id, rotulo) {               // marcador do jogador nos mapas: anel pulsante, retrato (ou 🧍) e etiqueta "VOCÊ"
+  const f = n => Number(n).toFixed(0), av = ficha?.avatar && /^(data:image|https?:|blob:)/.test(ficha.avatar) ? ficha.avatar : "";
+  return `<g id="${id}" pointer-events="none"><circle cx="${f(x)}" cy="${f(y)}" r="${r + 6}" fill="rgba(255,90,60,.25)" stroke="#ff5a3c" stroke-width="3"><animate attributeName="r" values="${r + 4};${r + 15};${r + 4}" dur="1.6s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;.2;1" dur="1.6s" repeatCount="indefinite"/></circle>` +
+    `<circle cx="${f(x)}" cy="${f(y)}" r="${r}" fill="#2a1a3a" stroke="#fff" stroke-width="3"/>` +
+    (av ? `<clipPath id="${id}-c"><circle cx="${f(x)}" cy="${f(y)}" r="${r - 2}"/></clipPath><image href="${av}" x="${f(x - r)}" y="${f(y - r)}" width="${f(r * 2)}" height="${f(r * 2)}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id}-c)"/>` : `<text x="${f(x)}" y="${f(y + r * 0.35)}" text-anchor="middle" font-size="${f(r * 1.2)}">🧍</text>`) +
+    `<g transform="translate(${f(x)} ${f(y - r - 12)})"><rect x="-${rotulo.length * 3.6 + 8}" y="-11" width="${f(rotulo.length * 7.2 + 16)}" height="18" rx="9" fill="#ff5a3c" stroke="#fff" stroke-width="2"/><text y="2" text-anchor="middle" font-size="11" font-weight="bold" fill="#fff" font-family="sans-serif">${rotulo}</text></g></g>`;
+}
 function mundoMapaDesenhar() {                          // pergaminho medieval: vilas em grupos, natureza separando, sem linhas retas
   const locais = Mundo.listaVis("local");
   const dest = new Map(); try { if (temPergaminho()) destinosPergaminho().forEach(d => dest.set(d.l.id, d.tipo)); } catch (e) {}
@@ -2903,7 +2910,12 @@ function mundoMapaDesenhar() {                          // pergaminho medieval: 
       `<text x="${f(x)}" y="${f(y)}" text-anchor="middle" font-size="${tam}" font-family="Georgia, 'Times New Roman', serif" font-weight="bold" fill="#3a2208" stroke="#efe1b8" stroke-width="4" paint-order="stroke" letter-spacing="1">${esc(q.nome)}</text></g>`;
   });
   g += `<g transform="translate(${f(W - 44)} ${f(H - 44)})" opacity=".7"><circle r="22" fill="none" stroke="#5a3a10" stroke-width="1.5"/><path d="M0 -20 L5 0 L0 20 L-5 0Z" fill="#5a3a10"/><path d="M-20 0 L0 -4 L20 0 L0 4Z" fill="#8a6a3a"/><text y="-25" text-anchor="middle" font-size="11" font-family="Georgia, serif" fill="#3a2208">N</text></g>`;   // rosa dos ventos
+  let pa = pos.get(ficha.localAtual), fora = false;
+  if (pa) g += tokenVoce(pa.x, pa.y - 2, 15, "mm-voce", "VOCÊ ESTÁ AQUI");
+  else { fora = true; let nomeAqui = ""; try { nomeAqui = Mundo.obter?.(ficha.localAtual)?.nome || ""; } catch (e) {} pa = { x: W / 2, y: 44 };   // lugar ainda fora do mapa: marcador no topo
+    g += tokenVoce(pa.x, pa.y, 15, "mm-voce", "VOCÊ ESTÁ AQUI") + `<text x="${f(pa.x)}" y="${f(pa.y + 36)}" text-anchor="middle" font-size="12" fill="#2a1a08" stroke="#efe1b8" stroke-width="3" paint-order="stroke" font-family="Georgia, serif">${nomeAqui ? esc(nomeAqui) + " — " : ""}lugar ainda não marcado no mapa</text>`; }
   $("mm-svg").innerHTML = g + "</svg>";
+  requestAnimationFrame(() => { try { const c = $("mm-svg"), sv = c.querySelector("svg"), k = sv.getBoundingClientRect().width / W; c.scrollLeft = Math.max(0, pa.x * k - c.clientWidth / 2); c.scrollTop = Math.max(0, pa.y * k - c.clientHeight / 2); } catch (e) {} });
 }
 function mundoMapaInfo(id) {
   const l = Mundo.obter(id); if (!l) return;
@@ -6508,6 +6520,9 @@ function desenharMapaLocal(m) {
     g += `<g class="lugar" tabindex="0" role="button" data-lugar="${i}" aria-label="Ir para ${esc(l.nome)}"><rect x="${(q.x - tw / 2).toFixed(0)}" y="${(q.y - 20).toFixed(0)}" width="${tw.toFixed(0)}" height="40" rx="10" fill="${cor}" stroke="#2a2010" stroke-width="2"/>` +
       `${iconeLugarSvg(ic, q.x - tw / 2 + 18, q.y, 20)}<text x="${(q.x + 12).toFixed(0)}" y="${(q.y + 5).toFixed(0)}" font-size="12" fill="#fff" text-anchor="middle" font-family="sans-serif">${esc(l.nome.length > 22 ? l.nome.slice(0, 21) + "…" : l.nome)}</text></g>`;
   });
+  const cur = ficha?.lugarLocal && norm(ficha.lugarLocal.mapa) === norm(m.nome) ? m.lugares.findIndex(l => norm(l.nome) === norm(ficha.lugarLocal.nome)) : -1;
+  if (cur >= 0) { const q = pos[cur], tw = larg(m.lugares[cur]); g += tokenVoce(q.x - tw / 2 + 4, q.y - 22, 14, "ml-voce", "VOCÊ"); }
+  else g += tokenVoce(cx, fy - 8, 14, "ml-voce", "VOCÊ");        // ainda não foi a nenhum lugar da vila: está na praça/entrada
   return g + `</svg>`;
 }
 /* ---------- VILA: estalagem, lojas e dinheiro resolvidos pelo app (sem IA) ----------
@@ -6745,6 +6760,7 @@ function abrirMapaLocal(k) {
   const ir = i => {
     const l = m.lugares[i]; if (!l) return;
     if ($("entrada").disabled) { alert("Aguarde: o Mestre ainda está narrando."); return; }
+    ficha.lugarLocal = { mapa: m.nome, nome: l.nome };     // o mapa passa a mostrar você neste lugar
     $("mapa-local").hidden = true; $("ficha-tela").hidden = true; fecharFicha?.();
     mostrarCenaLugar(l.nome, ilustraLugar(l.nome) || ilustraLugar(l.tipo));
     if (!MESTRE_HUMANO && entrarServico(l, m)) return;   // estalagem e lojas: o app atende sozinho (sem gastar IA)
