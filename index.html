@@ -1185,6 +1185,7 @@ VIDA:
 - ECONOMIA: registre apenas o essencial — lugares novos (mudar_local, uma vez por lugar), mapa de local (registrar_mapa_local, só uma vez), NPCs novos e missões/rota (atualizar_campanha). Use registrar_fato só para mudanças duradouras importantes. Faça todas as chamadas de registro JUNTAS na mesma resposta em que narra, sem repetir e sem narrar nada extra por causa delas. Respostas curtas e diretas.
 - MAPA DO LOCAL: ao apresentar uma vila, cidade ou local com vários pontos de interesse, chame registrar_mapa_local (nome do local e a lista de lugares com tipo) em vez de narrar cada ponto; descreva só a chegada em poucas frases e diga que o mapa está na bolsa. O jogador escolhe o destino no mapa e você narra apenas o trajeto e a cena de lá. Se o local já consta em MAPAS DO JOGADOR, não registre de novo, só acrescente lugares realmente novos.
 - FOME E SEDE: o APLICATIVO controla duas barras (fome e sede) que baixam a cada jogada; comida e bebida da bolsa, da taverna ou do cantil as enchem, e barra vazia tira 1 de vida por jogada (o app aplica sozinho). Não cobre dano por isso nem crie comida do nada; quando o aplicativo avisar, narre só sinais leves (barriga roncando, boca seca, tontura). Quem não tem comida pode caçar, pescar ou colher (Sobrevivência) ou comprar numa vila.
+- DESCANSO, COMIDA E MOEDAS: o APLICATIVO resolve descansos (vida, magias, fome, sede) e cobra moedas. NUNCA narre descanso concluído, compra de comida/bebida, pagamento ou cura por conta própria sem chamar a função correspondente (cobrar, alterar_vida, atualizar_inventario); sem isso a bolsa e a vida não mudam.
 - PERGAMINHO DE VIAGEM: todo personagem tem na bolsa um Pergaminho de Viagem (reutilizável, nunca o remova nem o gaste). Quem o usa vai, num instante, a uma taverna que já conheceu, ao local da missão ativa ou de volta ao ponto de onde partiu; o APLICATIVO faz a viagem e avisa você com [APLICATIVO: ...]: não chame mudar_local por isso e narre só a chegada. Sem o pergaminho não existe viagem instantânea: o resto é a pé, a cavalo ou de carroça, com tempo passando.
 - O personagem tem uma bolsa (inventário) controlada pelo aplicativo; o jogador NÃO pode adicionar itens por conta própria, só consumi-los: itens novos só entram quando a história os dá (achados, compras, presentes) e você chama atualizar_inventario. Sempre que ele ganhar, comprar, encontrar, perder ou consumir um item, chame atualizar_inventario (quantidade positiva adiciona, negativa remove) com o peso_kg de uma unidade segundo o D&D 5e. Ao usar um consumível (poção, tocha, flecha), remova uma unidade. Só deixe o jogador usar itens que estão na BOLSA DO JOGADOR. Respeite a carga: acima do limite leve o deslocamento cai 3 m; muito sobrecarregado cai 6 m e há desvantagem em ataques e testes de Força, Destreza e Constituição; acima da capacidade máxima ele não consegue se mover.
 - O personagem tem uma barra de Vida controlada pelo aplicativo. Sempre que ele sofrer dano ou receber cura (poções, magias, descanso), chame alterar_vida com variacao (negativa para dano, positiva para cura) e motivo.
@@ -3533,6 +3534,7 @@ async function refazerUltima() {                         // a IA travou (> 2 min
 }
 $("refazer").addEventListener("click", refazerUltima);
 async function enviarJogador(texto, nota = null) {
+  if (!nota?.forcarIA && !nota?.jaMostrado && !nota?.ia) { const dr = descansoPeloApp(texto); if (dr === true) return; if (dr === "mostrado") nota = { ...(nota || {}), jaMostrado: true }; }
   try { DIAG.novaJogada(nota?.curta || texto); } catch (e) {}
   profCont = 0;
   try { CENAS_SALVAS.novaJogada(); FALAS_NPC.novaJogada(); if (!nota?.forcarIA && (await CENAS_SALVAS.repetir(texto) || FALAS_NPC.repetir(texto))) return; FALAS_NPC.antesDaIA(texto); } catch (e) { console.warn("cena salva:", e); }      // nota: { ia: texto só para a IA, curta: resumo legível (mesa em rodada) }
@@ -4702,6 +4704,19 @@ function descansoLongoLocal() {                         // descanso longo tranqu
     try { mostrarFicha(); } catch (e) {}
     return true;
   } catch (e) { console.warn("descanso", e); return false; }
+}
+function descansoPeloApp(texto) {                        // "descansar/dormir": o app cuida (vida, moedas, fome e sede); a IA só narra depois
+  try {
+    if (MESTRE_HUMANO || cb?.ativo || mc?.ativo || ficha?.morto || !ficha?.id) return false;
+    const n = norm(texto || ""); if (n.length > 140) return false;
+    if (!/\b(descans\w*|repous\w*|cochil\w*|dormir|durmo|pernoit\w*|passar a noite|acampar|acampamento|recuperar o folego)\b/.test(n) || /\b(nao|sem|impedir|evitar)\b.{0,12}\b(descans|dorm)/.test(n)) return false;
+    const longo = /\b(noite|dormir|durmo|pernoit\w*|acamp\w*|8 horas|longo)\b/.test(n);
+    addMsg(texto, "jogador");
+    if (emPovoado()) { addMsg("O que você faz agora? (na vila, o descanso é na estalagem)", "mestre"); addMsg("🍺 Na vila, descansar e comer é na estalagem: escolha abaixo (cochilo grátis, quarto pago, refeição ou bebida). O app desconta as moedas e cuida da vida.", "sistema"); irTaverna(true); return true; }
+    if (longo) { if (descansoLongoLocal()) { addMsg("Você acorda e se prepara para seguir. O que faz agora?", "mestre"); return true; } return "mostrado"; }   // às vezes algo interrompe o sono: a IA narra
+    const r = descansoCurtoApp("onde está"); if (r) addMsg("😮‍💨 " + r, "sistema");
+    addMsg("Você retoma o fôlego. O que faz agora?", "mestre"); return true;
+  } catch (e) { console.warn("descanso app", e); return false; }
 }
 function rotularOpcao(o) {                              // a opção mostra a perícia que de fato será rolada (o app corrige perícia incoerente)
   try {
