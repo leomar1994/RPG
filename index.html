@@ -6690,6 +6690,15 @@ const MISSAO_GRUPO = (() => {
     if (prox) { sinc(); addMsg(`➡ Próxima missão do grupo: “${prox.titulo}” (${prox.onde}).`, "sistema"); notasParaIA.push(notaFila()); }
     else { ficha.missoes = []; ficha.missao = null; try { salvarPersonagem(); } catch (e) {} painel(); addMsg("🏁 Todas as missões do grupo foram cumpridas: fim da jornada!", "sistema"); notasParaIA.push(`[APLICATIVO: o grupo cumpriu TODAS as missões da fila. Narre o desfecho e o epílogo da jornada do grupo.]`); }
   }
+  function perder() {                                        // quem sai da sala perde a fila do grupo e as recompensas; ela continua para os outros
+    try { if (!ativo() || !lista().length) return; ficha.missoes = []; ficha.missao = null; salvarPersonagem(); } catch (e) {}
+  }
+  function aoSair(id) {                                      // um aliado saiu: a missão dele continua no grupo
+    if (!ficha?.id || MESTRE_HUMANO || !id || id === ficha.id) return;
+    const ms = lista().filter(x => !x.feita && x.pid === id); if (!ms.length) return;
+    addMsg(`👋 ${ms[0].por || "Um aliado"} saiu da sala e perdeu a missão e as recompensas. ${ms.length > 1 ? "As missões dele continuam" : `A missão “${ms[0].titulo}” continua`} na fila do grupo.`, "sistema");
+    notasParaIA.push(`[APLICATIVO: ${ms[0].por || "um aliado"} saiu da mesa. A missão "${ms[0].titulo}" dele CONTINUA na fila do grupo (os outros devem cumpri-la); só ele perdeu a missão e as recompensas. Narre a ausência dele de forma natural.]`);
+  }
   function msg(m) {
     if (!ficha?.id || MESTRE_HUMANO) return;
     if (m.tipo === "missoes-add" && m.m?.gid) adicionar(m.m, m.por || "Um aliado");
@@ -6724,7 +6733,7 @@ const MISSAO_GRUPO = (() => {
     } catch (e) {}
   }
   setInterval(painel, 2500);
-  return { ativo, aceitar, aceitarNaMesa, desistir, msg, aoChegar, aoConcluir, quadro, minha, painel, atual };
+  return { ativo, perder, aoSair, aceitar, aceitarNaMesa, desistir, msg, aoChegar, aoConcluir, quadro, minha, painel, atual };
 })();
 function novaMissaoTaverna(tipo = "taverna") {
   const n = Math.min(20, Math.max(1, ficha.nivel || 1)), tier = n <= 4 ? 0 : n <= 10 ? 1 : n <= 16 ? 2 : 3, sorte = a => a[Math.floor(Math.random() * a.length)];
@@ -9415,7 +9424,7 @@ sala.onmessage = ev => {
       addMsg(`👋 ${m.nome} chegou à mesa e entra na história.`, "sistema");
     }
   }
-  else if (m.tipo === "saiu") { presentes.delete(m.id); jogadoresMesa.delete(m.id); if (souMestreNaSala) renderJogadoresMesa(); atualizarSala(); RODADA.saiu(); }
+  else if (m.tipo === "saiu") { try { MISSAO_GRUPO.aoSair(m.id); } catch (e) {} presentes.delete(m.id); jogadoresMesa.delete(m.id); if (souMestreNaSala) renderJogadoresMesa(); atualizarSala(); RODADA.saiu(); }
   else if (m.tipo === "iniciar" && salaAtiva && MESTRE_HUMANO) iniciarJogadorSala(m.apresentacao, true);
   else if (m.tipo === "morreu" && m.reg) { gravarCemiterio(m.reg); try { addMsg(`☠ ${m.reg.nome} morreu (${m.reg.causa}). O corpo ficará no mundo.`, "sistema"); } catch {} }
   else if (m.tipo === "ia-pedido" || m.tipo === "ia-resposta") MESA_IA.msg(m);
@@ -10788,7 +10797,7 @@ function exportarCampanha() {
   catch (e) { addMsg("Não foi possível gerar o resumo: " + e.message, "sistema"); }
 }
 const JOGANDO_CHAVE = "rpg-mesa:jogando"; let saindoMenu = false;   // personagem em jogo nesta aba: recarregar (F5) volta direto para ele
-function sairParaMenu() { saindoMenu = true; try { sessionStorage.removeItem(JOGANDO_CHAVE); } catch (e) {} location.reload(); }
+function sairParaMenu() { try { MISSAO_GRUPO.perder(); } catch (e) {} saindoMenu = true; try { sessionStorage.removeItem(JOGANDO_CHAVE); } catch (e) {} location.reload(); }
 function salvarPersonagem() {
   if (!ficha.id || ficha.morto) return;                // morto não volta para a lista
   try { if (!saindoMenu && !MESTRE_HUMANO && GRUPO.jogadores < 2) sessionStorage.setItem(JOGANDO_CHAVE, ficha.id); } catch (e) {}
