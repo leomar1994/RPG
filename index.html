@@ -6613,6 +6613,7 @@ const MISSAO_GRUPO = (() => {
   const ativo = () => !MESTRE_HUMANO && !!ficha?.id && (GRUPO.jogadores > 1 || (Rede.estado?.online && Rede.estado.total > 1));
   const txt = m => `${m.titulo}. Recompensa para cada um: ${m.xp} XP e ${po(m.ouro)}`;
   function aceitar(m, de) {                                 // devolve a missão já marcada como do grupo (e avisa os outros jogadores)
+    if (ficha.missao?.grupo) return ficha.missao;           // o grupo já tem missão: ninguém cria outra por cima
     const mis = { ...m, de, quando: Date.now(), grupo: true, gid: "g" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), por: ficha.nome };
     try { sala.postMessage({ tipo: "missao-grupo", m: mis, por: ficha.nome }); } catch (e) {}
     return mis;
@@ -6622,6 +6623,7 @@ const MISSAO_GRUPO = (() => {
     if (!ficha?.id || MESTRE_HUMANO) return;
     if (m.tipo === "missao-grupo" && m.m?.gid) {
       if (ficha.missao?.gid === m.m.gid) return;
+      if (ficha.missao?.grupo && ficha.missao.gid < m.m.gid) return;     // duas aceitas quase juntas: vale a mais antiga, em todas as telas (ninguém troca de missão com o outro)
       const trocou = ficha.missao && !ficha.missao.grupo;
       ficha.missao = { ...m.m }; try { salvarPersonagem(); } catch (e) {}
       addMsg(`📜 ${m.por || "Um aliado"} aceitou a missão do grupo: ${txt(ficha.missao)}.${trocou ? " (Ela substitui a missão que você tinha.)" : ""}`, "sistema");
