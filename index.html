@@ -1195,6 +1195,7 @@ VIDA:
 - ECONOMIA: registre apenas o essencial — lugares novos (mudar_local, uma vez por lugar), mapa de local (registrar_mapa_local, só uma vez), NPCs novos e missões/rota (atualizar_campanha). Use registrar_fato só para mudanças duradouras importantes. Faça todas as chamadas de registro JUNTAS na mesma resposta em que narra, sem repetir e sem narrar nada extra por causa delas. Respostas curtas e diretas.
 - MAPA DO LOCAL: ao apresentar uma vila, cidade ou local com vários pontos de interesse, chame registrar_mapa_local (nome do local e a lista de lugares com tipo) em vez de narrar cada ponto; descreva só a chegada em poucas frases e diga que o mapa está na bolsa. O jogador escolhe o destino no mapa e você narra apenas o trajeto e a cena de lá. Se o local já consta em MAPAS DO JOGADOR, não registre de novo, só acrescente lugares realmente novos.
 - FOME E SEDE: o APLICATIVO controla duas barras (fome e sede) que baixam a cada jogada; comida e bebida da bolsa, da taverna ou do cantil as enchem, e barra vazia tira 1 de vida por jogada (o app aplica sozinho). Não cobre dano por isso nem crie comida do nada; quando o aplicativo avisar, narre só sinais leves (barriga roncando, boca seca, tontura). Quem não tem comida pode caçar, pescar ou colher (Sobrevivência) ou comprar numa vila.
+- COMPRAS: quando o jogador quiser comprar, vender ou consertar algo numa vila, o APLICATIVO abre o catálogo da loja certa (mercado, ferreiro/armeiro, boticário/alquimista, taverna). Não liste preços nem invente compras: apenas narre o vendedor e deixe o app atender.
 - DESCANSO, COMIDA E MOEDAS: o APLICATIVO resolve descansos (vida, magias, fome, sede) e cobra moedas. NUNCA narre descanso concluído, compra de comida/bebida, pagamento ou cura por conta própria sem chamar a função correspondente (cobrar, alterar_vida, atualizar_inventario); sem isso a bolsa e a vida não mudam.
 - PERGAMINHO DE VIAGEM: todo personagem tem na bolsa um Pergaminho de Viagem (reutilizável, nunca o remova nem o gaste). Quem o usa vai, num instante, a uma taverna que já conheceu, ao local da missão ativa ou de volta ao ponto de onde partiu; o APLICATIVO faz a viagem e avisa você com [APLICATIVO: ...]: não chame mudar_local por isso e narre só a chegada. Sem o pergaminho não existe viagem instantânea: o resto é a pé, a cavalo ou de carroça, com tempo passando.
 - O personagem tem uma bolsa (inventário) controlada pelo aplicativo; o jogador NÃO pode adicionar itens por conta própria, só consumi-los: itens novos só entram quando a história os dá (achados, compras, presentes) e você chama atualizar_inventario. Sempre que ele ganhar, comprar, encontrar, perder ou consumir um item, chame atualizar_inventario (quantidade positiva adiciona, negativa remove) com o peso_kg de uma unidade segundo o D&D 5e. Ao usar um consumível (poção, tocha, flecha), remova uma unidade. Só deixe o jogador usar itens que estão na BOLSA DO JOGADOR. Respeite a carga: acima do limite leve o deslocamento cai 3 m; muito sobrecarregado cai 6 m e há desvantagem em ataques e testes de Força, Destreza e Constituição; acima da capacidade máxima ele não consegue se mover.
@@ -3547,7 +3548,7 @@ async function refazerUltima() {                         // a IA travou (> 2 min
 }
 $("refazer").addEventListener("click", refazerUltima);
 async function enviarJogador(texto, nota = null) {
-  if (!nota?.forcarIA && !nota?.jaMostrado && !nota?.ia) { const dr = descansoPeloApp(texto); if (dr === true) return; if (dr === "mostrado") nota = { ...(nota || {}), jaMostrado: true }; }
+  if (!nota?.forcarIA && !nota?.jaMostrado && !nota?.ia) { const dr = descansoPeloApp(texto); if (dr === true) return; if (dr === "mostrado") nota = { ...(nota || {}), jaMostrado: true }; else if (compraPeloApp(texto)) return; }
   try { DIAG.novaJogada(nota?.curta || texto); } catch (e) {}
   profCont = 0;
   try { CENAS_SALVAS.novaJogada(); FALAS_NPC.novaJogada(); if (!nota?.forcarIA && (await CENAS_SALVAS.repetir(texto) || FALAS_NPC.repetir(texto))) return; FALAS_NPC.antesDaIA(texto); } catch (e) { console.warn("cena salva:", e); }      // nota: { ia: texto só para a IA, curta: resumo legível (mesa em rodada) }
@@ -4731,6 +4732,25 @@ function descansoPeloApp(texto) {                        // "descansar/dormir": 
     addMsg("Você retoma o fôlego. O que faz agora?", "mestre"); return true;
   } catch (e) { console.warn("descanso app", e); return false; }
 }
+function compraPeloApp(texto) {                          // "comprar / ir ao mercador / consertar arma": o app abre a loja certa (catálogo, preços e bolsa são do app)
+  try {
+    if (MESTRE_HUMANO || cb?.ativo || mc?.ativo || ficha?.morto || !ficha?.id || !emPovoado()) return false;
+    const n = norm(texto || ""); if (n.length > 160) return false;
+    if (!/\b(compr\w+|adquir\w+|abastec\w+|reabastec\w+|conserta\w*|repara\w*|afia\w*|(?:ir|vou|visit\w+|procur\w+|falar com|falo com|converso com)\b.{0,20}\b(?:mercado|loja|ferrar\w+|ferreir\w+|boticar\w+|armeir\w+|alquimist\w+|mercador|comerciante)|ver (?:as )?mercadorias)\b/.test(n) || /\b(nao|sem|evit\w+)\b.{0,12}\bcompr/.test(n)) return false;
+    const tipo = /\b(ferrar\w*|ferreir\w*|armeir\w*|forja\w*|armas?|armaduras?|escudos?|espadas?|machados?|conserta\w*|repara\w*|afia\w*)\b/.test(n) ? "ferreiro"
+      : /\b(boticar\w*|alquimist\w*|pocoes?|pocao|antidoto\w*|ervas?|herbalis\w*|remedios?|curandeir\w*|confec\w*)\b/.test(n) ? "alquimista"
+      : /\b(taverna|estalagem|pousada|comida|comer|beber|bebida|cerveja|vinho|refeic\w*|banquete)\b/.test(n) ? "taverna"
+      : /\b(mercado|loja|suprimentos?|mantimentos?|provisoes|equipamentos?|suprir|tochas?|corda|racoes?|cantil|odre|mochila|feira|comerciante|mercador)\b/.test(n) ? "comerciante" : "";
+    if (!tipo) return false;
+    addMsg(texto, "jogador"); addMsg("O que você faz agora?", "mestre");
+    if (tipo === "taverna") { notasParaIA.push("[APLICATIVO: o personagem foi à taverna/estalagem; o app abre o cardápio e cuida das moedas, da vida e da bolsa.]"); abrirEstalagem(nomeTaverna()); return true; }
+    const re = { ferreiro: /ferre|forja|armeiro/, alquimista: /boticar|alquimi|curand|herbo/, comerciante: /comerci|mercado|loja|armazem|feira/ }[tipo];
+    let nomeLoja = ""; try { const aqui = Mundo.obter?.(ficha.localAtual), m = (ficha.mapasLocais || []).find(x => aqui && norm(x.nome) === norm(aqui.nome)) || (ficha.mapasLocais || [])[0]; nomeLoja = m?.lugares?.find(l => re.test(norm((l.tipo || "") + " " + l.nome)))?.nome || ""; } catch (e) {}
+    abrirLoja({ tipo, npc: nomeLoja || { ferreiro: "Ferreiro", alquimista: "Boticário", comerciante: "Mercado" }[tipo] });
+    notasParaIA.push(`[APLICATIVO: o personagem foi a ${lojaAtiva?.npc || "uma loja"} e o app abriu o catálogo; preços, moedas e bolsa são do app. Não invente compras nem preços.]`);
+    abrirRegras(lojaHtml()); return true;
+  } catch (e) { console.warn("compra app", e); return false; }
+}
 function rotularOpcao(o) {                              // a opção mostra a perícia que de fato será rolada (o app corrige perícia incoerente)
   try {
     const t = testeDaOpcao(o); if (!t) return o;
@@ -4749,6 +4769,7 @@ async function escolherOpcao(o) {
     return;
   }
   observando = observar;
+  if (!MESTRE_HUMANO && !observar) { const dr = descansoPeloApp(o); if (dr === true) return; if (dr === "mostrado") return enviarJogador(o, { jaMostrado: true }); if (compraPeloApp(o)) return; }   // descanso e compras são do app, mesmo com "(Perícia CD)" na opção
   const t = testeDaOpcao(o) || (MESTRE_HUMANO ? null : MOTOR.classificar(o));   // sem "(Perícia CD)": o código reconhece ações arriscadas e rola sem pedir à IA
   if (!t || cb?.ativo || ficha?.morto) return enviarJogador(o);
   addMsg(o, "jogador");                                   // mostra a escolha antes do dado
@@ -6595,6 +6616,7 @@ const CARDAPIO = [
   { k: "vinho", ic: "🍷", nome: "Taça de vinho ou hidromel", preco: 0.2, cura: [1, 4, 0], txt: "Vinho encorpado da adega, servido numa taça de estanho." },
   { k: "refeicao", ic: "🍲", nome: "Refeição quente", preco: PRECO.refeicao, cura: [1, 4, 1], txt: "Ensopado quente, pão e queijo." },
   { k: "banquete", ic: "🍖", nome: "Banquete da casa", preco: 1, cura: [2, 6, 2], txt: "Carne assada, legumes, torta e uma jarra de vinho." }];
+const LEVAR = [["Ração de viagem (1 dia)", 0.5, 0.9], ["Pão e queijo", 0.1, 0.5], ["Carne seca", 0.3, 0.5], ["Odre de vinho", 0.5, 1], ["Odre de água", 0.2, 2.5]];
 function estalagemHtml(nome, aviso = "") {
   const ouro = ECO.ouro(), semQuarto = ouro < PRECO.quarto, m = ficha.missao;
   const cura = c => `${c[0]}d${c[1]}${c[2] ? "+" + c[2] : ""}`;
@@ -6603,6 +6625,7 @@ function estalagemHtml(nome, aviso = "") {
   return `<div class="caixa-rg"><div class="rg-cab">${RETRATO_NPC.tag("taverneiro")}<h2>🍺 ${esc(nome)}</h2></div><div class="fx-tracos">Cheiro de ensopado e lenha. Você tem <b>${po(ouro)}</b> · vida <b>${ficha.vidaAtual}/${ficha.vidaMaxima}</b>.</div>
     ${aviso ? `<div class="fx-tracos"><b>${aviso}</b></div>` : ""}
     <h3>Comer e beber</h3><div class="fx-itens">${CARDAPIO.map(c => `<div class="fx-item"><div><b>${c.ic} ${c.nome}</b> <small>recupera ${cura(c.cura)} de vida</small></div><div class="fx-itbtn"><button data-tav="${c.k}" ${ouro < c.preco ? "disabled" : ""}>${po(c.preco)}</button></div></div>`).join("")}</div>
+    <h3>Levar para a viagem</h3><div class="fx-itens">${LEVAR.map(x => `<div class="fx-item"><div><b>${x[0]}</b> <small>vai para a bolsa</small></div><div class="fx-itbtn"><button data-tav="levar:${esc(x[0])}" ${ouro < x[1] ? "disabled" : ""}>${po(x[1])}</button></div></div>`).join("")}</div>
     <h3>Descansar</h3><div class="fx-itens">
       <div class="fx-item"><div><b>🛏 Quarto para a noite</b> <small>descanso longo: vida cheia, magias e habilidades</small></div><div class="fx-itbtn"><button data-tav="quarto" ${semQuarto ? "disabled" : ""}>${po(PRECO.quarto)}</button></div></div>
       <div class="fx-item"><div><b>🪑 Cochilar numa cadeira</b> <small>descanso curto grátis · até 2 vezes seguidas por taverna</small></div><div class="fx-itbtn"><button data-tav="curto">Grátis</button></div></div>
@@ -6782,6 +6805,15 @@ function acaoEstalagem(a) {
   if (String(a).startsWith("sv-")) return acaoServico(a);
   const nome = estalagemAtual || "Estalagem";
   if (a === "sair") { fecharRegras(); notasParaIA.push(`[APLICATIVO: o personagem saiu da ${nome}.]`); return; }
+  if (String(a).startsWith("levar:")) {                  // comprar comida/bebida para a bolsa
+    const x = LEVAR.find(y => y[0] === String(a).slice(6)); if (!x) return;
+    if (ECO.ouro() < x[1]) return abrirRegras(estalagemHtml(nome, `Faltam moedas para: ${x[0].toLowerCase()}.`));
+    const inv = (ficha.inventario ||= []), ex = inv.find(i => i.nome === x[0] && i.dur == null);
+    if (!ex && inv.length >= 100) return abrirRegras(estalagemHtml(nome, "A bolsa está cheia."));
+    ECO.tirarOuro(x[1]); if (ex) ex.qtd = (ex.qtd || 1) + 1; else (ficha.inventario ||= []).push({ nome: x[0], qtd: 1, peso: x[2], nota: "", valor: x[1] });
+    addMsg(`🎒 ${x[0]} na bolsa (−${po(x[1])}).`, "sistema"); notasParaIA.push(`[APLICATIVO: o personagem comprou ${x[0]} na ${nome} por ${po(x[1])}; já está na bolsa.]`);
+    try { mostrarFicha(); salvarPersonagem(); } catch (e) {} return abrirRegras(estalagemHtml(nome, `${x[0]} guardado na bolsa.`));
+  }
   const c = CARDAPIO.find(x => x.k === a);
   if (c) {                                               // comer e beber: paga e recupera vida na hora
     if (ECO.ouro() < c.preco) return abrirRegras(estalagemHtml(nome, `Você não tem moedas para: ${c.nome.toLowerCase()}.`));
@@ -8710,7 +8742,7 @@ const LOJAS = {
     ["Odre de água", 0.2, 2.5], ["Pederneira e isqueiro", 0.5, 0.1], ["Lanterna ocultável", 5, 1], ["Óleo (frasco)", 0.1, 0.5], ["Pé de cabra", 2, 2.5], ["Martelo", 1, 1.5], ["Pitons (10)", 0.5, 2.5],
     ["Kit de curandeiro", 5, 1.5], ["Ferramentas de ladrão", 25, 0.5], ["Flechas (20)", 1, 0.5], ["Virotes (20)", 1, 0.8], ["Balas de funda (20)", 0.04, 0.5], ["Espelho de aço", 5, 0.25], ["Bolsa de moedas", 0.5, 0.5], ["Cadeado", 10, 0.5]] },
   alquimista: { titulo: "⚗ Alquimista", sub: "poções e frascos", itens: [
-    ["Poção de cura", 50, 0.25], ["Poção de cura maior", 150, 0.25], ["Antídoto", 50, 0.25], ["Fogo de alquimista", 50, 0.5], ["Ácido (frasco)", 25, 0.5], ["Água benta (frasco)", 25, 0.5], ["Veneno básico (frasco)", 100, 0.1], ["Frasco vazio", 0.02, 0.5], ["Kit de herbalismo", 5, 1.5]] }
+    ["Poção de cura", 50, 0.25], ["Poção de cura maior", 150, 0.25], ["Antídoto", 50, 0.25], ["Fogo de alquimista", 50, 0.5], ["Ácido (frasco)", 25, 0.5], ["Água benta (frasco)", 25, 0.5], ["Veneno básico (frasco)", 100, 0.1], ["Frasco vazio", 0.02, 0.5], ["Kit de herbalismo", 5, 1.5], ["Ervas medicinais (porção)", 0.5, 0.1], ["Pilão e almofariz", 5, 1], ["Suprimentos de alquimista", 50, 4], ["Pavio e cera (confecção)", 0.1, 0.2], ["Sais aromáticos", 1, 0.1]] }
 };
 const ALIAS_LOJA = { ferreiro: "ferreiro", armeiro: "ferreiro", ferreira: "ferreiro", forjador: "ferreiro", comerciante: "comerciante", mercador: "comerciante", lojista: "comerciante", vendedor: "comerciante", alquimista: "alquimista", boticario: "alquimista", herbalista: "alquimista", curandeiro: "alquimista" };
 function lojaHtml() {
@@ -8718,7 +8750,7 @@ function lojaHtml() {
   let corpo;
   if (lojaAtiva.tipo === "ferreiro") {
     const arm = (lista, tipo) => lista.map(x => `<div class="fx-item"><div>${tipo === "arma" ? REGRAS.iconeArma(x) : (x.tipo === "E" ? ARTE.escudo(26) : ARTE.armadura(x, 26))} <b>${x.nome}</b> <small>${tipo === "arma" ? `${x.dano} ${x.tdano}` : x.tipo === "E" ? "+2 CA" : "CA " + x.ca + (x.dexMax === -1 ? " + Des" : x.dexMax ? " + Des (máx. 2)" : "")} · ${x.peso} kg${(tipo === "arma" ? !REGRAS.profArma(x) : !REGRAS.profArm(x)) ? " · sem proficiência" : ""}</small></div><div class="fx-itbtn"><button data-compra="${tipo}:${x.nome}" ${ouro < x.preco ? "disabled" : ""}>${x.preco} po</button></div></div>`).join("");
-    corpo = `<h3>Armas</h3><div class="fx-itens">${arm(REGRAS.ARMAS, "arma")}</div><h3>Armaduras e escudo</h3><div class="fx-itens">${arm(REGRAS.ARMADURAS, "arm")}</div>`;
+    corpo = consertoHtml() + `<h3>Armas</h3><div class="fx-itens">${arm(REGRAS.ARMAS, "arma")}</div><h3>Armaduras e escudo</h3><div class="fx-itens">${arm(REGRAS.ARMADURAS, "arm")}</div>`;
   } else corpo = `<div class="fx-itens">${L.itens.map(([n, pr, pe]) => `<div class="fx-item"><div><b>${esc(n)}</b> <small>${pe} kg</small></div><div class="fx-itbtn"><button data-compra-it="${esc(n)}" ${ouro < pr ? "disabled" : ""}>${fx(pr)}</button></div></div>`).join("")}</div>`;
   return `<div class="caixa-rg"><div class="rg-cab">${RETRATO_NPC.tag(lojaAtiva.tipo)}<h2>🛒 ${L.titulo} — ${esc(lojaAtiva.npc)}</h2></div><div class="fx-tracos">${L.sub} · você tem <b>${ouro}</b> po</div>${corpo}<button class="acao" data-loja-sair>Despedir-se</button> <button class="acao" data-fechar-rg>Fechar</button></div>`;
 }
@@ -8735,13 +8767,19 @@ function fecharLoja(msg) {
   lojaAtiva = null; atualizarBotaoLoja(); const d = regrasDlg(); if (d?.open && d.querySelector("[data-loja-sair]")) fecharRegras();
   return { ok: true };
 }
+const custoConserto = it => Math.max(0.1, Math.round(((it.durMax - it.dur) / it.durMax) * (it.valor || 5) * 0.5 * 100) / 100);
+function consertoHtml() {
+  const lista = (ficha.inventario || []).map((it, i) => ({ it, i })).filter(({ it }) => it.dur != null && it.durMax > 0 && it.dur < it.durMax && !it.treino), ouro = ECO.ouro();
+  if (!lista.length) return `<h3>🔧 Consertar</h3><div class="fx-tracos">Nada na sua bolsa precisa de conserto.</div>`;
+  return `<h3>🔧 Consertar</h3><div class="fx-itens">${lista.map(({ it, i }) => { const c = custoConserto(it); return `<div class="fx-item"><div><b>${esc(it.nome)}</b> <small>⚒ ${it.dur}/${it.durMax}</small></div><div class="fx-itbtn"><button data-conserta="${i}" ${ouro < c ? "disabled" : ""}>${po(c)}</button></div></div>`; }).join("")}</div>`;
+}
 function comprarGeral(nome) {
   const L = LOJAS[lojaAtiva?.tipo]; const it = L?.itens?.find(x => x[0] === nome); if (!it) return "Item indisponível.";
   if (ECO.ouro() < it[1]) return `Faltam ${Math.ceil(it[1] - ECO.ouro())} po.`;
   const inv = (ficha.inventario ||= []), ex = inv.find(x => x.nome === it[0] && x.dur == null);
   if (!ex && inv.length >= 100) return "A bolsa está cheia.";
-  ECO.tirarOuro(it[1]);
-  if (ex) ex.qtd = (ex.qtd || 1) + 1; else inv.push({ nome: it[0], qtd: 1, peso: it[2], nota: "", valor: it[1] });
+  ECO.tirarOuro(it[1]);                                  // tirar moedas recria a lista da bolsa: o item novo entra na lista atual
+  if (ex) ex.qtd = (ex.qtd || 1) + 1; else (ficha.inventario ||= []).push({ nome: it[0], qtd: 1, peso: it[2], nota: "", valor: it[1] });
   mostrarFicha(); return "";
 }
 $("abrir-loja").addEventListener("click", () => { if (ficha.id && lojaAtiva) abrirRegras(lojaHtml()); });
@@ -8768,6 +8806,7 @@ regrasDlg().addEventListener("click", e => {
   if (b.dataset.tav === "fechar") return fecharRegras();
   if (b.dataset.tav) return acaoEstalagem(b.dataset.tav);
   if (b.dataset.lojaSair != null) { fecharLoja(); addMsg("Você se despede do vendedor.", "sistema"); return; }
+  if (b.dataset.conserta) { if (!lojaAtiva) return; const it = ficha.inventario[Number(b.dataset.conserta)]; if (it && it.dur != null && it.dur < it.durMax) { const c = custoConserto(it); if (ECO.ouro() < c) alert("Moedas insuficientes."); else { ECO.tirarOuro(c); it.dur = it.durMax; addMsg(`🔧 ${lojaAtiva.npc} conserta ${it.nome} (−${po(c)}).`, "sistema"); notasParaIA.push(`[APLICATIVO: ${it.nome} foi consertado por ${po(c)} (durabilidade cheia).]`); try { mostrarFicha(); salvarPersonagem(); } catch (e) {} } } return abrirRegras(lojaHtml()); }
   if (b.dataset.compraIt) { if (!lojaAtiva) return; const r = comprarGeral(b.dataset.compraIt); if (r) alert(r); return abrirRegras(lojaHtml()); }
   if (b.dataset.compra) { if (!lojaAtiva) return; const [t, n] = b.dataset.compra.split(":"), item = t === "arma" ? REGRAS.achaArma(n) : REGRAS.achaArm(n); const r = REGRAS.comprar(item, t); if (r) alert(r); return abrirRegras(lojaHtml()); }
   if (b.dataset.desc) {
