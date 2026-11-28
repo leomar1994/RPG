@@ -342,6 +342,12 @@
   .trilho { height: 10px; background: var(--fundo); border-radius: 5px; overflow: hidden; }
   .fill { height: 100%; width: 0; transition: width .6s ease; }
   .fill.vida { background: #d64545; }
+  .fill.fome { background: #d9923a; }
+  .fill.sede { background: #4a90d9; }
+  .barras-fs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 3px; }
+  .barra.mini { grid-template-columns: 22px 1fr 34px; gap: 5px; font-size: .78rem; }
+  .barra.mini .trilho { height: 7px; }
+  .barra.mini.vazia b { color: #ff7b7b; font-weight: 700; }
   .attr.selecionado { outline: 2px solid var(--latao); outline-offset: 4px; border-radius: 8px; }
 
   /* ---------- Personagens salvos ---------- */
@@ -499,6 +505,10 @@
   <div id="xp-barra"><div id="xp-preenchimento"></div></div>
   <div id="barras">
     <div class="barra"><span>Vida</span><div class="trilho"><div id="b-vida" class="fill vida"></div></div><b id="n-vida"></b></div>
+    <div class="barras-fs">
+      <div class="barra mini" title="Fome: coma algo (Ração, refeição…). Com a barra vazia você perde 1 de vida por jogada."><span>🍖</span><div class="trilho"><div id="b-fome" class="fill fome"></div></div><b id="n-fome"></b></div>
+      <div class="barra mini" title="Sede: beba algo (Cantil, bebida…). Com a barra vazia você perde 1 de vida por jogada."><span>💧</span><div class="trilho"><div id="b-sede" class="fill sede"></div></div><b id="n-sede"></b></div>
+    </div>
   </div>
 </header>
 <div id="rd-barra" hidden></div>
@@ -1174,6 +1184,7 @@ VIDA:
 - NPCs: chame registrar_npc só na PRIMEIRA vez que um NPC com nome aparece (nome, papel, lugar, persona curta); não repita para NPCs já listados e não envie falas (o aplicativo guarda o diálogo sozinho). Mantenha o jeito de cada NPC.
 - ECONOMIA: registre apenas o essencial — lugares novos (mudar_local, uma vez por lugar), mapa de local (registrar_mapa_local, só uma vez), NPCs novos e missões/rota (atualizar_campanha). Use registrar_fato só para mudanças duradouras importantes. Faça todas as chamadas de registro JUNTAS na mesma resposta em que narra, sem repetir e sem narrar nada extra por causa delas. Respostas curtas e diretas.
 - MAPA DO LOCAL: ao apresentar uma vila, cidade ou local com vários pontos de interesse, chame registrar_mapa_local (nome do local e a lista de lugares com tipo) em vez de narrar cada ponto; descreva só a chegada em poucas frases e diga que o mapa está na bolsa. O jogador escolhe o destino no mapa e você narra apenas o trajeto e a cena de lá. Se o local já consta em MAPAS DO JOGADOR, não registre de novo, só acrescente lugares realmente novos.
+- FOME E SEDE: o APLICATIVO controla duas barras (fome e sede) que baixam a cada jogada; comida e bebida da bolsa, da taverna ou do cantil as enchem, e barra vazia tira 1 de vida por jogada (o app aplica sozinho). Não cobre dano por isso nem crie comida do nada; quando o aplicativo avisar, narre só sinais leves (barriga roncando, boca seca, tontura). Quem não tem comida pode caçar, pescar ou colher (Sobrevivência) ou comprar numa vila.
 - PERGAMINHO DE VIAGEM: todo personagem tem na bolsa um Pergaminho de Viagem (reutilizável, nunca o remova nem o gaste). Quem o usa vai, num instante, a uma taverna que já conheceu, ao local da missão ativa ou de volta ao ponto de onde partiu; o APLICATIVO faz a viagem e avisa você com [APLICATIVO: ...]: não chame mudar_local por isso e narre só a chegada. Sem o pergaminho não existe viagem instantânea: o resto é a pé, a cavalo ou de carroça, com tempo passando.
 - O personagem tem uma bolsa (inventário) controlada pelo aplicativo; o jogador NÃO pode adicionar itens por conta própria, só consumi-los: itens novos só entram quando a história os dá (achados, compras, presentes) e você chama atualizar_inventario. Sempre que ele ganhar, comprar, encontrar, perder ou consumir um item, chame atualizar_inventario (quantidade positiva adiciona, negativa remove) com o peso_kg de uma unidade segundo o D&D 5e. Ao usar um consumível (poção, tocha, flecha), remova uma unidade. Só deixe o jogador usar itens que estão na BOLSA DO JOGADOR. Respeite a carga: acima do limite leve o deslocamento cai 3 m; muito sobrecarregado cai 6 m e há desvantagem em ataques e testes de Força, Destreza e Constituição; acima da capacidade máxima ele não consegue se mover.
 - O personagem tem uma barra de Vida controlada pelo aplicativo. Sempre que ele sofrer dano ou receber cura (poções, magias, descanso), chame alterar_vida com variacao (negativa para dano, positiva para cura) e motivo.
@@ -1386,6 +1397,9 @@ function completarFicha(f) {   // preenche campos que personagens antigos não t
   if (f.aumentosUsados == null) f.aumentosUsados = aumentosDevidos(f.classe, f.nivel);
   f.modificadores = Object.fromEntries(ATR.map(k => [k, Math.floor((f.atributos[k] - 10) / 2)]));
   if (!f.pergaminhoV) { f.pergaminhoV = true; if (!f.inventario.some(i => /pergaminho de viagem/i.test(i.nome)) && f.inventario.length < 100) f.inventario.push({ nome: "Pergaminho de Viagem", qtd: 1, peso: 0.01, nota: "" }); }   // personagens antigos ganham o pergaminho
+  f.fome = Number.isFinite(f.fome) ? Math.max(0, Math.min(100, f.fome)) : 100;   // 100 = saciado, 0 = faminto
+  f.sede = Number.isFinite(f.sede) ? Math.max(0, Math.min(100, f.sede)) : 100;
+  f.cantil = Number.isFinite(f.cantil) ? Math.max(0, Math.min(4, Math.floor(f.cantil))) : 4;   // goles de água no cantil
   f.retorno = f.retorno && f.retorno.id ? { id: String(f.retorno.id).slice(0, 60), nome: String(f.retorno.nome || "").slice(0, 60) } : null;
   return f;
 }
@@ -2222,6 +2236,7 @@ var ECO = (() => {
 function atualizarBarras() {
   $("b-vida").style.width = (ficha.vidaMaxima ? ficha.vidaAtual / ficha.vidaMaxima * 100 : 0) + "%";
   $("n-vida").textContent = `${ficha.vidaAtual}/${ficha.vidaMaxima}`;
+  for (const k of ["fome", "sede"]) { const v = Math.round(Number.isFinite(ficha[k]) ? ficha[k] : 100); $("b-" + k).style.width = v + "%"; $("n-" + k).textContent = v + "%"; $("b-" + k).closest(".barra").classList.toggle("vazia", v <= 0); }
 }
 
 /* =====================================================================
@@ -3514,6 +3529,7 @@ async function enviarJogador(texto, nota = null) {
   if (!nota?.jaMostrado) addMsg(texto, "jogador");
   const ataca = /\b(ataco|atacar|atiro|atirar|disparo|disparar|arremes{1,2}o|arremessar|lan[cç]o (?:o|a|um|uma|meu|minha)|golpeio|acerto|investo|parto pra cima|parto para cima|saco (?:a|o|minha|meu)? ?(?:espada|arma|machado|arco|adaga))\b/i.test(texto) && !cb?.ativo;
   COMBATE_AUTO.jogadorAtacou = ataca;
+  try { FOME.passo(); } catch (e) { console.warn("fome", e); }
   const notas = notasParaIA.splice(0);                     // o que o app resolveu sozinho (poção, descanso…) desde a última jogada
   if (nota?.ia) notas.push(nota.ia);
   if (ANCORA_CENA.ultima && !MESTRE_HUMANO && (nota?.forcarIA || ANCORA_CENA.trocou || /^🔍\s*Observar/i.test(texto))) {   // item usado, IA trocada ou "observar": reforça a cena em andamento
@@ -5326,7 +5342,7 @@ $("ficha-conteudo").addEventListener("click", async e => {
   if (b.dataset.inv) {                                  // bolsa
     const inv = ficha.inventario, it = inv[Number(b.dataset.i)], a = b.dataset.inv;
     if (a === "usar" && it) {
-      if (usarPocaoLocal(it)) { $("ficha-tela").hidden = true; fecharFicha?.(); return; }   // item de cura: o app resolve na hora
+      if (usarPocaoLocal(it) || FOME.usarItem(it)) { $("ficha-tela").hidden = true; fecharFicha?.(); return; }   // cura, comida e bebida: o app resolve na hora
       if ($("entrada").disabled) { alert("Aguarde: o Mestre ainda está narrando."); return; }
       $("ficha-tela").hidden = true; fecharFicha?.();
       const conf = `[APLICATIVO: confirmado — o personagem TEM "${it.nome}" ×${it.qtd} na bolsa agora (bolsa: ${ficha.inventario.map(i => `${i.nome} ×${i.qtd}`).join(", ")}). Não diga que ele não tem esse item. Se o uso gastar o item, chame atualizar_inventario com quantidade -1.]`;
@@ -6614,12 +6630,13 @@ function abrirEstalagem(nome) { estalagemAtual = nome || "Estalagem"; abrirRegra
 function descansoLongoPago(motivo) {                     // aplica as regras do descanso longo (vida, magias) sem chamar a IA
   try { MAGIA.descansoLongo(); } catch (e) {} try { HABIL.descanso("longo"); } catch (e) {}
   const cura = ficha.vidaMaxima - ficha.vidaAtual; if (cura > 0) aplicarVida({ variacao: cura, motivo });
-  ficha.desdeDescanso = 0; ficha.curtosHoje = 0; try { mostrarFicha(); } catch (e) {}
+  ficha.desdeDescanso = 0; ficha.curtosHoje = 0; try { FOME.descanso(true); } catch (e) {} try { mostrarFicha(); } catch (e) {}
 }
 function descansoCurtoApp(onde) {                        // até 2 por dia: recupera 1/4 da vida máxima
   if ((ficha.curtosHoje || 0) >= 2) return "Você já descansou o quanto dava hoje: só um descanso longo vai ajudar agora.";
   ficha.curtosHoje = (ficha.curtosHoje || 0) + 1;
   try { MAGIA.descansoCurto(); } catch (e) {} try { HABIL.descanso("curto"); } catch (e) {}
+  try { FOME.descanso(false); } catch (e) {}
   const cura = Math.min(ficha.vidaMaxima - ficha.vidaAtual, Math.max(1, Math.floor(ficha.vidaMaxima / 4)));
   if (cura > 0) aplicarVida({ variacao: cura, motivo: "descanso curto" });
   addMsg(`🪑 Você descansa por uma hora ${onde}.${cura > 0 ? "" : " Já estava inteiro."}`, "sistema");
@@ -6638,6 +6655,7 @@ function acaoEstalagem(a) {
     let cura = c.cura[2]; for (let k = 0; k < c.cura[0]; k++) cura += 1 + Math.floor(Math.random() * c.cura[1]);
     cura = Math.min(ficha.vidaMaxima - ficha.vidaAtual, cura);
     if (cura > 0) aplicarVida({ variacao: cura, motivo: c.nome.toLowerCase() });
+    try { FOME.refeicao(...({ cerveja: [5, 25], vinho: [3, 20], refeicao: [50, 15], banquete: [100, 35] }[c.k] || [20, 10])); } catch (e) {}
     addMsg(`${c.ic} ${c.txt} (−${po(c.preco)})`, "sistema");
     notasParaIA.push(`[APLICATIVO: o personagem pagou ${po(c.preco)} por ${c.nome.toLowerCase()} na ${nome} (vida ${ficha.vidaAtual}/${ficha.vidaMaxima}). Não chame alterar_vida nem cobrar por isso.]`);
     try { salvarPersonagem(); } catch (e) {}
@@ -6657,7 +6675,7 @@ function acaoEstalagem(a) {
   if (a === "quarto") {
     if (ECO.ouro() < PRECO.quarto) return abrirRegras(estalagemHtml(nome, "Faltam moedas para o quarto."));
     ECO.tirarOuro(PRECO.quarto); fecharRegras();
-    descansoLongoPago("noite na estalagem");
+    descansoLongoPago("noite na estalagem"); try { FOME.refeicao(60, 60); } catch (e) {}   // jantar e café da manhã inclusos
     addMsg(`🛏 Você paga ${po(PRECO.quarto)}, dorme numa cama de verdade e acorda descansado. Vida, magias e habilidades recuperadas.`, "sistema");
     notasParaIA.push(`[APLICATIVO: o personagem pagou ${po(PRECO.quarto)} por um quarto na ${nome}, dormiu a noite toda e fez um descanso longo (vida ${ficha.vidaAtual}/${ficha.vidaMaxima}). Agora é de manhã.]`);
     return;
@@ -7183,6 +7201,56 @@ async function executarCombate({ inimigos, mapa, ambiente }) {
   try { if (C3.ok && C3.S?.on) C3.ligar(false); } catch (e) {}   // tabuleiro sempre em 2D (imagens PNG)
   return new Promise(resolve => { cb.resolve = resolve; });
 }
+/* ---------- Fome e sede: cada jogada gasta as barras; comida e bebida enchem; barra vazia = −1 de vida por jogada ---------- */
+const FOME = (() => {
+  const PASSO = { fome: 3.5, sede: 5 };                  // por jogada: a fome acaba em ~29 jogadas, a sede em 20
+  const COMIDA = /(racao|pao\b|carne|queijo|fruta|maca\b|ensopado|biscoito|peixe|torta|refeicao|banquete|salsicha|presunto|castanha|nozes|mingau|sopa)/;
+  const BEBIDA = /(agua\b|odre|cerveja|hidromel|vinho|suco|leite)/;
+  const nivel = v => v <= 0 ? "vazia" : v <= 25 ? "baixa" : "ok";
+  const set = (k, v) => { ficha[k] = Math.max(0, Math.min(100, v)); };
+  function aviso(k, antes) {
+    const a = nivel(antes), d = nivel(ficha[k]), nome = k === "fome" ? "fome" : "sede";
+    if (d === a) return;
+    if (d === "baixa") { addMsg(k === "fome" ? "🍖 Seu estômago ronca: você está com fome. Coma algo logo." : "💧 Sua boca está seca: você está com sede. Beba algo logo.", "sistema"); notasParaIA.push(`[APLICATIVO: o personagem está com ${nome} (sinais leves: ${k === "fome" ? "barriga roncando" : "boca seca"}). O app controla isso; não cobre dano nem crie comida por conta própria.]`); }
+    else if (d === "vazia") { addMsg(k === "fome" ? "🍖 Você está faminto! A fome começa a ferir: −1 de vida por jogada até comer." : "💧 Você está desidratado! A sede começa a ferir: −1 de vida por jogada até beber.", "sistema"); notasParaIA.push(`[APLICATIVO: o personagem está ${k === "fome" ? "faminto" : "desidratado"} (tontura, fraqueza, mãos trêmulas) e perde 1 de vida por jogada até ${k === "fome" ? "comer" : "beber"}; o app já aplica esse dano, não repita alterar_vida por isso.]`); }
+  }
+  function passo() {                                       // chamado a cada jogada do jogador (fora de combate)
+    if (!ficha?.id || ficha.morto || cb?.ativo || mc?.ativo || MESTRE_HUMANO) return;
+    const vazias = [];
+    for (const k of ["fome", "sede"]) { const antes = ficha[k]; set(k, (Number.isFinite(antes) ? antes : 100) - PASSO[k]); aviso(k, antes); if (ficha[k] <= 0) vazias.push(k); }
+    if (emPovoado() && ficha.cantil < 4) { ficha.cantil = 4; }   // numa vila dá para encher o cantil
+    if (vazias.length && ficha.vidaAtual > 0) {
+      const r = aplicarVida({ variacao: -1, motivo: vazias.length > 1 ? "fome e sede" : vazias[0] });
+      addMsg(`−1 Vida (${r.vida_atual}/${r.vida_maxima}) — ${vazias.length > 1 ? "fome e sede" : vazias[0] === "fome" ? "fome" : "sede"}`, "sistema");
+    }
+    try { atualizarBarras(); } catch (e) {}
+  }
+  function encher(k, v, msg) { const antes = ficha[k]; set(k, ficha[k] + v); aviso(k, antes); try { atualizarBarras(); } catch (e) {} return msg; }
+  function usarItem(it) {                                  // true se o app resolveu o item (comida ou bebida)
+    const n = norm(it?.nome || ""); if (!n) return false;
+    if (/cantil/.test(n)) {
+      if (cb?.ativo || mc?.ativo) { addMsg("⚔ Em combate não dá para parar e beber. Beba depois.", "sistema"); return true; }
+      if (ficha.sede >= 100) { addMsg("💧 Você não está com sede.", "sistema"); return true; }
+      if (ficha.cantil <= 0) { addMsg("💧 O cantil está vazio. Encha-o numa vila, rio ou poço.", "sistema"); return true; }
+      ficha.cantil--; encher("sede", 30); addMsg(`💧 Você bebe um gole do cantil (+30 sede; restam ${ficha.cantil}/4 goles).`, "sistema");
+      notasParaIA.push(`[APLICATIVO: o personagem bebeu água do cantil (sede ${Math.round(ficha.sede)}%). Já resolvido pelo app.]`);
+      try { salvarPersonagem(); } catch (e) {} return true;
+    }
+    const come = COMIDA.test(n), bebe = BEBIDA.test(n); if (!come && !bebe) return false;
+    if (curaDoItem(it)) return false;                      // poção de cura é tratada à parte
+    if (cb?.ativo || mc?.ativo) { addMsg("⚔ Em combate não dá para parar e comer. Faça isso depois.", "sistema"); return true; }
+    if (--it.qtd <= 0) ficha.inventario.splice(ficha.inventario.indexOf(it), 1);
+    const f = come ? (/banquete|refeicao|ensopado|sopa/.test(n) ? 55 : /racao|carne|peixe|torta/.test(n) ? 45 : 25) : 0, sd = bebe ? 25 : /sopa|ensopado|fruta|maca/.test(n) ? 10 : 0;
+    if (f) encher("fome", f); if (sd) encher("sede", sd);
+    addMsg(`${come ? "🍖" : "🍺"} Você ${come ? "come" : "bebe"} ${it.nome}${f ? ` (+${f} fome)` : ""}${sd ? ` (+${sd} sede)` : ""}.`, "sistema");
+    notasParaIA.push(`[APLICATIVO: o personagem ${come ? "comeu" : "bebeu"} ${it.nome} (fome ${Math.round(ficha.fome)}%, sede ${Math.round(ficha.sede)}%); o item já saiu da bolsa. Não chame atualizar_inventario por isso.]`);
+    try { mostrarFicha(); } catch (e) {} try { salvarPersonagem(); } catch (e) {}
+    return true;
+  }
+  function refeicao(f, sd) { encher("fome", f); encher("sede", sd); }
+  function descanso(longo) { const antes = { f: ficha.fome, s: ficha.sede }; if (longo) { ficha.fome = Math.max(10, ficha.fome - 20); ficha.sede = Math.max(10, ficha.sede - 25); } else { ficha.fome = Math.max(0, ficha.fome - 4); ficha.sede = Math.max(0, ficha.sede - 5); } try { atualizarBarras(); } catch (e) {} }
+  return { passo, usarItem, refeicao, descanso };
+})();
 /* ---------- Retratos de NPC no diálogo: imagens no Supabase (bucket rpg-retratos), expressão escolhida pelo app; NPC sem retrato = nada aparece ---------- */
 const RETRATO_NPC = (() => {
   let indice = null, tentou = 0, carregando = null;
