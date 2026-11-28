@@ -821,7 +821,7 @@
       <div class="linha-botoes"><button id="m-tipo-usar" type="button" class="secundario">📋 Usar como base</button><button id="m-ia-criar" type="button" class="secundario so-ia">🎲 A IA escreve a campanha</button><button id="m-ia-melhorar" type="button" class="secundario">✨ A IA melhora o meu texto</button><button id="m-camp-desfazer" type="button" class="secundario" hidden>↩ Desfazer</button></div>
     </div></details>
     <textarea id="m-camp" rows="8" maxlength="6000" placeholder="Ex.: Uma seita rouba as crianças da vila de Pedravale. O líder é o prefeito (segredo). A cripta sob o moinho guarda…"></textarea>
-    <div class="linha-botoes"><button id="m-camp-editor" type="button">🧭 Editor guiado</button><button id="m-camp-importar" type="button" class="secundario">⬆ Importar arquivo</button><button id="m-camp-adaptar" type="button" class="so-ia">✨ Adaptar para os jogadores</button></div>
+    <div class="linha-botoes"><button id="m-camp-editor" type="button">🧭 Editor guiado</button><button id="m-camp-importar" type="button" class="secundario">⬆ Importar arquivo</button><button id="m-camp-adaptar" type="button" class="so-ia">✨ Adaptar para os jogadores</button><button id="off-abrir" type="button" class="secundario">📜 Roteiro das campanhas</button></div>
     <input type="file" id="m-camp-arquivo" accept=".txt,.md,.json,text/plain,application/json" hidden>
     <p id="m-camp-status" class="dica"></p>
     <label>Apresentação aos jogadores (edite à vontade)<textarea id="m-camp-adapt" rows="6" maxlength="4000"></textarea></label>
@@ -864,7 +864,6 @@
   <button id="abrir-chaves" class="secundario">🔑 Chaves de IA</button>
   <button id="abrir-indep" class="secundario" type="button">🖥 Chave independente</button>
   <button id="mundo-abrir" class="secundario">🌍 Mundo</button>
-  <button id="off-abrir" class="secundario" type="button">📦 Campanhas offline</button>
   <div id="online">
     <strong>🌐 Entrar na sala de um Mestre</strong>
     <div class="on-linha"><button id="on-criar" class="secundario" title="Para grupo sem Mestre humano">Criar sala</button><input id="on-codigo" maxlength="6" placeholder="CÓDIGO" aria-label="Código da sala" autocapitalize="characters" autocomplete="off"><button id="on-entrar" class="secundario">Entrar</button></div>
@@ -11374,11 +11373,10 @@ const CODEX = (() => {
     abrirRegras(`<div class="caixa-rg cx-painel"><h2>📖 Codex de ${esc(ficha.nome)}</h2>
       <p class="dica">NPCs e locais conhecidos. A afeição vai de -100 (Hostil) a 100 (Leal) e muda o tom dos NPCs. Tudo (com imagens) fica salvo neste aparelho.</p>
       ${l.length ? sec("🧑 NPCs", e => e.tipo === "npc") + sec("🏞 Locais", e => e.tipo !== "npc") : `<p class="dica">Ainda vazio: os NPCs e locais com nome entram aqui conforme a história anda.</p>`}
-      <h3>🧩 Campanha offline</h3><p class="dica">A sessão gravada tem <b>${L?.l.length || 0}</b> registros. Compile para jogar de novo, sem IA, com outro personagem. O que o módulo não cobrir vai para o Mestre humano responder.</p>
-      <div class="linha-botoes"><button type="button" id="cx-compilar">🧩 Compilar a sessão</button><button type="button" class="secundario" id="cx-offline">📦 Campanhas offline</button><button type="button" class="secundario" data-fechar-rg>Fechar</button></div><p id="cx-status" class="dica"></p></div>`);
+      <h3>🧩 Roteiro para o Mestre humano</h3><p class="dica">A sessão gravada tem <b>${L?.l.length || 0}</b> registros. Compile para virar um roteiro (cenas, NPCs, opções e CDs) que um Mestre humano usa para narrar esta campanha para outros jogadores. Quem joga continua rolando os próprios testes de CD.</p>
+      <div class="linha-botoes"><button type="button" id="cx-compilar">🧩 Compilar a sessão</button><button type="button" class="secundario" data-fechar-rg>Fechar</button></div><p id="cx-status" class="dica"></p></div>`);
     if (foco) setTimeout(() => document.getElementById("cx-" + foco)?.scrollIntoView({ block: "center" }), 60);
     $("cx-compilar").onclick = () => compilar();
-    $("cx-offline").onclick = () => { fecharRegras(); OFFLINE.abrir(); };
   }
   document.addEventListener("change", ev => {
     const inp = ev.target.closest?.("[data-cx-img]"); if (!inp) return; const f = inp.files[0], id = inp.dataset.cxImg; if (!f) return;
@@ -11551,21 +11549,38 @@ const OFFLINE = (() => {
   async function abrir() {
     const d = tela(), mods = (await CODEX.tudo("mod")).sort((a, b) => (b.atualizado || b.criado) - (a.atualizado || a.criado));
     const srv = await listaServidor(), srvIds = new Set((srv || []).map(x => x.id)); let meuId = ""; try { meuId = (await (await NUVEM.cliente())?.auth.getUser())?.data?.user?.id || ""; } catch (e) {}
-    const srvHtml = srv === null ? `<p class="dica">☁ Biblioteca do servidor indisponível agora.</p>` : `<h3>☁ Biblioteca do servidor</h3><p class="dica">Campanhas compartilhadas por todos os jogadores. Toque em Jogar: não precisa de arquivo nem de IA.</p>` + (srv.length ? srv.map(x => `<div class="off-mod"><div><b>${esc(x.titulo)}</b><div class="dica">gravada com ${esc(x.origem?.nome || "?")} (${esc(x.origem?.classe || "")}) · ${new Date(x.criado).toLocaleDateString("pt-BR")}</div></div><div class="linha-botoes"><button type="button" data-srv-jogar="${esc(x.id)}">▶ Jogar</button>${meuId && x.autor === meuId ? `<button type="button" class="secundario" data-srv-del="${esc(x.id)}">🗑 Remover</button>` : ""}</div></div>`).join("") : `<p class="dica">Ainda não há campanhas no servidor. Envie uma das suas com ☁ Enviar.</p>`);
-    d.innerHTML = `<div class="off-caixa"><div class="off-topo"><h2>📦 Campanhas offline</h2><button type="button" class="voltar-btn" id="off-sair">↩ Voltar</button></div>
-      <p class="dica">Campanhas compiladas das suas sessões com a IA. Jogue de novo, sem IA, com outro personagem: os testes usam os atributos dele e a afeição dos NPCs segue as regras. Se você perguntar ou tentar algo que a campanha não cobre, o jogo pausa e manda para o Mestre humano (ele abre o jogo em "📖 Quero mestrar", em outra aba ou na mesma sala online).</p>
+    const srvHtml = srv === null ? `<p class="dica">☁ Biblioteca do servidor indisponível agora.</p>` : `<h3>☁ Biblioteca do servidor</h3><p class="dica">Campanhas compartilhadas por todos os jogadores. Toque em Abrir roteiro para consultar.</p>` + (srv.length ? srv.map(x => `<div class="off-mod"><div><b>${esc(x.titulo)}</b><div class="dica">gravada com ${esc(x.origem?.nome || "?")} (${esc(x.origem?.classe || "")}) · ${new Date(x.criado).toLocaleDateString("pt-BR")}</div></div><div class="linha-botoes"><button type="button" data-srv-jogar="${esc(x.id)}">📜 Abrir roteiro</button>${meuId && x.autor === meuId ? `<button type="button" class="secundario" data-srv-del="${esc(x.id)}">🗑 Remover</button>` : ""}</div></div>`).join("") : `<p class="dica">Ainda não há campanhas no servidor. Envie uma das suas com ☁ Enviar.</p>`);
+    d.innerHTML = `<div class="off-caixa"><div class="off-topo"><h2>📜 Roteiro das campanhas</h2><button type="button" class="voltar-btn" id="off-sair">↩ Voltar</button></div>
+      <p class="dica">Campanhas compiladas de sessões com a IA. Aqui o <b>Mestre humano</b> consulta cada cena como roteiro para narrar. Os jogadores jogam normalmente na mesa e <b>rolam os próprios testes de CD</b>.</p>
       ${mods.length ? mods.map(m => `<div class="off-mod"><div><b>${esc(m.titulo)}</b><div class="dica">${Object.keys(m.cenas || {}).length} cenas · gravada com ${esc(m.origem?.nome || "?")} (${esc(m.origem?.classe || "")}) · ${new Date(m.criado).toLocaleDateString("pt-BR")}</div>${m.sinopse ? `<div class="dica">${esc(m.sinopse.replace(/\{nome\}/g, "o herói"))}</div>` : ""}</div>
-        <div class="linha-botoes"><button type="button" data-off-jogar="${m.id}">▶ Jogar</button>${srvIds.has(m.id) ? "" : `<button type="button" class="secundario" data-off-pub="${m.id}">☁ Enviar ao servidor</button>`}<button type="button" class="secundario" data-off-exp="${m.id}">⬇ Exportar</button><button type="button" class="secundario" data-off-del="${m.id}">🗑</button></div></div>`).join("") : `<p class="dica">Nenhuma campanha ainda. Jogue com a IA e use 📖 Codex → 🧩 Compilar a sessão.</p>`}
+        <div class="linha-botoes"><button type="button" data-off-jogar="${m.id}">📜 Abrir roteiro</button>${srvIds.has(m.id) ? "" : `<button type="button" class="secundario" data-off-pub="${m.id}">☁ Enviar ao servidor</button>`}<button type="button" class="secundario" data-off-exp="${m.id}">⬇ Exportar</button><button type="button" class="secundario" data-off-del="${m.id}">🗑</button></div></div>`).join("") : `<p class="dica">Nenhuma campanha ainda. Jogue com a IA e use 📖 Codex → 🧩 Compilar a sessão.</p>`}
       ${srvHtml}
       <label class="secundario off-imp">📥 Importar campanha (.json)<input type="file" id="off-imp" accept=".json,application/json" hidden></label></div>`;
-    $("off-sair").onclick = () => { fechar(); if (salvoFicha) sairParaMenu(); };
+    $("off-sair").onclick = fechar;
     d.querySelectorAll("[data-off-pub]").forEach(b => b.onclick = async () => { b.disabled = true; b.textContent = "Enviando…"; const m = await CODEX.get("mod", b.dataset.offPub), e = await publicar(m); if (e) { alert(e === "login" ? "Entre na conta (☁ no menu inicial) para enviar ao servidor." : "Não consegui enviar: " + e); } abrir(); });
-    d.querySelectorAll("[data-srv-jogar]").forEach(b => b.onclick = async () => { b.disabled = true; b.textContent = "Baixando…"; try { const sb = await NUVEM.cliente(), { data, error } = await sb.from("rpg_campanhas_off").select("dados").eq("id", b.dataset.srvJogar).single(); if (error || !data?.dados) throw new Error(error?.message || "campanha não encontrada"); const m = data.dados; m.id = b.dataset.srvJogar; await CODEX.put("mod", m.id, m); escolherHeroi(m.id); } catch (e) { alert("Não consegui baixar a campanha: " + e.message); abrir(); } });
+    d.querySelectorAll("[data-srv-jogar]").forEach(b => b.onclick = async () => { b.disabled = true; b.textContent = "Baixando…"; try { const sb = await NUVEM.cliente(), { data, error } = await sb.from("rpg_campanhas_off").select("dados").eq("id", b.dataset.srvJogar).single(); if (error || !data?.dados) throw new Error(error?.message || "campanha não encontrada"); const m = data.dados; m.id = b.dataset.srvJogar; await CODEX.put("mod", m.id, m); roteiro(m.id); } catch (e) { alert("Não consegui baixar a campanha: " + e.message); abrir(); } });
     d.querySelectorAll("[data-srv-del]").forEach(b => b.onclick = async () => { if (!confirm("Remover esta campanha do servidor para todos os jogadores?")) return; try { const sb = await NUVEM.cliente(); const { error } = await sb.from("rpg_campanhas_off").delete().eq("id", b.dataset.srvDel); if (error) throw new Error(error.message); } catch (e) { alert("Não consegui remover: " + e.message); } abrir(); });
-    d.querySelectorAll("[data-off-jogar]").forEach(b => b.onclick = () => escolherHeroi(b.dataset.offJogar));
+    d.querySelectorAll("[data-off-jogar]").forEach(b => b.onclick = () => roteiro(b.dataset.offJogar));
     d.querySelectorAll("[data-off-exp]").forEach(b => b.onclick = async () => { const m = await CODEX.get("mod", b.dataset.offExp); const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(m)], { type: "application/json" })); a.download = `campanha-${CODEX.slug(m.titulo) || m.id}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); });
     d.querySelectorAll("[data-off-del]").forEach(b => b.onclick = async () => { if (!confirm("Excluir esta campanha offline deste aparelho?")) return; await CODEX.del("mod", b.dataset.offDel); abrir(); });
     $("off-imp").onchange = ev => { const f = ev.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = async () => { try { const m = JSON.parse(r.result); if (!m?.cenas || !m.inicio || !m.cenas[m.inicio]) throw new Error("arquivo sem cenas"); m.id = "mod_" + Date.now().toString(36); m.criado = m.criado || Date.now(); await CODEX.put("mod", m.id, m); abrir(); } catch (e) { alert("Não é uma campanha válida: " + e.message); } }; r.readAsText(f); };
+  }
+  // ---------- roteiro do Mestre humano (somente leitura) ----------
+  async function roteiro(id) {
+    const m = await CODEX.get("mod", id); if (!m) return; const d = tela(), cx = m.codex || {}, ordem = (m.ordem && m.ordem.length ? m.ordem : Object.keys(m.cenas)).filter(i => m.cenas[i]);
+    Object.keys(m.cenas).forEach(i => { if (!ordem.includes(i)) ordem.push(i); });
+    const nome = i => { const k = ordem.indexOf(i); return m.cenas[i] ? `Cena ${k + 1}` : "—"; };
+    const t = x => esc(String(x || "").replace(/\{(nome|classe|raca)\}/g, (_, k) => k === "nome" ? "o herói" : k === "classe" ? "a classe" : "a raça").replace(/\{(ele|dele|o|Ele|Dele)\}/g, "ele"));
+    const cena = (i, k) => { const c = m.cenas[i], loc = c.local && cx[c.local], npcs = (c.npcs || []).map(n => cx[n]).filter(e => e?.tipo === "npc");
+      return `<details class="off-mod" ${k === 0 ? "open" : ""}><summary><b>${k + 1}.</b> ${loc ? "📍 " + esc(loc.nome) + " · " : ""}${t((c.texto || "").slice(0, 70))}…${c.fim ? " 🏁" : ""}${c.mestre ? " 🧙" : ""}</summary>
+        <div class="off-texto">${t(c.texto)}</div>
+        ${npcs.length ? `<p class="dica">🧑 NPCs: ${npcs.map(e => `<b>${esc(e.nome)}</b>${e.descricao ? " — " + esc(e.descricao) : ""}`).join(" · ")}</p>` : ""}
+        ${(c.escolhas || []).length ? `<ul>${c.escolhas.map(e => `<li>${t(e.texto)}${e.requer ? ` <small>🔒 ${esc(Object.entries(e.requer).map(([a, b]) => a + ": " + (typeof b === "object" ? JSON.stringify(b) : b)).join(", "))}</small>` : ""}${e.teste ? `<br><small>🎲 O jogador rola <b>${esc(e.teste.pericia)}</b> contra <b>CD ${e.teste.cd}</b> · sucesso → ${nome(e.teste.sucesso)} · falha → ${nome(e.teste.falha)}</small>` : e.ir ? ` <small>→ ${nome(e.ir)}</small>` : ""}</li>`).join("")}</ul>` : c.fim ? `<p class="dica">Fim da campanha.</p>` : ""}
+        ${(c.extras || []).length ? `<p class="dica">🧙 Respostas de outros Mestres: ${c.extras.map(x => "“" + t(x.pergunta) + "” → " + t(x.resposta)).join(" · ")}</p>` : ""}</details>`; };
+    d.innerHTML = `<div class="off-caixa"><div class="off-topo"><h2>📜 ${esc(m.titulo)}</h2><button type="button" class="voltar-btn" id="off-volta">↩ Voltar</button></div>
+      <p class="dica">Roteiro para o Mestre humano narrar. Os jogadores rolam os próprios testes de CD na mesa; use as cenas, NPCs e dificuldades como guia e adapte livremente.${m.sinopse ? "<br>" + t(m.sinopse) : ""}</p>
+      ${ordem.map(cena).join("")}</div>`;
+    $("off-volta").onclick = abrir;
   }
   async function escolherHeroi(id) {
     mod = await CODEX.get("mod", id); if (!mod) return;
@@ -11707,7 +11722,7 @@ const OFFLINE = (() => {
     abrirRegras(`<div class="caixa-rg cx-painel"><h2>📖 Codex — ${esc(mod.titulo)}</h2>${l.length ? l.map(e => `<div class="cx-ent">${e.img ? `<img src="${e.img}" alt="" class="${e.tipo}">` : `<div class="cx-sem">${e.tipo === "npc" ? "🧑" : "🏞"}</div>`}<div><b>${esc(e.nome)}</b> <small>· ${esc(e.subtipo || "")}</small>${e.tipo === "npc" ? CODEX.barra(st.afe[e.id] ?? 0) : ""}<div class="dica">${esc(e.descricao || "")}</div>${(e.notas || []).slice(-5).map(n => `<div class="cx-nota">📝 ${esc(vars(n))}</div>`).join("")}</div></div>`).join("") : `<p class="dica">Vazio.</p>`}
       ${st.notas.length ? `<h3>🧙 Respostas do Mestre nesta partida</h3>${st.notas.slice(-10).map(n => `<p class="dica"><b>“${esc(n.pergunta)}”</b> — ${esc(n.resposta)}</p>`).join("")}` : ""}<button type="button" class="secundario" data-fechar-rg>Fechar</button></div>`);
   }
-  return { abrir, render, publicar, ativo: () => !!st && !$("offline")?.hidden };
+  return { abrir, roteiro, render, publicar, ativo: () => !!st && !$("offline")?.hidden };
 })();
 $("off-abrir")?.addEventListener("click", () => OFFLINE.abrir());
 $("abrir-codex")?.addEventListener("click", () => CODEX.abrirPainel());
