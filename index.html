@@ -7096,7 +7096,7 @@ function renderCb() {
   for (let y = 0; y < LINS; y++) for (let x = 0; x < COLS; x++) {
     const eA = vivosCb().find(q => q.x === x && q.y === y), e = (eA && !escondidoDe(eA, P) ? eA : null) || [...fx].find(([q, f]) => f.morte && q.x === x && q.y === y)?.[0];
     const cls = ["cb-c", e ? (e === P ? "jog" : "ini") : alc.has(`${x},${y}`) ? "alc" : "", e && e === vez ? "vez" : "", e && e !== P && minhaVez && cb.acao && !SKILL.mira() && REGRAS.ataque(distCb(P, e)).ok ? "alvo" : "", e && SKILL.podeMirar(e) ? "mira" : "", e === P && escondido(P) ? "oculto-eu" : "", cb.cob?.has(`${x},${y}`) ? "cob" : "", cb.veios?.has(`${x},${y}`) ? "veio-c" : "", !e && cb.bloq?.has(`${x},${y}`) ? "bloq" : !e && cb.dific?.has(`${x},${y}`) ? "dif" : ""].join(" ");
-    h += `<button class="${cls}" data-x="${x}" data-y="${y}" ${e ? `title="${esc(nomeCb(e))}"` : ""}>${e ? token(e) : SAQUE_CB.celula(x, y) || (cb.veios?.has(`${x},${y}`) ? `<span class="veio${cb.minerando && cb.minerando.x === x && cb.minerando.y === y ? " min" : ""}">💎</span>` : "")}</button>`;
+    h += `<button class="${cls}" data-x="${x}" data-y="${y}" ${e ? `title="${esc(nomeCb(e))}"` : ""}>${e ? token(e) : SAQUE_CB.celula(x, y) || (cb.chao?.some(c => c.x === x && c.y === y) ? `<span title="Arma no chão: passe por cima" style="font-size:1.1em">🗡</span>` : "") || (cb.veios?.has(`${x},${y}`) ? `<span class="veio${cb.minerando && cb.minerando.x === x && cb.minerando.y === y ? " min" : ""}">💎</span>` : "")}</button>`;
   }
   g.innerHTML = h; tokensSeguros(g);
   $("cb-status").textContent = cb.saque ? "🏆 Vitória! Toque nos itens no chão para pegar (ou em 🎒 Pegar tudo)." : cb.mina && !cb.comecou ? minaStatus() : !cb.comecou ? "Confira o mapa (você pode trocá-lo ou mudar o tamanho) e comece quando estiver pronto."
@@ -7158,6 +7158,7 @@ function fimCb() {
 }
 function encerrarCb(resultado) {
   if (!cb.ativo) return;
+  if (cb.chao?.length) { if (resultado === "vitoria") recolherChaoCb(); else { logCb(`🗡 Você deixou para trás: ${cb.chao.map(c => c.item.nome).join(", ")}.`); cb.chao = []; } }
   if (cb.mina && resultado === "vitoria") return voltarMina();
   if (resultado === "vitoria" && !cb.saque && SAQUE_CB.iniciar()) return;   // fica no tabuleiro para pegar os itens do chão
   cb.ativo = false; $("combate").hidden = true; fecharPainel(); SKILL.cancelar(); SKILL.render(); const perdaXp = resultado === "fuga" ? penalidadeFuga() : 0;
@@ -7644,6 +7645,47 @@ $("cb-comecar").addEventListener("click", async () => {
   logCb("Iniciativa: " + cb.ordem.map(e => `${e === cb.ents[0] ? "Você" : e.rotulo} ${Math.floor(e.init)}`).join(", "));
   avancarCb();
 });
+async function resolverAtaqueJogador(P, alvo, at) {     // resolve o ataque do jogador (corpo a corpo, à distância ou arremesso) contra um alvo
+    if (REGRAS.semProfArmadura()) at.desv = true;
+    const modo = modoJogador(alvo, at.desv), extrasH = HABIL.ajustarAtaque(at, alvo, modo);   // estilo de luta, fúria, ataque furtivo, destruição divina, forma selvagem…
+    const mag = efAtivos("armaMag").length ? 1 : 0, extra = [marcaBonus(alvo), ...extrasH].filter(Boolean);
+    HABIL.consumirAtaque(); cb.rolando = true; let dano = 0;
+    try { if (at.usaMun) REGRAS.gastaMun(at.arma); const nLog = cb.log.length; dano = await ataqueCb(P, alvo, at.bonus + mag, mag ? HABIL.somaMod(at.dano, 1) : at.dano, "Você", nomeCb(alvo), true, { jog: true, modo, danoExtra: extra }); cb.vantProx = false; alvo.caido = false;
+      dano += HABIL.aposAtaque(alvo, dano, cb.log.slice(nLog).some(l => /CRÍTICO!/.test(l))) || 0;
+      if (cb.ataquesRest > 0 || cb.golpesBonus > 0) logCb(`⚔ Ainda pode atacar ${cb.ataquesRest + (cb.golpesBonus || 0)} vez(es) neste turno.`); }
+    finally { cb.rolando = false; }
+    if (dano && alvo.cond?.c === "dormir") alvo.cond = null;
+    alvo.hp -= dano; cb.fx.set(P, { atq: alvo }); cb.fx.set(alvo, alvo.hp <= 0 ? { dano, morte: true } : { dano });
+    if (escondido(P)) { revelar(P); logCb("🌿 Você ataca das sombras (com vantagem) e revela sua posição."); } else revelar(P);
+    if (at.arremesso) lancarArma(at.arma.item, alvo);
+    if (alvo.hp <= 0 && dano) logCb(`${nomeCb(alvo)} foi derrotado!`);
+    const f = fimCb(); renderCb(); if (f) { await esperar(900); return encerrarCb(f); }
+}
+function devolverItemBolsa(it) { const inv = (ficha.inventario ||= []), ex = it.dur == null ? inv.find(q => q.nome === it.nome && q.dur == null) : null; if (ex) ex.qtd = (ex.qtd || 1) + 1; else inv.push({ ...it, qtd: 1, eq: false }); }
+function lancarArma(it, alvo) {                          // a arma arremessada sai da mão/bolsa e cai no chão perto do alvo
+  if (!it || !alvo) return;
+  const inv = ficha.inventario || [];
+  if ((it.qtd || 1) > 1 && it.dur == null) it.qtd--; else ficha.inventario = inv.filter(q => q !== it);
+  (cb.chao ||= []).push({ x: alvo.x, y: alvo.y, item: { ...it, qtd: 1, eq: false } });
+  logCb(`🎯 ${it.nome} cai no chão perto de ${nomeCb(alvo)}. Passe por cima para recolher, ou vença a luta para pegar de volta.`);
+  try { mostrarFicha(); } catch (e) {}
+}
+function recolherChaoCb(x, y) {                          // x,y: andou até o quadrado; sem x,y: fim do combate
+  if (!cb?.chao?.length) return;
+  const pega = cb.chao.filter(c => x == null || (c.x === x && c.y === y));
+  if (!pega.length) return;
+  cb.chao = cb.chao.filter(c => !pega.includes(c));
+  pega.forEach(c => { devolverItemBolsa(c.item); logCb(`🗡 Você recolhe ${c.item.nome}.`); });
+  try { mostrarFicha(); salvarPersonagem(); } catch (e) {}
+}
+async function arremessoCb(w, alvo) {                    // ação: arremessar a arma escolhida no alvo
+  if (!cb?.ativo || cb.mesa || cb.rolando || cb.ordem[cb.i] !== cb.ents[0]) return;
+  fecharPainel();
+  const P = cb.ents[0];
+  if (!cb.acao || !HABIL.podeAtacar()) return logCb("Você já usou sua ação neste turno.");
+  const at = REGRAS.arremesso(w, distCb(P, alvo)); if (!at.ok) return logCb(at.motivo);
+  return resolverAtaqueJogador(P, alvo, at);
+}
 $("cb-grade").addEventListener("click", async e => {
   const b = e.target.closest(".cb-c");
   if (b && cb?.saque) { const k = `${b.dataset.x},${b.dataset.y}`; if (cb.saque.has(k)) SAQUE_CB.pegar(k); return; }
@@ -7656,23 +7698,11 @@ $("cb-grade").addEventListener("click", async e => {
     if (!HABIL.podeAtacar()) { logCb("Você já usou sua ação neste turno."); return; }
     const d = distCb(P, alvo), golpeB = !(cb.acao || cb.ataquesRest > 0) && cb.golpesBonus > 0;
     REGRAS.auto(); const at = golpeB ? HABIL.golpeDesarmado(d) : REGRAS.ataque(d); if (!at.ok) { logCb(at.motivo); return; }
-    if (REGRAS.semProfArmadura()) at.desv = true;
-    const modo = modoJogador(alvo, at.desv), extrasH = HABIL.ajustarAtaque(at, alvo, modo);   // estilo de luta, fúria, ataque furtivo, destruição divina, forma selvagem…
-    const mag = efAtivos("armaMag").length ? 1 : 0, extra = [marcaBonus(alvo), ...extrasH].filter(Boolean);
-    HABIL.consumirAtaque(); cb.rolando = true; let dano = 0;
-    try { if (at.usaMun) REGRAS.gastaMun(at.arma); const nLog = cb.log.length; dano = await ataqueCb(P, alvo, at.bonus + mag, mag ? HABIL.somaMod(at.dano, 1) : at.dano, "Você", nomeCb(alvo), true, { jog: true, modo, danoExtra: extra }); cb.vantProx = false; alvo.caido = false;
-      dano += HABIL.aposAtaque(alvo, dano, cb.log.slice(nLog).some(l => /CRÍTICO!/.test(l))) || 0;
-      if (cb.ataquesRest > 0 || cb.golpesBonus > 0) logCb(`⚔ Ainda pode atacar ${cb.ataquesRest + (cb.golpesBonus || 0)} vez(es) neste turno.`); }
-    finally { cb.rolando = false; }
-    if (dano && alvo.cond?.c === "dormir") alvo.cond = null;
-    alvo.hp -= dano; cb.fx.set(P, { atq: alvo }); cb.fx.set(alvo, alvo.hp <= 0 ? { dano, morte: true } : { dano });
-    if (escondido(P)) { revelar(P); logCb("🌿 Você ataca das sombras (com vantagem) e revela sua posição."); } else revelar(P);
-    if (alvo.hp <= 0 && dano) logCb(`${nomeCb(alvo)} foi derrotado!`);
-    const f = fimCb(); renderCb(); if (f) { await esperar(900); return encerrarCb(f); }
+    return resolverAtaqueJogador(P, alvo, at);
   } else {
     const k = alcanceCb(P).get(`${x},${y}`);
     if (!k) return;
-    const antes = naCob(P), eraFurtivo = escondido(P); cb.mov -= k; P.x = x; P.y = y; aoMover(P);
+    const antes = naCob(P), eraFurtivo = escondido(P); cb.mov -= k; P.x = x; P.y = y; aoMover(P); recolherChaoCb(x, y);
     if (eraFurtivo && !naCob(P)) logCb("👁 Você saiu da área escura: agora todos te veem.");
     renderCb();
     if (naCob(P) && !antes && !escondido(P)) {
@@ -7985,6 +8015,13 @@ Escudo|E|2|0|0|0|3|10`.split("\n").map(l => { const p = l.split("|"); return { n
     if (a.dist && a.props.includes("mun") && !municaoTotal(a)) return { nome: a.nomeExib, ok: false, motivo: `Sem munição para ${a.nomeExib}.` };
     return { arma: a, nome: a.nomeExib, ok: true, bonus: m + (profArma(a) ? ficha.bonusProficiencia : 0) + b, dano: dano + sinal(m + b), desv, motivo, usaMun: a.dist && a.props.includes("mun") };
   }
+  function arremesso(a, dist) {                              // arremessar QUALQUER arma: as de arremesso usam o alcance e o dano delas; as outras são improvisadas (1d4, sem proficiência, 6/18 m)
+    const forca = mod("forca"), des = mod("destreza"), sinal = n => n ? (n > 0 ? "+" : "") + n : "", arr = a.props.includes("arr") && a.alcL, acu = a.props.includes("acu"), m = acu ? Math.max(forca, des) : forca, b = a.bonus || 0;
+    const alcN = arr ? a.alcN : 6, alcL = arr ? a.alcL : 18, tN = Math.max(1, Math.round(alcN / 1.5)), tL = Math.max(tN, Math.round(alcL / 1.5));
+    if (dist > tL) return { nome: a.nomeExib, ok: false, motivo: `Fora do alcance de arremesso de ${a.nomeExib} (${alcN}/${alcL} m).` };
+    const longo = dist > tN, prof = arr && profArma(a) ? ficha.bonusProficiencia : 0;
+    return { arma: a, arremesso: true, nome: a.nomeExib + (arr ? " (arremesso)" : " (arremesso improvisado)"), ok: true, bonus: m + prof + (arr ? b : 0), dano: (arr ? a.dano : "1d4") + sinal(m + (arr ? b : 0)), desv: semProfArmadura() || longo, motivo: longo ? "alcance longo (desvantagem)" : "arremesso", usaMun: false };
+  }
   const iconeArma = a => a ? ARTE.arma(a, 26) : "👊";
   function alcanceMaxQ() {                                    // até quantos quadrados a arma na mão alcança (contando o alcance longo)
     const a = eqArma(); if (!a) return 1;
@@ -8009,7 +8046,7 @@ Escudo|E|2|0|0|0|3|10`.split("\n").map(l => { const p = l.split("|"); return { n
     auto(); const a = eqArma(), arm = eqArmadura(), e = eqEscudo();
     return `\nEQUIPAMENTO (regras do livro, controlado pelo app): arma na mão: ${a ? a.nomeExib + " (" + a.dano + " " + a.tdano + (a.bonus ? ", +" + a.bonus : "") + ")" : "nenhuma"}; armadura: ${arm ? arm.nome : "nenhuma"}; escudo: ${e ? "sim" : "não"}; CA ${ca(true)}${semProfArmadura() ? " (sem proficiência na armadura: desvantagem em ataques e sem magias)" : ""}.`;
   };
-  return { ARMAS, ARMADURAS, NOME_TIPO, achaArma, achaArm, armaDe, armaduraDe, armasDoJogador, armadurasDoJogador, escudosDoJogador, eqArma, eqArmadura, eqEscudo, auto, equipar, desequipar, ca, penForca, semProfArmadura, ataque, alcanceMaxQ, alcanceTxt, iconeArma, profArma, profArm, comprar, contexto, gastaMun, municaoTotal, medio, PROF, pf };
+  return { arremesso, ARMAS, ARMADURAS, NOME_TIPO, achaArma, achaArm, armaDe, armaduraDe, armasDoJogador, armadurasDoJogador, escudosDoJogador, eqArma, eqArmadura, eqEscudo, auto, equipar, desequipar, ca, penForca, semProfArmadura, ataque, alcanceMaxQ, alcanceTxt, iconeArma, profArma, profArm, comprar, contexto, gastaMun, municaoTotal, medio, PROF, pf };
 })();
 
 /* =====================================================================
@@ -8517,6 +8554,8 @@ function abrirPainel(qual) {
     if (armas.length) { tit("⚔ Armas"); const l = lista();
       armas.forEach(a => { const na = a.item.eq, inf = `${a.dano}${a.bonus ? "+" + a.bonus : ""} ${a.tdano}${a.item.dur != null ? ` · ⚒ ${a.item.dur}/${a.item.durMax}` : ""}${REGRAS.profArma(a) ? "" : " · SEM proficiência"}`;
         l.append(btn(`${REGRAS.iconeArma(a)} ${na ? "Guardar" : "Sacar"} ${a.nomeExib} · ${inf}${na ? " ✔ na mão" : ""}`, () => agir(na ? `🎒 Você guarda ${a.nomeExib} e fica desarmado.` : "", () => { if (na) REGRAS.desequipar(a.item); else { const av = REGRAS.equipar(a.item); logCb(`🗡 Você saca ${a.nomeExib}.${av || ""}`); } }, true), na ? "" : "secundario", !okArma)); }); }
+    if (armas.length && !mesa && !livre) { tit("🎯 Arremessar (ação)"); nota("Qualquer arma pode ser arremessada: as de arremesso (adaga, machadinha, azagaia, lança…) normalmente; as outras viram arma improvisada (1d4, sem proficiência, 6/18 m). A arma cai no chão perto do alvo: passe por cima para recolher ou vença a luta."); const l = lista();
+      armas.forEach(a => { const arr = a.props.includes("arr") && a.alcL; l.append(btn(`🎯 Arremessar ${a.nomeExib} · ${arr ? a.alcN + "/" + a.alcL : "6/18 improvisado"} m`, () => painelEscolherAlvo(`Arremessar ${a.nomeExib} em quem?`, e => arremessoCb(a, e), "mochila"), "secundario", !ok)); }); }
     const arms = [...REGRAS.armadurasDoJogador(), ...REGRAS.escudosDoJogador()];
     if (arms.length) { tit("🛡 Armaduras e escudo"); const l = lista();
       arms.forEach(a => { const na = a.item.eq, e = a.tipo === "E";
