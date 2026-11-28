@@ -4726,7 +4726,9 @@ function ajustarCD(cd, pericia, resist) {
 }
 // A IA às vezes junta ação de força bruta com a perícia errada (ex.: "Esmagar a caixa (Furtividade)")
 function periciaCoerente(pericia, motivo) {
-  return pericia;   // o que é pedido na opção/pela IA é exatamente o que o dado rola: sem trocar de perícia por conta própria
+  const k = norm(pericia), m = norm(motivo || "").replace(/\bquebrad\w*/g, "");   // "chave quebrada" é adjetivo, não força bruta
+  if (/\b(esmag|quebr|destroc|despedac|arrebent|derrub|chut|arromb|empurr|levant|alavanc)\w*/.test(m) && !/atletismo|forca/.test(k) && !/fechadura|gazua|cadeado/.test(m)) return "Atletismo";
+  return pericia;
 }
 async function executarTeste({ pericia_atributo, cd, motivo }) {
   travarChat(true);
