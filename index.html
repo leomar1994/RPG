@@ -2313,6 +2313,7 @@ function addMsg(texto, tipo) {
     for (const p of ["🔍 Observar o ambiente", "➡ Seguir adiante com cautela", "🛡 Ficar em guarda e esperar"]) if (opcoes.length < 3) opcoes.push(p);   // a IA mandou poucas opções: completa
   if (tipo === "mestre" && !opcoes.length && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE) && !salaAguardando()) { opcoes = ["🔍 Observar o ambiente", "🗣 Falar com quem estiver por perto", "➡ Seguir adiante com cautela", "🛡 Ficar em guarda e esperar"]; padrao = true; }   // sem chat livre: nunca fica sem ação
   if (tipo === "mestre" && opcoes.length && !(typeof MESTRE_HUMANO !== "undefined" && MESTRE_HUMANO)) opcoes = opcoes.map(rotularOpcao);
+  if (tipo === "mestre" && opcoes.length && !restaurando && !cb?.ativo && !(typeof MESTRE_HUMANO !== "undefined" && MESTRE_HUMANO) && !(typeof EH_MESTRE !== "undefined" && EH_MESTRE)) try { opcoes = COMBATE_AUTO.comAtacar(opcoes, texto); } catch (e) {}   // criatura ou interlocutor na cena: sempre há a opção de atacar
   if (opcoes.length) {
     const caixa = document.createElement("div");
     caixa.className = "opcoes" + (padrao ? " padrao" : "");
@@ -3528,7 +3529,7 @@ async function enviarJogador(texto, nota = null) {
   travarChat(true);
   if (!nota?.jaMostrado) addMsg(texto, "jogador");
   const ataca = /\b(ataco|atacar|atiro|atirar|disparo|disparar|arremes{1,2}o|arremessar|lan[cç]o (?:o|a|um|uma|meu|minha)|golpeio|acerto|investo|parto pra cima|parto para cima|saco (?:a|o|minha|meu)? ?(?:espada|arma|machado|arco|adaga))\b/i.test(texto) && !cb?.ativo;
-  COMBATE_AUTO.jogadorAtacou = ataca;
+  COMBATE_AUTO.jogadorAtacou = ataca; COMBATE_AUTO.cenaAntes = ANCORA_CENA.ultima; COMBATE_AUTO.textoJog = texto; try { COMBATE_AUTO.jogada(); } catch (e) {}
   try { FOME.passo(); } catch (e) { console.warn("fome", e); }
   const notas = notasParaIA.splice(0);                     // o que o app resolveu sozinho (poção, descanso…) desde a última jogada
   if (nota?.ia) notas.push(nota.ia);
@@ -4789,8 +4790,10 @@ async function executarTeste({ pericia_atributo, cd, motivo }) {
   addMsg(`🎲 ${pericia_atributo}: ${dado} ${sinal} ${Math.abs(bonus)} = ${total} contra CD ${cd} — ${g.rotulo}${g.extra ? ` (${g.extra})` : ""}`, "sistema");
   try { CODEX.log("teste", `${pericia_atributo} CD ${cd}: ${total} — ${sucesso ? "sucesso" : "falha"} (${motivo || ""})`, { pericia: pericia_atributo, cd, sucesso }); } catch (e) {}
 
+  let avisoApp = ""; try { avisoApp = COMBATE_AUTO.aposTeste({ pericia: pericia_atributo, motivo, sucesso }); } catch (e) { console.warn(e); }
   // Dados brutos devolvidos à IA (o envio é feito em chamarIA)
   return {
+    ...(avisoApp ? { instrucao_app: avisoApp } : {}),
     dado_bruto: dado, bonus_aplicado: bonus, total, cd,
     resultado: sucesso ? "sucesso" : "falha",
     critico: dado === 20 ? "sucesso_critico" : dado === 1 ? "falha_critica" : "nenhum",
@@ -6989,7 +6992,7 @@ async function avancarCb() {
   while (cb.ativo) {
     cb.i = (cb.i + 1) % cb.ordem.length; if (cb.i === 0) cb.rodada++;
     const e = cb.ordem[cb.i]; if (e.hp <= 0) continue;
-    if (e === cb.ents[0]) { cb.mov = Math.round(Math.max(0, (RACAS[ficha.raca]?.desl ?? 9) - cargaEstado().pen) / 1.5); cb.mov = Math.max(0, cb.mov - REGRAS.penForca()); cb.base = cb.mov; cb.acao = true; cb.esquiva = false; iniciarTurnoJogador(); renderCb(); setTimeout(() => centrarNoJogador(), 60); return; }
+    if (e === cb.ents[0]) { cb.mov = Math.round(Math.max(0, (RACAS[ficha.raca]?.desl ?? 9) - cargaEstado().pen) / 1.5); cb.mov = Math.max(0, cb.mov - REGRAS.penForca()); if (e.caido) { cb.mov = Math.floor(cb.mov / 2); e.caido = false; logCb("🧎 Você estava caído: gasta metade do movimento para se levantar."); } cb.base = cb.mov; cb.acao = true; cb.esquiva = false; iniciarTurnoJogador(); renderCb(); setTimeout(() => centrarNoJogador(), 60); return; }
     if (e.cond && e.cond.turnos > 0 && e.cond.c !== "debilitar") { e.cond.turnos--; logCb(`${nomeCb(e)} está ${e.cond.c === "dormir" ? "dormindo" : e.cond.c === "enfeiticar" ? "enfeitiçado" : "imobilizado"} e perde o turno.`); if (!e.cond.turnos) e.cond = null; renderCb(); await esperar(350); continue; }
     if (e.regen && e.hp < e.max && !e.semRegen) { const c = Math.min(e.regen, e.max - e.hp); e.hp += c; logCb(`${nomeCb(e)} regenera ${c} PV.`); }
     renderCb(); await esperar(500);
@@ -7169,7 +7172,7 @@ $("cb-img-arq").addEventListener("change", ev => {
 $("cb-img-padrao").addEventListener("click", () => { const nome = $("cb-img-quem").value; if (!nome) return; ARTE_MON.guardar(nome, null); $("cb-img-msg").textContent = `${nome} voltou ao retrato padrão.`; if (cb && !cb.mesa) renderCb(); else if (mc) renderMc(); });
 
 
-async function executarCombate({ inimigos, mapa, ambiente }) {
+async function executarCombate({ inimigos, mapa, ambiente, surpresa }) {
   fecharLoja();
   const lista = (Array.isArray(inimigos) ? inimigos : []).slice(0, 6);
   if (!lista.length) return { erro: "Informe pelo menos um inimigo." };
@@ -7199,7 +7202,34 @@ async function executarCombate({ inimigos, mapa, ambiente }) {
   listarMapas(mp?.id); aplicarMapa(mp?.id || "");
   $("cb-log").replaceChildren(); $("combate").hidden = false; $("combate").scrollTop = 0;
   try { if (C3.ok && C3.S?.on) C3.ligar(false); } catch (e) {}   // tabuleiro sempre em 2D (imagens PNG)
+  if (surpresa) setTimeout(() => { try { comecarSurpresa(surpresa); } catch (e) { console.warn("surpresa", e); } }, 400);
   return new Promise(resolve => { cb.resolve = resolve; });
+}
+/* Combate sem rolar iniciativa. "inimigo": te viram (falha ao fugir/esconder-se): eles agem primeiro, você está caído e eles atacam com vantagem na 1ª rodada.
+   "jogador": o inimigo não te vê (você estava furtivo ou ele está desatento): você age primeiro, com vantagem no 1º ataque (Ataque Furtivo do Ladino vale). */
+function comecarSurpresa(modo) {
+  if (!cb?.ativo || cb.comecou || cb.mesa) return;
+  const P = cb.ents[0], mons = cb.ents.slice(1);
+  cb.comecou = true; cb.rodada = 0; cb.i = -1;
+  if (modo === "inimigo") {
+    mons.forEach((e, k) => { e.init = 30 - k; e.emboscada = false; e.furtivo = false; e.visto = true; e.vistoAli = true; });
+    P.init = -5; P.caido = true; P.furtivo = false; P.visto = true; P.vistoAli = true; cb.surpresaIni = true;
+    logCb("⚠ Eles te viram! Sem iniciativa: os inimigos agem primeiro, você está caído (levantar custa metade do movimento) e eles atacam com vantagem na 1ª rodada.");
+  } else {
+    mons.forEach((e, k) => { e.init = 10 - k; });
+    P.init = 100; cb.vantProx = true;
+    const noEscuro = COMBATE_AUTO.furtivo && cb.cob?.size;
+    if (noEscuro) {                                        // furtivo: sai de uma área escura (regra do tabuleiro) e ataca de lá
+      const livres = [...cb.cob].map(k => k.split(",").map(Number)).filter(([x, y]) => !cb.ents.some(o => o !== P && o.x === x && o.y === y)).sort((a, b) => distCb({ x: a[0], y: a[1] }, P) - distCb({ x: b[0], y: b[1] }, P));
+      if (livres.length) { [P.x, P.y] = livres[0]; P.furtivo = true; P.furtCd = cdFurtivo(P); P.visto = false; P.vistoAli = false; }
+    }
+    logCb(`🥷 ${noEscuro ? "Você ataca das sombras" : "Eles não te notaram"}: sem iniciativa, você age primeiro e o 1º ataque tem vantagem${typeof HABIL !== "undefined" && HABIL.tem?.("furtivo") ? " (Ataque Furtivo!)" : ""}.`);
+  }
+  cb.ordem = [...cb.ents].sort((a, b) => b.init - a.init);
+  $("cb-comecar").hidden = true; $("cb-acoes").hidden = false; $("cb-cena").hidden = true;
+  ["cb-tam", "cb-mapa-novo", "cb-excluir-mapa"].forEach(id => $(id).disabled = true);
+  logCb("Ordem: " + cb.ordem.map(e => e === P ? "Você" : e.rotulo).join(", "));
+  avancarCb();
 }
 /* ---------- Fome e sede: cada jogada gasta as barras; comida e bebida enchem; barra vazia = −1 de vida por jogada ---------- */
 const FOME = (() => {
@@ -7323,7 +7353,9 @@ const COMBATE_AUTO = (() => {
   const HOSTIL = /\b(ataca\w*|avan[cç]a\w*|investe\w*|salta\w*|pula\w* sobre|emboscad\w*|golpeia\w*|morde\w*|mordem|rosna\w*|ruge\w*|partem? (?:para cima|pra cima|contra)|sacam?|desembainha\w*|dispara\w*|lan[cç]a\w*|cerca\w*|surgem?|saltam|atiram?|arremessa\w*|ataque)\b/;
   const NAO = /\b(ferid[oa]s?|mort[oa]s?|derrotad\w*|inconscient\w*|amarrad\w*|prisioneir\w*|rendid\w*|capturad\w*|gemi\w*|gemend\w*|cadaver\w*|corpos?|estatua\w*|lenda|conta(m|va|ram)?|dizem|boatos?|rumores?|mencion\w*|lembra\w*|ataques? a|nao ataca\w*|nao avanca\w*|nao investe\w*|sem atacar|recua\w*|foge\w*|fugiu|fugiram|pergunt\w*)\b/;
   const ALVO = /\b(voce|voces|seu|sua|seus|suas|te|o grupo|aventureir\w*|emboscad\w*)\b|\b(surgem?|avan[cç]am?|investem?|partem|cercam|saltam)\b/;
-  let fim = 0, ultimo = "", jogadorAtacou = false;
+  let fim = 0, ultimo = "", jogadorAtacou = false, armado = null, furtivo = false, furtN = 0, cenaAntes = "", textoJog = "";
+  const DESATENTO = /\b(dorm\w+|adormecid\w*|cochil\w+|ronca\w*|distra[ií]d\w*|desatent\w*|de costas|sem (?:te |lhe )?(?:ver|notar|perceber)|n[aã]o (?:te |lhe )?(?:viu|viram|notou|notaram|percebeu|perceberam|v[eê]|v[eê]em))\b/;
+  const GUARDA = /\b(guarda\w*|soldad\w*|sentinela\w*|vigia\w*)\b/;
   const padrao = nome => new RegExp("\\b" + norm(nome).split(/[\s-]+/).map(w => w + "(?:s|es|is)?").join("[\\s-]+") + "\\b");
   let _cats = null;
   const cats = () => _cats ||= CAT_MONSTROS.map(m => ({ m, re: padrao(m.nome) })).sort((a, b) => b.m.nome.length - a.m.nome.length);
@@ -7336,8 +7368,10 @@ const COMBATE_AUTO = (() => {
         marcada = marcada.slice(0, r.index) + " ".repeat(r[0].length) + marcada.slice(r.index + r[0].length);   // não conta "Lobo" dentro de "Lobo Atroz"
         if (NAO.test(n)) continue;
         const depois = n.slice(r.index), v = HOSTIL.exec(depois);
-        if (!relaxado && !(v && ALVO.test(n))) continue;
-        if (relaxado && !v && !/\b(reage|reagem|revida\w*|defende\w*|resiste\w*|rosna\w*)\b/.test(n)) continue;
+        if (relaxado !== "presente") {
+          if (!relaxado && !(v && ALVO.test(n))) continue;
+          if (relaxado && !v && !/\b(reage|reagem|revida\w*|defende\w*|resiste\w*|rosna\w*)\b/.test(n)) continue;
+        }
         const antes = n.slice(Math.max(0, r.index - 24), r.index).split(/\s+/).filter(Boolean);
         let q = r[0] !== norm(m.nome) ? 2 : 1;                             // forma no plural = 2 criaturas, salvo número explícito
         for (const w of antes.reverse()) { if (/^\d+$/.test(w)) { q = Math.min(5, +w); break; } if (NUM[w]) { q = NUM[w]; break; } }
@@ -7348,30 +7382,69 @@ const COMBATE_AUTO = (() => {
     for (const [nome, q] of achados) for (let k = 0; k < q && tot < 5; k++, tot++) lista.push(nome);
     return lista;
   }
+  const presentes = texto => achar(texto, "presente");        // criaturas do bestiário citadas na cena, hostis ou não
+  function armar(nomes) { if (nomes?.length) armado = { nomes, ate: Date.now() + 180000 }; }
+  function aposTeste({ pericia, motivo, sucesso }) {            // falhou ao se esconder ou fugir à vista de inimigos: o app abre o combate sem iniciativa
+    if (cb?.ativo || mc?.ativo || MESTRE_HUMANO) return "";
+    const pk = norm(pericia || ""), mk = norm(motivo || ""), furt = /furtiv/.test(pk) || /\b(esgueir\w*|furtiv\w*|despercebid\w*|esconde\w*|sorrateir\w*)\b/.test(mk),
+      fuga = /\b(fug\w+|escap\w+|correr|corro|recu\w+|afast\w+|despist\w+|debandar)\b/.test(mk);
+    if (!furt && !fuga) return "";
+    if (sucesso) { if (furt) { furtivo = true; furtN = 3; } return ""; }
+    furtivo = false; furtN = 0;
+    const nomes = presentes(ANCORA_CENA.ultima || ""); if (!nomes.length) return "";
+    armar(nomes);
+    return "O personagem FALHOU à vista dos inimigos: eles o notaram e partem para cima. Narre isso em 2 frases curtas, citando o NOME de cada criatura como no bestiário; o aplicativo abre o combate sozinho (inimigos agem primeiro, sem iniciativa). NÃO chame iniciar_combate.";
+  }
+  const ATAQUE = /\b(atac\w*|golpe\w*|invist\w*|ferir|matar|apunhal\w*|desembainh\w*|sac[ao]\w* (?:a |o |minha |meu )?(?:arma|espada|adaga)|partir? (?:pra|para) cima)\b/i, DIALOGO = /\b(falar|conversar|perguntar|negociar|persuadir|convencer|intimidar|enganar|blefar|barganhar|responder|cumprimentar|pedir|rendi\w*|interrogar|dialogar)\b/i;
+  function comAtacar(opcoes, texto) {                    // garante um "⚔ Atacar …" quando há alguém à vista para lutar ou conversar
+    if (!opcoes?.length || opcoes.some(o => ATAQUE.test(norm(o)))) return opcoes;
+    const nomes = presentes(texto), dial = opcoes.find(o => DIALOGO.test(norm(o))), fala = /[—“"«]/.test(texto) && /\b(diz|disse|pergunta\w*|responde\w*|fala|murmura|sussurra|grita|explica|rosna)\b/i.test(norm(texto));
+    if (!nomes.length && !dial && !fala) return opcoes;
+    let alvo = nomes[0] || ""; if (!alvo && dial) { const m = norm(dial).match(/\b(?:com|a|ao|à) (o |a |os |as )?([a-z][a-z' -]{2,24})/); alvo = m ? ((m[1] || "") + m[2]).trim().replace(/\s+(sobre|para|pra|e|que)\b.*$/, "") : ""; }
+    const op = "⚔ Atacar" + (alvo ? " " + alvo : " quem está à sua frente");
+    const l = opcoes.length >= 5 ? opcoes.slice(0, 4) : opcoes.slice(); l.push(op); return l;
+  }
+  function jogada() { if (furtivo && --furtN < 0) furtivo = false; }
   function verificar(texto) {
     const relaxado = jogadorAtacou; jogadorAtacou = false;
     if (!texto || texto.length < 20 || cb?.ativo || mc?.ativo || MESTRE_HUMANO || !ficha?.id || ficha.morto || ficha.vidaAtual <= 0) return false;
+    if (armado && Date.now() < armado.ate) {                              // falha de furtividade/fuga à vista: o combate abre de qualquer jeito
+      const l = presentes(texto), nomes = l.length ? l : armado.nomes; armado = null; ultimo = texto; furtivo = false;
+      iniciar(nomes, "inimigo"); return true;
+    }
+    armado = null;
     if (Date.now() - fim < 45000 || texto === ultimo) return false;       // logo após um combate a narração é do desfecho
-    const lista = achar(texto, relaxado); if (!lista.length) return false;
+    let lista = achar(texto, relaxado), humano = null;
+    if (!lista.length && relaxado) {                                      // atacou alguém que não é do bestiário (um NPC): usa a ficha de Bandido/Guarda com o nome dele
+      const m = norm(textoJog).match(/\b(?:atac\w+|golpe\w+|invist\w+|ataco)\s+(?:o |a |os |as |um |uma )?([a-z][a-z' -]{2,30})/), alvo = m ? m[1].trim().replace(/\s+(com|usando|na|no|pelas?|pelos?|e)\b.*$/, "") : "";
+      if (alvo && !/^(ar|chao|parede|porta|vento|nada|inimig\w*|criatura\w*)$/.test(alvo) && /\b(fala|dialog|conversa|diz|disse|pergunta|responde|resposta|olha|encara|observa|sorri|balcao|taverna|loja|mercador|dono|estalajad\w*|clerig\w*|padre|sacerdot\w*|npc|homem|mulher|senhor\w*|velh\w*|rapaz|garota|menin\w*)\b|"|—/.test(norm(cenaAntes) + " " + norm(texto)))
+        humano = { nome: alvo.replace(/\b\w/g, c => c.toUpperCase()).slice(0, 28), bestiario: GUARDA.test(norm(cenaAntes) + " " + alvo) ? "Guarda" : "Bandido" };
+    }
+    if (!lista.length && !humano) return false;
     ultimo = texto;
-    iniciar(lista); return true;
+    const surp = relaxado && (furtivo || DESATENTO.test(norm(cenaAntes))) ? "jogador" : "";      // atacou escondido ou um inimigo desatento: sem iniciativa, você age primeiro
+    iniciar(lista, surp, humano); return true;
   }
-  async function iniciar(nomes) {
+  async function iniciar(nomes, surpresa, humano) {
+    if (humano) nomes = [humano.nome];
     travarChat(true);
-    const xp = nomes.reduce((t, n) => t + (Number(catMonstro(n)?.xp) || 0), 0), cont = {}; nomes.forEach(n => cont[n] = (cont[n] || 0) + 1);
+    let xp0 = 0;
+    const xp = nomes.reduce((t, n) => t + (Number(catMonstro(n)?.xp) || 0), 0) || 0, cont = {}; nomes.forEach(n => cont[n] = (cont[n] || 0) + 1);
     const resumo = Object.entries(cont).map(([n, q]) => q > 1 ? `${q} ${n}` : n).join(", ");
     addMsg(`⚔ Combate! ${resumo}.`, "sistema");
-    const inimigos = nomes.map(n => ({ nome: n, rotulo: n, bestiario: n }));
-    let r; try { r = await executarCombate({ inimigos, ambiente: "", mapa: "" }); } catch (e) { console.warn(e); travarChat(false); return; }
+    const inimigos = humano ? [{ nome: humano.nome, rotulo: humano.nome, bestiario: humano.bestiario }] : nomes.map(n => ({ nome: n, rotulo: n, bestiario: n }));
+    if (humano) { const c = catMonstro(humano.bestiario); xp0 = Number(c?.xp) || 25; }
+    furtivo = false; furtN = 0;
+    let r; try { r = await executarCombate({ inimigos, ambiente: "", mapa: "", surpresa }); } catch (e) { console.warn(e); travarChat(false); return; }
     fim = Date.now();
     let nota = `[APLICATIVO: combate contra ${resumo} resolvido pelo app: ${r?.resultado || "encerrado"} em ${r?.rodadas ?? "?"} rodada(s); vida ${ficha.vidaAtual}/${ficha.vidaMaxima}.`;
-    if (r?.resultado === "vitoria") { try { await executarConcessaoXp({ quantidade: xp, motivo: `vitória contra ${resumo}`, tipo_resolucao: "combate" }); } catch (e) {} nota += " O XP já foi concedido pelo app: NÃO chame conceder_xp para esse combate."; }
+    if (r?.resultado === "vitoria") { try { await executarConcessaoXp({ quantidade: xp || xp0, motivo: `vitória contra ${resumo}`, tipo_resolucao: "combate" }); } catch (e) {} nota += " O XP já foi concedido pelo app: NÃO chame conceder_xp para esse combate."; }
     if (r?.saque_do_chao) nota += " O saque já foi resolvido pelo app: não invente outro.";
     nota += " Não chame iniciar_combate; narre o desfecho só se o jogador pedir ou na próxima cena.]";
     notasParaIA.push(nota);
     travarChat(false);
   }
-  return { verificar, achar, get jogadorAtacou() { return jogadorAtacou; }, set jogadorAtacou(v) { jogadorAtacou = v; }, fim: () => { fim = Date.now(); } };
+  return { verificar, achar, presentes, comAtacar, armar, aposTeste, jogada, DESATENTO, set cenaAntes(v) { cenaAntes = v || ""; }, set textoJog(v) { textoJog = v || ""; }, get furtivo() { return furtivo; }, get jogadorAtacou() { return jogadorAtacou; }, set jogadorAtacou(v) { jogadorAtacou = v; }, fim: () => { fim = Date.now(); } };
 })();
 $("cb-estilo").addEventListener("click", () => { CHIBI.alternar(); $("cb-estilo").textContent = CHIBI.ligado() ? "🎨 Estilo: desenho" : "🎨 Estilo: retrato"; try { if (cb?.mesa) renderMc(); else if (cb) renderCb(); } catch (e) {} });
 $("cb-comecar").addEventListener("click", async () => {
@@ -7991,7 +8064,7 @@ function modoJogador(alvo, desv) {                       // vantagem / desvantag
   return v && !d ? "vant" : d && !v ? "desv" : null;
 }
 const modoInimigo = e => HABIL.modoInimigo(modoInimigoBase(e));
-const modoInimigoBase = e => (efAtivos("desvIni").length || cb.esquiva || e.cond?.c === "debilitar" || e.desvProx) ? "desv" : (e.matilha && vivosCb().some(o => o !== e && o !== cb.ents[0] && distCb(o, cb.ents[0]) <= 1)) ? "vant" : null;
+const modoInimigoBase = e => (efAtivos("desvIni").length || cb.esquiva || e.cond?.c === "debilitar" || e.desvProx) ? "desv" : ((cb.surpresaIni && cb.rodada <= 1) || (cb.ents[0].caido && distCb(e, cb.ents[0]) <= 1) || (e.matilha && vivosCb().some(o => o !== e && o !== cb.ents[0] && distCb(o, cb.ents[0]) <= 1))) ? "vant" : null;
 const somaDados = (d, up, k) => { if (!up || k <= 0 || typeof up !== "string") return d; const a = String(d).match(/^(\d+)d(\d+)(.*)$/), b = String(up).match(/^(\d+)d(\d+)$/); if (!a || !b || a[2] !== b[2]) return d; return `${Number(a[1]) + Number(b[1]) * k}d${a[2]}${a[3]}`; };
 const escalaTruque = d => { const l = ficha.nivel || 1, n = l >= 17 ? 4 : l >= 11 ? 3 : l >= 5 ? 2 : 1; return String(d).replace(/^(\d+)d/, (m, q) => `${Number(q) * n}d`); };
 const alvosVivos = () => vivosCb().filter(e => e !== cb.ents[0]);
