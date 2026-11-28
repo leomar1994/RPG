@@ -289,6 +289,16 @@
   /* ---------- Mapa do local ---------- */
   .of-bloco { border: 1px solid var(--latao); border-radius: 10px; padding: 10px; margin: 8px 0; line-height: 1.5; }
 .of-bloco button { margin: 4px 4px 0 0; }
+#missoes-painel { position: fixed; right: 10px; top: 72px; z-index: 30; width: 240px; max-height: 60vh; overflow: auto; background: rgba(30,24,46,.96); border: 1px solid var(--latao, #c9a24a); border-radius: 12px; box-shadow: 0 6px 18px #0008; font-size: .85rem; }
+#missoes-painel[hidden] { display: none; }
+#missoes-painel .mp-t { width: 100%; background: none; border: 0; color: var(--latao, #c9a24a); font: inherit; font-weight: 700; padding: 8px 10px; text-align: left; cursor: pointer; display: flex; gap: 6px; align-items: center; }
+#missoes-painel .mp-t span { margin-left: auto; }
+#missoes-painel ol { list-style: none; margin: 0; padding: 0 8px 8px; display: grid; gap: 6px; }
+#missoes-painel li { background: #ffffff0d; border-radius: 8px; padding: 6px 8px; display: grid; gap: 1px; }
+#missoes-painel li small { color: #b9b0d0; }
+#missoes-painel li.atual { outline: 1px solid var(--latao, #c9a24a); background: #c9a24a22; }
+#missoes-painel li.feita { opacity: .55; text-decoration: line-through; }
+@media (max-width: 1100px) { #missoes-painel { top: 58px; width: 210px; opacity: .97; } #missoes-painel.min { width: auto; } }
 #mm-svg { overflow: auto; -webkit-overflow-scrolling: touch; }
 #mm-svg svg { width: 100%; height: auto; display: block; background: #15121f; border: 1px solid var(--latao); border-radius: 12px; }
 #mm-svg .no { cursor: pointer; }
@@ -1401,6 +1411,8 @@ function completarFicha(f) {   // preenche campos que personagens antigos não t
   f.fome = Number.isFinite(f.fome) ? Math.max(0, Math.min(100, f.fome)) : 100;   // 100 = saciado, 0 = faminto
   f.sede = Number.isFinite(f.sede) ? Math.max(0, Math.min(100, f.sede)) : 100;
   f.cochilos = f.cochilos && typeof f.cochilos.t === "string" ? { t: f.cochilos.t.slice(0, 80), n: Math.max(0, Math.min(2, Math.floor(f.cochilos.n) || 0)), exp: !!f.cochilos.exp } : null;   // cochilos grátis seguidos na mesma taverna
+  f.missoes = Array.isArray(f.missoes) ? f.missoes.filter(m => m && m.gid).slice(0, 12) : [];   // fila de missões do grupo
+  if (f.missoes.length && !f.missoes.some(m => !m.feita)) f.missoes = [];
   f.cantil = Number.isFinite(f.cantil) ? Math.max(0, Math.min(4, Math.floor(f.cantil))) : 4;   // goles de água no cantil
   f.retorno = f.retorno && f.retorno.id ? { id: String(f.retorno.id).slice(0, 60), nome: String(f.retorno.nome || "").slice(0, 60) } : null;
   return f;
@@ -1677,7 +1689,7 @@ const contextoGrupo = () =>
   `Multiplicador de dificuldade: ${multiplicadorDificuldade()}x (aplique apenas ao número de inimigos e ao dano). ` +
   `Teto de XP total do grupo: ${tetoXp()} por combate, enigma ou missão; ${tetoXp("narrativa")} por saída narrativa. O aplicativo divide o XP entre os jogadores. ` +
   `Vida atual: ${ficha.vidaAtual}/${ficha.vidaMaxima}.` +
-  (ficha.missao ? ` MISSÃO ATIVA${ficha.missao.grupo ? " DO GRUPO (única, vale para todos os jogadores)" : ""} (aceita no quadro de missões da vila): "${ficha.missao.titulo}" — ${ficha.missao.desc} Recompensa: ${ficha.missao.xp} XP e ${po(ficha.missao.ouro)}; ao concluir, chame conceder_xp com tipo_resolucao "missao" (o app paga a recompensa combinada).` : "") +
+  (ficha.missao ? ` MISSÃO ATIVA${ficha.missao.grupo ? " DO GRUPO (a atual da fila; todos os jogadores cumprem a mesma, na ordem da fila)" : ""} (aceita no quadro de missões da vila): "${ficha.missao.titulo}" — ${ficha.missao.desc} Recompensa: ${ficha.missao.xp} XP e ${po(ficha.missao.ouro)}; ao concluir, chame conceder_xp com tipo_resolucao "missao" (o app paga a recompensa combinada).` : "") +
   `\nBESTIÁRIO (campo bestiario de iniciar_combate; escolha criaturas coerentes com o local e o nível, e monte grupos usando a SINERGIA: quem costuma andar junto): ${CAT_MONSTROS.map(m => `${m.nome} [${m.encontros}; ${String(m.habitat).split(",")[0]}; sinergia: ${String(m.sinergia).replace(/\.$/, "").slice(0, 70)}]`).join("; ")}. Para o nível do grupo, prefira criaturas de ND até o nível do personagem +1; chefes podem ter ND maior com capangas.` +
   (todosMapas().length ? `\nMAPAS DE COMBATE (use o id no campo mapa de iniciar_combate, escolhendo o que combina com o cenário): ${todosMapas().map(m => `${m.id}=${m.desc || m.nome}${CENAS[m.id] ? " [" + String(CENAS[m.id].enc).split(":")[0].slice(0, 40) + "]" : ""}`).join("; ")}. RETRATOS DE CRIATURAS (campo retrato, opcional): ${RETRATOS.map(r => `${r.id}=${r.desc}`).join("; ")}.` : "") +
   ((ficha.mapasLocais || []).length ? `\nMAPAS DO JOGADOR: ${ficha.mapasLocais.map(m => `${m.nome} [${m.lugares.map(l => l.nome).join(", ")}]`).join("; ")}.` : "") +
@@ -4839,7 +4851,7 @@ async function executarConcessaoXp({ quantidade, motivo, tipo_resolucao }) {
   let pedido = Math.max(0, Math.round(Number(quantidade)) || 0);   // protege contra valores inválidos
   const tipo = tipo_resolucao || "combate";
   const mis = tipo === "missao" && ficha.missao ? ficha.missao : null;   // missão da taverna: vale a recompensa combinada
-  if (mis) { pedido = mis.xp * GRUPO.jogadores; ficha.missao = null; try { ECO.darOuro(mis.ouro); } catch (e) {} addMsg(`📜 Missão concluída: ${mis.titulo}! Recompensa: ${mis.xp} XP e ${po(mis.ouro)}.`, "sistema"); motivo = motivo || "concluir a missão"; }
+  if (mis) { pedido = mis.xp * GRUPO.jogadores; ficha.missao = null; try { ECO.darOuro(mis.ouro); } catch (e) {} addMsg(`📜 Missão concluída: ${mis.titulo}! Recompensa: ${mis.xp} XP e ${po(mis.ouro)}.`, "sistema"); motivo = motivo || "concluir a missão"; try { MISSAO_GRUPO.aoConcluir(mis); } catch (e) {} }
   const teto = tetoXp(tipo);                                             // teto calculado ANTES de subir de nível
   const xpGrupo = Math.min(pedido, teto);                            // corta qualquer excesso (XP total do grupo)
   const xp = Math.round(xpGrupo / GRUPO.jogadores);                  // parte deste jogador
@@ -6586,7 +6598,7 @@ const CARDAPIO = [
 function estalagemHtml(nome, aviso = "") {
   const ouro = ECO.ouro(), semQuarto = ouro < PRECO.quarto, m = ficha.missao;
   const cura = c => `${c[0]}d${c[1]}${c[2] ? "+" + c[2] : ""}`;
-  const quadro = m ? `<div class="fx-item"><div><b>📜 ${esc(m.titulo)}</b> <span class="eq-tag">${m.grupo ? "missão do grupo" : "em andamento"}</span><br><small>${esc(m.desc)}<br>Recompensa${m.grupo ? " para cada um" : ""}: <b>${m.xp} XP</b> e <b>${po(m.ouro)}</b> · dificuldade ${m.dific}${m.grupo ? `<br>Aceita por ${esc(m.por || "um aliado")}. Vale para todos do grupo.` : ""}</small></div><div class="fx-itbtn"><button data-tav="desistir" title="${m.grupo ? "Desiste para o grupo todo" : ""}">${m.grupo ? "Desistir (grupo)" : "Desistir"}</button></div></div>`
+  const quadro = MISSAO_GRUPO.ativo() ? MISSAO_GRUPO.quadro((estalagemAtual === nome && TAV_OFERTA) || (TAV_OFERTA = novaMissaoTaverna()), "aceitar", "outra", "desistir") : m ? `<div class="fx-item"><div><b>📜 ${esc(m.titulo)}</b> <span class="eq-tag">${m.grupo ? "missão do grupo" : "em andamento"}</span><br><small>${esc(m.desc)}<br>Recompensa${m.grupo ? " para cada um" : ""}: <b>${m.xp} XP</b> e <b>${po(m.ouro)}</b> · dificuldade ${m.dific}${m.grupo ? `<br>Aceita por ${esc(m.por || "um aliado")}. Vale para todos do grupo.` : ""}</small></div><div class="fx-itbtn"><button data-tav="desistir" title="${m.grupo ? "Desiste para o grupo todo" : ""}">${m.grupo ? "Desistir (grupo)" : "Desistir"}</button></div></div>`
     : (() => { const p = (estalagemAtual === nome && TAV_OFERTA) || (TAV_OFERTA = novaMissaoTaverna()); return `<div class="fx-item"><div><b>📜 ${esc(p.titulo)}</b><br><small>${esc(p.desc)}<br>Recompensa: <b>${p.xp} XP</b> e <b>${po(p.ouro)}</b> · dificuldade ${p.dific}</small></div><div class="fx-itbtn"><button data-tav="aceitar">${MISSAO_GRUPO.ativo() ? "Aceitar (vale p/ o grupo)" : "Aceitar"}</button><button data-tav="outra" title="Pedir outro serviço">🔄 Outra</button></div></div>`; })();
   return `<div class="caixa-rg"><div class="rg-cab">${RETRATO_NPC.tag("taverneiro")}<h2>🍺 ${esc(nome)}</h2></div><div class="fx-tracos">Cheiro de ensopado e lenha. Você tem <b>${po(ouro)}</b> · vida <b>${ficha.vidaAtual}/${ficha.vidaMaxima}</b>.</div>
     ${aviso ? `<div class="fx-tracos"><b>${aviso}</b></div>` : ""}
@@ -6607,40 +6619,90 @@ const XP_ENCONTRO = [[50, 75, 100], [100, 150, 200], [150, 225, 400], [250, 375,
 const INIMIGOS_TIER = [["goblins", "lobos", "kobolds", "bandidos de estrada", "ratos gigantes", "esqueletos", "cultistas"], ["orcs", "gnolls", "um ogro", "carniçais", "hobgoblins", "aranhas gigantes", "mercenários renegados"],
   ["trolls", "uma mantícora", "um vampiro menor", "gigantes das colinas", "um basilisco", "uma bruxa da névoa"], ["um dragão jovem", "um lich menor", "gigantes de fogo", "um beholder", "uma horda de demônios"]];
 let TAV_OFERTA = null;
-/* Missão de GRUPO: em sala com 2+ jogadores (Mestre IA), a missão aceita por um vale para todos (mesma missão, mesma recompensa), sem conflito entre pedidos. */
+/* Missões de GRUPO: em sala com 2+ jogadores (Mestre IA) cada jogador escolhe UMA missão no quadro; todas entram numa FILA compartilhada (lista lateral para todos).
+   O grupo cumpre uma por vez, na ordem em que foram escolhidas, até o fim da jornada. A "atual" fica em ficha.missao (o app paga a de cada jogador ao concluir). */
 const MISSAO_GRUPO = (() => {
   const vistos = new Set();
   const ativo = () => !MESTRE_HUMANO && !!ficha?.id && (GRUPO.jogadores > 1 || (Rede.estado?.online && Rede.estado.total > 1));
-  const txt = m => `${m.titulo}. Recompensa para cada um: ${m.xp} XP e ${po(m.ouro)}`;
-  function aceitar(m, de) {                                 // devolve a missão já marcada como do grupo (e avisa os outros jogadores)
-    if (ficha.missao?.grupo) return ficha.missao;           // o grupo já tem missão: ninguém cria outra por cima
-    const mis = { ...m, de, quando: Date.now(), grupo: true, gid: "g" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), por: ficha.nome };
-    try { sala.postMessage({ tipo: "missao-grupo", m: mis, por: ficha.nome }); } catch (e) {}
+  const lista = () => (ficha.missoes = Array.isArray(ficha.missoes) ? ficha.missoes : []);
+  const ordena = () => lista().sort((a, b) => (a.quando - b.quando) || (a.gid < b.gid ? -1 : a.gid > b.gid ? 1 : 0));
+  const atual = () => lista().find(m => !m.feita) || null;
+  const minha = () => lista().find(m => !m.feita && m.pid === ficha.id) || null;
+  const env = d => { try { sala.postMessage(d); } catch (e) {} };
+  function sinc() {                                          // a missão "atual" da ficha é sempre a primeira pendente da fila
+    ordena(); const a = atual(); ficha.missao = a ? { ...a } : null;
+    try { salvarPersonagem(); } catch (e) {} painel();
+  }
+  const pos = m => lista().filter(x => !x.feita).indexOf(m) + 1;
+  const notaFila = () => { const a = atual(), f = lista().filter(x => !x.feita); return a ? `[APLICATIVO: FILA DE MISSÕES DO GRUPO (cumprir na ordem): ${f.map((m, i) => `${i + 1}) "${m.titulo}" (pedida por ${m.por})`).join("; ")}. ATUAL: "${a.titulo}": ${a.desc} Onde: ${a.onde}. Inimigos: ${a.inimigos}. Ao cumprir a ATUAL, chame conceder_xp com tipo_resolucao "missao" UMA vez; o app paga a recompensa de cada jogador e passa para a próxima. Conduza a história para a atual e depois, naturalmente, para as seguintes, até o fim da jornada.]` : ""; };
+  function adicionar(mis, quem) {                            // true se é nova
+    if (lista().some(x => x.gid === mis.gid)) return false;
+    lista().push({ ...mis, feita: false }); sinc();
+    if (quem) { addMsg(`📜 ${quem} escolheu a missão “${mis.titulo}” (${mis.xp} XP e ${po(mis.ouro)} para cada um). Posição ${pos(lista().find(x => x.gid === mis.gid))} na fila do grupo.`, "sistema"); notasParaIA.push(notaFila()); }
+    return true;
+  }
+  function aceitar(m, de) {                                  // este jogador entra com a sua missão na fila
+    const mis = { ...m, de, quando: Date.now(), grupo: true, gid: "g" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), por: ficha.nome, pid: ficha.id, feita: false };
+    adicionar(mis, ""); env({ tipo: "missoes-add", m: mis, por: ficha.nome });
     return mis;
   }
-  function desistir() { const g = ficha.missao?.gid; if (g) try { sala.postMessage({ tipo: "missao-grupo-fim", gid: g, por: ficha.nome }); } catch (e) {} }
+  function aceitarNaMesa(m, nome) {                          // chamado pelos quadros (taverna, templo, estábulo)
+    const mis = aceitar(m, nome);
+    addMsg(`📜 Você escolheu a missão “${m.titulo}”: ela entra na fila do grupo (posição ${pos(lista().find(x => x.gid === mis.gid))}). Recompensa para cada um: ${m.xp} XP e ${po(m.ouro)}.`, "sistema");
+    const nota = `[APLICATIVO: ${ficha.nome} escolheu em ${nome} a missão "${m.titulo}" (${m.dific}): ${m.desc} Ela entra na FILA do grupo; os outros jogadores também escolhem a sua. Faça o NPC confirmar o pedido em 1 ou 2 frases curtas, sem partir ainda.] ${notaFila()}`;
+    if ($("entrada").disabled) notasParaIA.push(nota); else enviarJogador(`Aceito a missão: ${m.titulo}.`, { forcarIA: true, ia: nota });
+  }
+  function desistir() {                                      // desiste da missão ATUAL para o grupo todo
+    const a = atual(); if (!a) return;
+    env({ tipo: "missoes-rm", gid: a.gid, por: ficha.nome }); remover(a.gid, "");
+  }
+  function remover(gid, quem) {
+    const k = lista().findIndex(x => x.gid === gid); if (k < 0) return; const m = lista()[k]; lista().splice(k, 1); sinc();
+    if (quem) addMsg(`📜 ${quem} desistiu da missão do grupo “${m.titulo}”. Ela saiu da fila.`, "sistema");
+    notasParaIA.push(`[APLICATIVO: a missão "${m.titulo}" saiu da fila do grupo (desistência). ${atual() ? notaFila() : "Não há mais missões na fila."}]`);
+  }
+  function aoConcluir(mis) {                                 // chamado pela concessão de XP de missão
+    if (!mis?.gid) return;
+    const m = lista().find(x => x.gid === mis.gid); if (m) m.feita = true;
+    const prox = lista().find(x => !x.feita);
+    if (prox) { sinc(); addMsg(`➡ Próxima missão do grupo: “${prox.titulo}” (${prox.onde}).`, "sistema"); notasParaIA.push(notaFila()); }
+    else { ficha.missoes = []; ficha.missao = null; try { salvarPersonagem(); } catch (e) {} painel(); addMsg("🏁 Todas as missões do grupo foram cumpridas: fim da jornada!", "sistema"); notasParaIA.push(`[APLICATIVO: o grupo cumpriu TODAS as missões da fila. Narre o desfecho e o epílogo da jornada do grupo.]`); }
+  }
   function msg(m) {
     if (!ficha?.id || MESTRE_HUMANO) return;
-    if (m.tipo === "missao-grupo" && m.m?.gid) {
-      if (ficha.missao?.gid === m.m.gid) return;
-      if (ficha.missao?.grupo && ficha.missao.gid < m.m.gid) return;     // duas aceitas quase juntas: vale a mais antiga, em todas as telas (ninguém troca de missão com o outro)
-      const trocou = ficha.missao && !ficha.missao.grupo;
-      ficha.missao = { ...m.m }; try { salvarPersonagem(); } catch (e) {}
-      addMsg(`📜 ${m.por || "Um aliado"} aceitou a missão do grupo: ${txt(ficha.missao)}.${trocou ? " (Ela substitui a missão que você tinha.)" : ""}`, "sistema");
-      notasParaIA.push(`[APLICATIVO: o grupo aceitou a missão "${ficha.missao.titulo}" (${ficha.missao.dific}): ${ficha.missao.desc} Onde: ${ficha.missao.onde}. Inimigos: ${ficha.missao.inimigos}. É UMA missão para TODOS os jogadores; quando for cumprida, chame conceder_xp com tipo_resolucao "missao" uma única vez.]`);
-      try { if (!$("regras-dlg")?.open) mostrarFicha?.(); } catch (e) {}
-    } else if (m.tipo === "missao-grupo-fim" && ficha.missao?.gid === m.gid) {
-      addMsg(`📜 ${m.por || "Um aliado"} desistiu da missão do grupo “${ficha.missao.titulo}”. Ela não vale mais recompensa.`, "sistema");
-      notasParaIA.push(`[APLICATIVO: o grupo desistiu da missão "${ficha.missao.titulo}". Ela não vale mais recompensa.]`);
-      ficha.missao = null; try { salvarPersonagem(); } catch (e) {}
-    }
+    if (m.tipo === "missoes-add" && m.m?.gid) adicionar(m.m, m.por || "Um aliado");
+    else if (m.tipo === "missoes-lista" && Array.isArray(m.lista)) {                       // quem chega depois recebe a fila toda
+      let novos = 0; for (const x of m.lista.slice(0, 12)) { if (!x?.gid) continue; const mine = lista().find(y => y.gid === x.gid); if (!mine) { lista().push({ ...x }); novos++; } else if (x.feita) mine.feita = true; }
+      if (novos) { sinc(); addMsg("📜 Você recebeu a fila de missões do grupo.", "sistema"); notasParaIA.push(notaFila()); }
+    } else if (m.tipo === "missoes-rm") remover(m.gid, m.por || "Um aliado");
   }
-  function aoChegar(m) {                                    // quem entra na sala depois recebe a missão do grupo em andamento
-    if (!ficha?.missao?.grupo || !m?.id || m.id === ficha.id || m.papel !== "jogador") return;
-    const k = ficha.missao.gid + m.id; if (vistos.has(k)) return; vistos.add(k);
-    try { sala.postMessage({ tipo: "missao-grupo", m: ficha.missao, por: ficha.missao.por || ficha.nome }); } catch (e) {}
+  function aoChegar(m) {                                     // jogador novo na sala: manda a fila em andamento
+    if (!lista().length || !m?.id || m.id === ficha.id || m.papel !== "jogador") return;
+    const k = m.id + lista().length; if (vistos.has(k)) return; vistos.add(k);
+    env({ tipo: "missoes-lista", lista: lista() });
   }
-  return { ativo, aceitar, desistir, msg, aoChegar };
+  function quadro(p, bAceitar, bOutra, bDesistir) {          // HTML do quadro de missões quando há grupo
+    const L = lista(), a = atual(), min = minha();
+    const fila = L.length ? `<div class="fx-item"><div><b>📜 Fila de missões do grupo</b><br><small>${L.map((m, i) => `${m.feita ? "✔" : m === a ? "▶" : "○"} ${i + 1}. ${esc(m.titulo)} — ${esc(m.por || "?")}`).join("<br>")}</small></div>${a ? `<div class="fx-itbtn"><button data-tav="${bDesistir}" title="Tira a missão atual da fila, para o grupo todo">Desistir da atual</button></div>` : ""}</div>` : "";
+    const oferta = min ? `<div class="fx-tracos">Você já escolheu «${esc(min.titulo)}». Cada jogador escolhe uma; o grupo cumpre a fila na ordem, até o fim da jornada.</div>`
+      : `<div class="fx-item"><div><b>📜 ${esc(p.titulo)}</b>${p.nivel ? ` <small>(nível ${p.nivel})</small>` : ""}<br><small>${esc(p.desc)}<br>Recompensa para cada um: <b>${p.xp} XP</b> e <b>${po(p.ouro)}</b> · dificuldade ${p.dific}</small></div><div class="fx-itbtn"><button data-tav="${bAceitar}">Escolher (entra na fila)</button><button data-tav="${bOutra}">🔄 Outra</button></div></div>`;
+    return fila + oferta;
+  }
+  let aberto = true;
+  function painel() {                                        // lista lateral de missões (todos veem)
+    try {
+      let el = document.getElementById("missoes-painel");
+      if (!el) { el = document.createElement("aside"); el.id = "missoes-painel"; el.addEventListener("click", e => { if (e.target.closest("[data-mp-t]")) { aberto = !aberto; painel(); } }); document.body.appendChild(el); }
+      const L = lista().length ? lista() : (ficha?.missao ? [{ ...ficha.missao, solo: true }] : []), vis = !!document.getElementById("chat")?.offsetParent && !!ficha?.id && L.length > 0;
+      el.hidden = !vis; if (!vis) return;
+      const a = L.find(m => !m.feita), feitas = L.filter(m => m.feita).length;
+      el.className = aberto ? "" : "min";
+      el.innerHTML = `<button type="button" data-mp-t class="mp-t">📜 ${L[0].solo ? "Missão" : "Missões do grupo"} <small>${L[0].solo ? "" : feitas + "/" + L.length}</small> <span>${aberto ? "▾" : "▸"}</span></button>` +
+        (aberto ? `<ol>${L.map(m => `<li class="${m.feita ? "feita" : m === a ? "atual" : ""}"><b>${m.feita ? "✔" : m === a ? "▶" : "○"} ${esc(m.titulo)}</b><small>${m.onde ? esc(m.onde) + " · " : ""}${m.solo ? "" : esc(m.por || "") + " · "}${m.xp} XP</small></li>`).join("")}</ol>` : "");
+    } catch (e) {}
+  }
+  setInterval(painel, 2500);
+  return { ativo, aceitar, aceitarNaMesa, desistir, msg, aoChegar, aoConcluir, quadro, minha, painel, atual };
 })();
 function novaMissaoTaverna(tipo = "taverna") {
   const n = Math.min(20, Math.max(1, ficha.nivel || 1)), tier = n <= 4 ? 0 : n <= 10 ? 1 : n <= 16 ? 2 : 3, sorte = a => a[Math.floor(Math.random() * a.length)];
@@ -6673,7 +6735,7 @@ let SV = { nome: "", tipo: "", oferta: null };
 const SV_INFO = { igreja: { ic: "✝", txt: "O sacerdote acena em meio ao cheiro de incenso e cera.", quem: "O sacerdote", quadro: "Pedidos ao templo" }, estabulo: { ic: `<svg viewBox="0 0 32 32" width="1.1em" height="1.1em" style="vertical-align:-.15em" aria-hidden="true">${ICONE_LUGAR_SVG.ferradura}</svg>`, txt: "O tratador escova um cavalo entre fardos de feno.", quem: "O tratador", quadro: "Serviços do estábulo" } };
 function servicoHtml(aviso = "") {
   const inf = SV_INFO[SV.tipo], m = ficha.missao;
-  const q = m ? `<div class="fx-item"><div><b>📜 ${esc(m.titulo)}</b> <span class="eq-tag">${m.grupo ? "missão do grupo" : "em andamento"}</span><br><small>${esc(m.desc)}<br>Recompensa${m.grupo ? " para cada um" : ""}: <b>${m.xp} XP</b> e <b>${po(m.ouro)}</b> · dificuldade ${m.dific}${m.grupo ? `<br>Aceita por ${esc(m.por || "um aliado")}. Vale para todos do grupo.` : ""}</small></div><div class="fx-itbtn"><button data-tav="sv-desistir">${m.grupo ? "Desistir (grupo)" : "Desistir"}</button></div></div>`
+  const q = MISSAO_GRUPO.ativo() ? MISSAO_GRUPO.quadro(SV.oferta || (SV.oferta = novaMissaoTaverna(SV.tipo)), "sv-aceitar", "sv-outra", "sv-desistir") : m ? `<div class="fx-item"><div><b>📜 ${esc(m.titulo)}</b> <span class="eq-tag">${m.grupo ? "missão do grupo" : "em andamento"}</span><br><small>${esc(m.desc)}<br>Recompensa${m.grupo ? " para cada um" : ""}: <b>${m.xp} XP</b> e <b>${po(m.ouro)}</b> · dificuldade ${m.dific}${m.grupo ? `<br>Aceita por ${esc(m.por || "um aliado")}. Vale para todos do grupo.` : ""}</small></div><div class="fx-itbtn"><button data-tav="sv-desistir">${m.grupo ? "Desistir (grupo)" : "Desistir"}</button></div></div>`
     : (() => { const p = SV.oferta || (SV.oferta = novaMissaoTaverna(SV.tipo)); return `<div class="fx-item"><div><b>📜 ${esc(p.titulo)}</b> <small>(nível ${p.nivel})</small><br><small>${esc(p.desc)}<br>Recompensa: <b>${p.xp} XP</b> e <b>${po(p.ouro)}</b> · dificuldade ${p.dific}</small></div><div class="fx-itbtn"><button data-tav="sv-aceitar">${MISSAO_GRUPO.ativo() ? "Aceitar (vale p/ o grupo)" : "Aceitar"}</button><button data-tav="sv-outra">🔄 Outra</button></div></div>`; })();
   return `<div class="caixa-rg"><div class="rg-cab">${SV.tipo === "igreja" ? RETRATO_NPC.tag("sacerdote") : ""}<h2>${inf.ic} ${esc(SV.nome)}</h2></div><div class="fx-tracos">${inf.txt} Vida <b>${ficha.vidaAtual}/${ficha.vidaMaxima}</b>.</div>${aviso ? `<div class="fx-tracos"><b>${aviso}</b></div>` : ""}
     <h3>${inf.quadro}</h3><div class="fx-tracos">A recompensa é paga ao concluir. Serviços adequados ao seu nível (${ficha.nivel}).</div><div class="fx-itens">${q}</div><button class="acao" data-tav="sv-sair">Sair</button></div>`;
@@ -6683,12 +6745,14 @@ function acaoServico(a) {
   const inf = SV_INFO[SV.tipo], nome = SV.nome;
   if (a === "sv-sair") { fecharRegras(); notasParaIA.push(`[APLICATIVO: o personagem saiu de ${nome}.]`); return; }
   if (a === "sv-outra") { SV.oferta = novaMissaoTaverna(SV.tipo); return abrirRegras(servicoHtml(`${inf.quem} lembra de outro pedido.`)); }
-  if (a === "sv-desistir") { if (ficha.missao) { MISSAO_GRUPO.desistir(); addMsg(`📜 Você desistiu da missão “${ficha.missao.titulo}”.`, "sistema"); notasParaIA.push(`[APLICATIVO: o personagem desistiu da missão "${ficha.missao.titulo}". Ela não vale mais recompensa.]`); ficha.missao = null; try { salvarPersonagem(); } catch (e) {} } return abrirRegras(servicoHtml()); }
+  if (a === "sv-desistir" && MISSAO_GRUPO.ativo()) { MISSAO_GRUPO.desistir(); return abrirRegras(servicoHtml()); }
+  if (a === "sv-desistir") { if (ficha.missao) { addMsg(`📜 Você desistiu da missão “${ficha.missao.titulo}”.`, "sistema"); notasParaIA.push(`[APLICATIVO: o personagem desistiu da missão "${ficha.missao.titulo}". Ela não vale mais recompensa.]`); ficha.missao = null; try { salvarPersonagem(); } catch (e) {} } return abrirRegras(servicoHtml()); }
   if (a === "sv-aceitar") {
     const m = SV.oferta || novaMissaoTaverna(SV.tipo); SV.oferta = null;
-    ficha.missao = MISSAO_GRUPO.ativo() ? MISSAO_GRUPO.aceitar(m, nome) : { ...m, de: nome, quando: Date.now() }; try { salvarPersonagem(); } catch (e) {}
+    if (MISSAO_GRUPO.ativo()) { if (MISSAO_GRUPO.minha()) return abrirRegras(servicoHtml("Você já escolheu a sua missão.")); fecharRegras(); return MISSAO_GRUPO.aceitarNaMesa(m, nome); }
+    ficha.missao = { ...m, de: nome, quando: Date.now() }; try { salvarPersonagem(); } catch (e) {}
     fecharRegras();
-    addMsg(`📜 Missão ${ficha.missao.grupo ? "do grupo " : ""}aceita: ${m.titulo}. Recompensa${ficha.missao.grupo ? " para cada um" : ""}: ${m.xp} XP e ${po(m.ouro)} ao concluir.`, "sistema");
+    addMsg(`📜 Missão aceita: ${m.titulo}. Recompensa: ${m.xp} XP e ${po(m.ouro)} ao concluir.`, "sistema");
     const nota = `[APLICATIVO: o personagem aceitou em ${nome} (${inf.quem.toLowerCase()}) a missão "${m.titulo}" (${m.dific}, nível ${m.nivel}): ${m.desc} Onde: ${m.onde}. Inimigos: ${m.inimigos}. Recompensa combinada: ${m.xp} XP e ${po(m.ouro)}, pagos pelo app quando você chamar conceder_xp com tipo_resolucao "missao". Faça ${inf.quem.toLowerCase()} explicar o pedido em 2 ou 3 frases e dê as opções para partir.]`;
     if ($("entrada").disabled) { notasParaIA.push(nota); return; }
     enviarJogador(`Aceito o pedido: ${m.titulo}.`, { forcarIA: true, ia: nota });
@@ -6732,12 +6796,14 @@ function acaoEstalagem(a) {
     return abrirRegras(estalagemHtml(nome, cura > 0 ? `+${cura} de vida.` : "Você já estava inteiro, mas aproveitou."));
   }
   if (a === "outra") { TAV_OFERTA = novaMissaoTaverna(); return abrirRegras(estalagemHtml(nome, "O taverneiro coça a barba e lembra de outro serviço.")); }
-  if (a === "desistir") { if (ficha.missao) { MISSAO_GRUPO.desistir(); addMsg(`📜 Você desistiu da missão “${ficha.missao.titulo}”.`, "sistema"); notasParaIA.push(`[APLICATIVO: o personagem desistiu da missão "${ficha.missao.titulo}". Ela não vale mais recompensa.]`); ficha.missao = null; try { salvarPersonagem(); } catch (e) {} } return abrirRegras(estalagemHtml(nome)); }
+  if (a === "desistir" && MISSAO_GRUPO.ativo()) { MISSAO_GRUPO.desistir(); return abrirRegras(estalagemHtml(nome, "Você tirou a missão atual da fila do grupo.")); }
+  if (a === "desistir") { if (ficha.missao) { addMsg(`📜 Você desistiu da missão “${ficha.missao.titulo}”.`, "sistema"); notasParaIA.push(`[APLICATIVO: o personagem desistiu da missão "${ficha.missao.titulo}". Ela não vale mais recompensa.]`); ficha.missao = null; try { salvarPersonagem(); } catch (e) {} } return abrirRegras(estalagemHtml(nome)); }
   if (a === "aceitar") {
     const m = TAV_OFERTA || novaMissaoTaverna(); TAV_OFERTA = null;
-    ficha.missao = MISSAO_GRUPO.ativo() ? MISSAO_GRUPO.aceitar(m, nome) : { ...m, de: nome, quando: Date.now() }; try { salvarPersonagem(); } catch (e) {}
+    if (MISSAO_GRUPO.ativo()) { if (MISSAO_GRUPO.minha()) return abrirRegras(estalagemHtml(nome, "Você já escolheu a sua missão.")); fecharRegras(); return MISSAO_GRUPO.aceitarNaMesa(m, nome); }
+    ficha.missao = { ...m, de: nome, quando: Date.now() }; try { salvarPersonagem(); } catch (e) {}
     fecharRegras();
-    addMsg(`📜 Missão ${ficha.missao.grupo ? "do grupo " : ""}aceita: ${m.titulo}. Recompensa${ficha.missao.grupo ? " para cada um" : ""}: ${m.xp} XP e ${po(m.ouro)} ao concluir.`, "sistema");
+    addMsg(`📜 Missão aceita: ${m.titulo}. Recompensa: ${m.xp} XP e ${po(m.ouro)} ao concluir.`, "sistema");
     if ($("entrada").disabled) { notasParaIA.push(`[APLICATIVO: o personagem aceitou a missão "${m.titulo}" na ${nome}: ${m.desc} Recompensa: ${m.xp} XP e ${po(m.ouro)}.]`); return; }
     enviarJogador(`Aceito a missão do taverneiro: ${m.titulo}.`, { forcarIA: true, ia: `[APLICATIVO: o personagem aceitou na ${nome} a missão "${m.titulo}" (${m.dific}): ${m.desc} Onde: ${m.onde}. Inimigos: ${m.inimigos}. Recompensa combinada: ${m.xp} XP e ${po(m.ouro)}, pagos pelo app quando você chamar conceder_xp com tipo_resolucao "missao". Faça o taverneiro explicar o serviço em 2 ou 3 frases e dê as opções para partir.]` });
     return;
@@ -9259,7 +9325,7 @@ function atualizarSala() {
 sala.onmessage = ev => {
   const m = ev.data;
   if (typeof m?.tipo === "string" && m.tipo.startsWith("rd-")) { RODADA.msg(m); return; }
-  if (m?.tipo === "missao-grupo" || m?.tipo === "missao-grupo-fim") { MISSAO_GRUPO.msg(m); return; }
+  if (typeof m?.tipo === "string" && m.tipo.startsWith("missoes-")) { MISSAO_GRUPO.msg(m); return; }
   if (m.tipo === "quem") {
     if (salaAtiva) sala.postMessage(perfilJogador());
     if (mestreProntoLocal) sala.postMessage({ tipo: "presenca", id: "mestre", papel: "mestre", nome: "Mestre" });
